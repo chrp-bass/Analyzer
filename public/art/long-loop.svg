@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <radialGradient id="g" cx="0.5" cy="0.5" r="0.7">
+      <stop offset="0" stop-color="#E8B98A"/>
+      <stop offset="1" stop-color="#9A6440"/>
+    </radialGradient>
+    <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="1.5" numOctaves="2"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.18 0"/></filter>
+  </defs>
+  <rect width="600" height="600" fill="url(#g)"/>
+  <g stroke="#F1ECE2" stroke-width="1" fill="none" opacity="0.7">
+    <circle cx="300" cy="300" r="80"/>
+    <circle cx="300" cy="300" r="130"/>
+    <circle cx="300" cy="300" r="180"/>
+    <circle cx="300" cy="300" r="230"/>
+  </g>
+  <text x="60" y="540" font-family="Georgia, serif" font-style="italic" font-size="40" fill="#141210">Long Loop</text>
+  <text x="60" y="76" font-family="monospace" font-size="13" fill="#141210" letter-spacing="3">EZRA KANE // RECHARGE</text>
+  <rect width="600" height="600" filter="url(#n)"/>
+</svg>
