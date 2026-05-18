@@ -1,45 +1,34 @@
 import type { Metadata } from "next";
-import { Fraunces, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Cormorant_Garamond, Lato } from "next/font/google";
 import "./globals.css";
-import { PaperGrain } from "@/components/PaperGrain";
 
-const fraunces = Fraunces({
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
-  variable: "--font-fraunces",
-  display: "swap",
-  axes: ["opsz"],
-});
-
-const grotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-grotesk",
+  variable: "--font-cormorant",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const lato = Lato({
   subsets: ["latin"],
-  variable: "--font-jetbrains",
+  variable: "--font-lato",
+  weight: ["400", "700", "900"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "CHRP // Sync Intelligence",
+  title: "CHRP // Emotional Intelligence",
   description:
-    "Your music has a signature. Here's the page you can hand to a supervisor.",
+    "The objective commercial-creative feedback layer for working musicians.",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${fraunces.variable} ${grotesk.variable} ${jetbrains.variable}`}
-    >
-      <body className="antialiased min-h-screen">
-        <PaperGrain />
-        <div className="relative z-10">{children}</div>
-      </body>
+    <html lang="en" className={`${cormorant.variable} ${lato.variable}`}>
+      <body className="antialiased min-h-screen">{children}</body>
     </html>
   );
 }

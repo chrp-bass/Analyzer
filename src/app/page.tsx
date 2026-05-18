@@ -1,19 +1,20 @@
 import Link from "next/link";
 import { LandingHero } from "@/components/LandingHero";
-import { Rule } from "@/components/primitives";
 
 export default function Home() {
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-6 md:px-12 pt-8 md:pt-10 flex items-center justify-between">
-        <div className="smallcaps-mono text-ink">CHRP // Sync Intelligence</div>
-        <nav className="hidden md:flex items-center gap-8 smallcaps-mono text-ink-soft">
-          <Link href="/methodology" className="hover:text-accent transition-colors">
+      <header className="px-6 md:px-12 pt-6 md:pt-8 flex items-center justify-between">
+        <div className="font-sans font-black text-[16px] tracking-wider">
+          CHRP
+        </div>
+        <nav className="flex items-center gap-6 md:gap-8 font-sans text-[12px] text-ink-soft">
+          <Link href="/methodology" className="hover:text-chrp-black transition-colors">
             Methodology
           </Link>
           <Link
             href="/scan"
-            className="text-accent hover:text-ink transition-colors"
+            className="font-bold uppercase tracking-wider text-chrp-black hover:text-magenta transition-colors"
           >
             Scan a track →
           </Link>
@@ -22,36 +23,36 @@ export default function Home() {
 
       <LandingHero />
 
-      <section className="px-6 md:px-12 mt-24 md:mt-40 pb-24">
-        <Rule className="mb-12" />
+      <section className="px-6 md:px-12 mt-20 md:mt-32 pb-20 md:pb-28">
+        <div className="hairline mb-10" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16">
           <Column
-            label="01 // Position"
-            headline="Built for the artist, not the algorithm."
-            body="The score reads like liner notes, not a dashboard. Every line is something you can say out loud to a supervisor without cringing."
+            label="01 · Verdict"
+            headline="Pitch now, develop, or hold."
+            body="A pitch-readiness call at the top of the page. A manager reads it in two seconds and knows what to do this week."
           />
           <Column
-            label="02 // Translation"
-            headline="The language supervisors actually use."
-            body="Mode, signature, comparable, pitch line. The framing music supervisors and brand directors recognize on sight."
+            label="02 · Signature"
+            headline="An emotional fingerprint, not a vibe."
+            body="Four CHRP scores and four human-performance variables, anchored to operational language sync agents and brand directors recognize on sight."
           />
           <Column
-            label="03 // Deliverable"
-            headline="One page. Email it. AirDrop it. Print it."
-            body="A single, beautifully set PDF that travels. Hand it to your manager. Attach it to the pitch. Keep one in the tour booklet."
+            label="03 · Demand signal"
+            headline="Where this music actually lives."
+            body="Active brief signal across verticals — with a concrete sample brief alongside, never a number on its own."
           />
         </div>
       </section>
 
       <footer className="mt-auto px-6 md:px-12 pb-10">
-        <Rule className="mb-5" />
-        <div className="flex flex-col md:flex-row justify-between gap-4 smallcaps-mono text-ink-soft">
-          <div>CHRP // 2026 // scan.chrp.ai</div>
+        <div className="hairline mb-5" />
+        <div className="flex flex-col md:flex-row justify-between gap-4 font-sans text-[11px] text-ink-soft">
+          <div>CHRP &nbsp;//&nbsp; 2026 &nbsp;//&nbsp; scan.chrp.ai</div>
           <div className="flex gap-6">
-            <Link href="/methodology" className="hover:text-accent">
+            <Link href="/methodology" className="hover:text-chrp-black">
               Methodology
             </Link>
-            <Link href="/scan" className="hover:text-accent">
+            <Link href="/scan" className="hover:text-chrp-black">
               Scan
             </Link>
           </div>
@@ -71,12 +72,14 @@ function Column({
   body: string;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="smallcaps-mono text-accent">{label}</div>
-      <h3 className="font-serif text-[26px] md:text-[30px] leading-[1.15] tracking-tight">
+    <div className="flex flex-col gap-3">
+      <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-magenta">
+        {label}
+      </div>
+      <h3 className="font-display font-bold text-[24px] md:text-[28px] leading-[1.15]">
         {headline}
       </h3>
-      <p className="text-ink-soft leading-relaxed text-[15px] max-w-[34ch]">
+      <p className="font-sans text-ink-soft leading-relaxed text-[14px] max-w-[34ch]">
         {body}
       </p>
     </div>
