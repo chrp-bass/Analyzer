@@ -142,7 +142,7 @@ export const reports: Record<string, ReportPayload> = {
     },
   },
 
-  "thunderstruck-acdc": {
+  "thunderstruck": {
     report_meta: {
       id: "THU-051726-AC",
       version: "v1.0",
@@ -220,7 +220,7 @@ export const reports: Record<string, ReportPayload> = {
     },
   },
 
-  "nothing-else-matters-metallica": {
+  "nothing-else-matters": {
     report_meta: {
       id: "NEM-051726-MT",
       version: "v1.0",
@@ -298,7 +298,7 @@ export const reports: Record<string, ReportPayload> = {
     },
   },
 
-  "youre-still-the-one-shania-twain": {
+  "youre-still-the-one": {
     report_meta: {
       id: "YST-051726-ST",
       version: "v1.0",
@@ -376,7 +376,7 @@ export const reports: Record<string, ReportPayload> = {
     },
   },
 
-  "soul-bossa-nova-quincy-jones": {
+  "soul-bossa-nova": {
     report_meta: {
       id: "SBN-051726-QJ",
       version: "v1.0",
@@ -461,23 +461,25 @@ export const trackOptions: Array<{
   hint: string;
 }> = [
   { id: "glasshouse", label: "Glasshouse", hint: "Mira Wynn  //  Ready" },
-  { id: "thunderstruck-acdc", label: "Thunderstruck", hint: "AC/DC  //  Ready" },
+  { id: "thunderstruck", label: "Thunderstruck", hint: "AC/DC  //  Ready" },
   {
-    id: "nothing-else-matters-metallica",
+    id: "nothing-else-matters",
     label: "Nothing Else Matters",
     hint: "Metallica  //  Recover",
   },
   {
-    id: "youre-still-the-one-shania-twain",
+    id: "youre-still-the-one",
     label: "You're Still The One",
     hint: "Shania Twain  //  Recharge",
   },
   {
-    id: "soul-bossa-nova-quincy-jones",
+    id: "soul-bossa-nova",
     label: "Soul Bossa Nova",
     hint: "Quincy Jones  //  Flow",
   },
 ];
+
+export const TRACK_SLUGS = trackOptions.map((t) => t.id);
 
 export function getReportById(id: string): ReportPayload | null {
   return reports[id] ?? null;
@@ -488,18 +490,18 @@ export function matchInputToReportId(input: string): string {
   if (!n) return "glasshouse";
   const map: Array<[string[], string]> = [
     [["glasshouse", "mira wynn"], "glasshouse"],
-    [["thunderstruck", "ac/dc", "acdc"], "thunderstruck-acdc"],
+    [["thunderstruck", "ac/dc", "acdc"], "thunderstruck"],
     [
       ["nothing else matters", "metallica"],
-      "nothing-else-matters-metallica",
+      "nothing-else-matters",
     ],
     [
       ["still the one", "shania", "twain"],
-      "youre-still-the-one-shania-twain",
+      "youre-still-the-one",
     ],
     [
       ["soul bossa", "bossa nova", "quincy"],
-      "soul-bossa-nova-quincy-jones",
+      "soul-bossa-nova",
     ],
   ];
   for (const [needles, id] of map) {

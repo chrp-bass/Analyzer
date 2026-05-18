@@ -4,6 +4,7 @@ import {
   MODE_COLORS,
 } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
+import { polygonFromChrpScores } from "@/lib/polygon";
 
 const RANK_CLASS_TEXT: Record<ScoreRow["rank_class"], string> = {
   high: "text-kelly-green",
@@ -102,7 +103,7 @@ function Hero({ report }: { report: ReportPayload }) {
 
       <aside className="flex flex-col items-center w-full md:w-[200px] shrink-0">
         <PolygonRadar
-          chrpScores={report.chrp_scores}
+          vertices={polygonFromChrpScores(report.chrp_scores)}
           mode={report.epi.mode}
           epiScore={report.epi.score}
         />

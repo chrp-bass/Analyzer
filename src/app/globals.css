@@ -29,6 +29,12 @@ body {
   letter-spacing: 0;
 }
 
+main.chrp-embed,
+html:has(main.chrp-embed),
+body:has(main.chrp-embed) {
+  background-color: transparent !important;
+}
+
 ::selection {
   background: var(--chrp-yellow);
   color: var(--chrp-black);

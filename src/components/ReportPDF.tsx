@@ -13,10 +13,7 @@ import {
   Text as SvgText,
 } from "@react-pdf/renderer";
 import { ReportPayload, Mode } from "@/lib/fixtures/tracks";
-import {
-  polygonFromChrpScores,
-  polygonPoints,
-} from "@/components/PolygonRadar";
+import { polygonFromChrpScores, polygonPoints } from "@/lib/polygon";
 
 const PAPER = "#FBFBF4";
 const INK = "#0F0E0E";

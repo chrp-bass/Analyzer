@@ -1,54 +1,40 @@
-import { Mode, MODE_COLORS, ScoreRow } from "@/lib/fixtures/tracks";
+"use client";
 
-interface PolygonVertices {
-  focus: number;
-  balance: number;
-  motivation: number;
-  calm: number;
-}
-
-export function polygonFromChrpScores(
-  chrpScores: ScoreRow[],
-): PolygonVertices {
-  const find = (name: string) =>
-    chrpScores.find((s) => s.name.toLowerCase() === name)?.score ?? 0;
-  return {
-    focus: find("focus"),
-    balance: find("balance"),
-    motivation: find("motivation"),
-    calm: find("calm"),
-  };
-}
-
-export function polygonPoints(v: PolygonVertices): string {
-  const k = 0.9;
-  const focusY = -v.focus * k;
-  const balanceX = v.balance * k;
-  const motivationY = v.motivation * k;
-  const calmX = -v.calm * k;
-  return `0,${focusY} ${balanceX},0 0,${motivationY} ${calmX},0`;
-}
+import { motion } from "framer-motion";
+import { Mode, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { PolygonVertices } from "@/lib/polygon";
 
 export interface PolygonRadarProps {
-  chrpScores: ScoreRow[];
+  vertices: PolygonVertices;
   mode: Mode;
   epiScore: number;
   size?: number;
+  animated?: boolean;
+  showLabels?: boolean;
+  showCenter?: boolean;
 }
 
+const AXIS = "rgba(15,14,14,0.1)";
+const RING = "rgba(15,14,14,0.18)";
+const RING_OUTER = "rgba(15,14,14,0.3)";
+
 export function PolygonRadar({
-  chrpScores,
+  vertices,
   mode,
   epiScore,
   size = 150,
+  animated = false,
+  showLabels = true,
+  showCenter = true,
 }: PolygonRadarProps) {
-  const v = polygonFromChrpScores(chrpScores);
-  const points = polygonPoints(v);
+  const v = vertices;
   const fill = MODE_COLORS[mode].polygonFill;
 
-  const axisStroke = "rgba(15,14,14,0.1)";
-  const ringStroke = "rgba(15,14,14,0.18)";
-  const ringStrokeOuter = "rgba(15,14,14,0.3)";
+  const k = 0.9;
+  const top = { x: 0, y: -v.focus * k };
+  const right = { x: v.balance * k, y: 0 };
+  const bottom = { x: 0, y: v.motivation * k };
+  const left = { x: -v.calm * k, y: 0 };
 
   return (
     <svg
@@ -57,13 +43,55 @@ export function PolygonRadar({
       height={size}
       aria-label={`Emotional fingerprint, EPI ${epiScore}, ${mode} mode`}
     >
-      <circle cx="0" cy="0" r="25" fill="none" stroke={ringStroke} strokeWidth="0.4" />
-      <circle cx="0" cy="0" r="50" fill="none" stroke={ringStroke} strokeWidth="0.4" />
-      <circle cx="0" cy="0" r="75" fill="none" stroke={ringStroke} strokeWidth="0.4" />
-      <circle cx="0" cy="0" r="90" fill="none" stroke={ringStrokeOuter} strokeWidth="0.7" />
-      <line x1="0" y1="-90" x2="0" y2="90" stroke={axisStroke} strokeWidth="0.4" />
-      <line x1="-90" y1="0" x2="90" y2="0" stroke={axisStroke} strokeWidth="0.4" />
+      <circle cx="0" cy="0" r="25" fill="none" stroke={RING} strokeWidth="0.4" />
+      <circle cx="0" cy="0" r="50" fill="none" stroke={RING} strokeWidth="0.4" />
+      <circle cx="0" cy="0" r="75" fill="none" stroke={RING} strokeWidth="0.4" />
+      <circle cx="0" cy="0" r="90" fill="none" stroke={RING_OUTER} strokeWidth="0.7" />
+      <line x1="0" y1="-90" x2="0" y2="90" stroke={AXIS} strokeWidth="0.4" />
+      <line x1="-90" y1="0" x2="90" y2="0" stroke={AXIS} strokeWidth="0.4" />
 
+      {animated ? (
+        <AnimatedShape
+          top={top}
+          right={right}
+          bottom={bottom}
+          left={left}
+          fill={fill}
+        />
+      ) : (
+        <StaticShape
+          top={top}
+          right={right}
+          bottom={bottom}
+          left={left}
+          fill={fill}
+        />
+      )}
+
+      {showLabels && <AxisLabels />}
+      {showCenter && (
+        <CenterReadout epiScore={epiScore} animated={animated} />
+      )}
+    </svg>
+  );
+}
+
+function StaticShape({
+  top,
+  right,
+  bottom,
+  left,
+  fill,
+}: {
+  top: { x: number; y: number };
+  right: { x: number; y: number };
+  bottom: { x: number; y: number };
+  left: { x: number; y: number };
+  fill: string;
+}) {
+  const points = `${top.x},${top.y} ${right.x},${right.y} ${bottom.x},${bottom.y} ${left.x},${left.y}`;
+  return (
+    <g>
       <polygon
         points={points}
         fill={fill}
@@ -71,12 +99,94 @@ export function PolygonRadar({
         strokeWidth="1.2"
         strokeLinejoin="round"
       />
+      <circle cx={top.x} cy={top.y} r="2.6" fill="var(--chrp-black)" />
+      <circle cx={right.x} cy={right.y} r="2.6" fill="var(--chrp-black)" />
+      <circle cx={bottom.x} cy={bottom.y} r="2.6" fill="var(--chrp-black)" />
+      <circle cx={left.x} cy={left.y} r="2.6" fill="var(--chrp-black)" />
+    </g>
+  );
+}
 
-      <circle cx="0" cy={-v.focus * 0.9} r="2.6" fill="var(--chrp-black)" />
-      <circle cx={v.balance * 0.9} cy="0" r="2.6" fill="var(--chrp-black)" />
-      <circle cx="0" cy={v.motivation * 0.9} r="2.6" fill="var(--chrp-black)" />
-      <circle cx={-v.calm * 0.9} cy="0" r="2.6" fill="var(--chrp-black)" />
+function AnimatedShape({
+  top,
+  right,
+  bottom,
+  left,
+  fill,
+}: {
+  top: { x: number; y: number };
+  right: { x: number; y: number };
+  bottom: { x: number; y: number };
+  left: { x: number; y: number };
+  fill: string;
+}) {
+  // Reveal timing inside the 3.5s back-half of the 10s sequence:
+  //  6.0-7.0 Focus appears        → t=0.0-1.0 here
+  //  7.0-7.5 Balance + line       → t=1.0-1.5
+  //  7.5-8.0 Motivation + line    → t=1.5-2.0
+  //  8.0-8.5 Calm + line          → t=2.0-2.5
+  //  8.5-9.0 Fill in              → t=2.5-3.0
+  const dotDelays = [0.0, 1.0, 1.5, 2.0];
+  const edgeDelays = [1.0, 1.5, 2.0, 2.5];
+  const points = [top, right, bottom, left];
 
+  return (
+    <g>
+      {[
+        [top, right],
+        [right, bottom],
+        [bottom, left],
+        [left, top],
+      ].map(([a, b], i) => (
+        <motion.line
+          key={i}
+          x1={a.x}
+          y1={a.y}
+          x2={b.x}
+          y2={b.y}
+          stroke="var(--chrp-black)"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{
+            delay: edgeDelays[i],
+            duration: 0.5,
+            ease: "easeOut",
+          }}
+        />
+      ))}
+      <motion.polygon
+        points={`${top.x},${top.y} ${right.x},${right.y} ${bottom.x},${bottom.y} ${left.x},${left.y}`}
+        fill={fill}
+        stroke="none"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 2.5, duration: 0.5, ease: "easeIn" }}
+      />
+      {points.map((p, i) => (
+        <motion.circle
+          key={i}
+          cx={p.x}
+          cy={p.y}
+          r="2.6"
+          fill="var(--chrp-black)"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{
+            delay: dotDelays[i],
+            duration: 0.35,
+            ease: "easeOut",
+          }}
+        />
+      ))}
+    </g>
+  );
+}
+
+function AxisLabels() {
+  return (
+    <g>
       <text
         x="0"
         y="-100"
@@ -121,8 +231,20 @@ export function PolygonRadar({
       >
         Calm
       </text>
+    </g>
+  );
+}
 
-      <text
+function CenterReadout({
+  epiScore,
+  animated,
+}: {
+  epiScore: number;
+  animated: boolean;
+}) {
+  return (
+    <g>
+      <motion.text
         x="0"
         y="-4"
         textAnchor="middle"
@@ -131,10 +253,13 @@ export function PolygonRadar({
         fontSize="6"
         fill="var(--ink-soft)"
         letterSpacing="0.5"
+        initial={animated ? { opacity: 0 } : false}
+        animate={animated ? { opacity: 1 } : undefined}
+        transition={animated ? { delay: 3.0, duration: 0.3 } : undefined}
       >
         EPI SCORE
-      </text>
-      <text
+      </motion.text>
+      <motion.text
         x="0"
         y="26"
         textAnchor="middle"
@@ -142,9 +267,12 @@ export function PolygonRadar({
         fontWeight={700}
         fontSize="38"
         fill="var(--chrp-black)"
+        initial={animated ? { opacity: 0 } : false}
+        animate={animated ? { opacity: 1 } : undefined}
+        transition={animated ? { delay: 3.0, duration: 0.5 } : undefined}
       >
         {epiScore}
-      </text>
-    </svg>
+      </motion.text>
+    </g>
   );
 }
