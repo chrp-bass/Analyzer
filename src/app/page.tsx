@@ -7,14 +7,30 @@ import { PaywallPreviewStage } from "@/components/stages/PaywallPreviewStage";
 import { CreatorProfileStage } from "@/components/stages/CreatorProfileStage";
 import { ReportPage } from "@/components/ReportPage";
 import { EmbedListener } from "@/components/EmbedListener";
+import { MarketingLanding } from "@/components/MarketingLanding";
 
 export const dynamic = "force-dynamic";
 
-export default function Renderer({
+function hasStageParam(
+  searchParams: Record<string, string | string[] | undefined>,
+): boolean {
+  return (
+    typeof searchParams.stage === "string" ||
+    typeof searchParams.format === "string"
+  );
+}
+
+export default function Root({
   searchParams,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  // No params -> marketing landing for the closed-loop demo.
+  if (!hasStageParam(searchParams)) {
+    return <MarketingLanding />;
+  }
+
+  // Otherwise, run the V9 URL-param renderer (kept for GHL iframe embedding).
   const params = parseParams(searchParams);
 
   if (params.format === "pdf") {
@@ -22,16 +38,18 @@ export default function Renderer({
   }
 
   const report =
-    getReportById(params.track) ??
-    getReportById(Object.keys(reports)[0])!;
-
+    getReportById(params.track) ?? getReportById(Object.keys(reports)[0])!;
   const embedClass = params.embed ? "chrp-embed" : "";
 
   let body: React.ReactNode;
   switch (params.stage) {
     case "reveal":
       body = (
-        <RevealStage report={report} trackSlug={params.track} embed={params.embed} />
+        <RevealStage
+          report={report}
+          trackSlug={params.track}
+          embed={params.embed}
+        />
       );
       break;
     case "paywall-preview":
