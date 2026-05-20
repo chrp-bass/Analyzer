@@ -12,7 +12,7 @@ const RANK_CLASS_TEXT: Record<ScoreRow["rank_class"], string> = {
   low: "text-plum",
 };
 
-function confidenceColor(c: string | null) {
+export function confidenceColor(c: string | null) {
   if (c === "High") return "text-kelly-green";
   if (c === "Moderate") return "text-ink-soft";
   if (c === "Preliminary") return "text-plum";
@@ -42,7 +42,7 @@ export function ReportPage({
   );
 }
 
-function HeaderBand({ id, version }: { id: string; version: string }) {
+export function HeaderBand({ id, version }: { id: string; version: string }) {
   return (
     <>
       <div className="flex items-end justify-between pb-2">
@@ -60,73 +60,97 @@ function HeaderBand({ id, version }: { id: string; version: string }) {
 }
 
 function Hero({ report }: { report: ReportPayload }) {
-  const chip = MODE_COLORS[report.epi.mode];
-  const conf = report.verdict.confidence;
   return (
     <section className="flex flex-col md:flex-row gap-8 md:gap-10 items-start mt-6 md:mt-8">
       <div className="flex-1 min-w-0">
-        <h1 className="font-display font-bold text-[44px] md:text-[64px] display-tight">
-          {report.track.title}
-        </h1>
-        <p className="font-display italic text-[18px] md:text-[22px] text-ink-soft mt-1">
-          by {report.track.artist}
-        </p>
-        <p className="font-sans text-[11px] text-ink-light mt-3">
-          {report.report_meta.scanned_at_display} &nbsp;//&nbsp; ISRC{" "}
-          {report.track.isrc}
-        </p>
-
-        <div
-          className="mt-5 pl-4 py-2 border-l-[3px] max-w-[480px]"
-          style={{ borderLeftColor: "var(--chrp-yellow)" }}
-        >
-          <div className="font-sans font-bold text-[10px] tracking-wider text-ink-soft">
-            PITCH READINESS
-          </div>
-          <div className="font-display font-bold text-[32px] md:text-[36px] leading-none mt-1">
-            {report.verdict.call}
-          </div>
-          {conf && (
-            <div
-              className={`font-sans font-bold text-[11px] mt-1.5 ${confidenceColor(
-                conf,
-              )}`}
-            >
-              {conf} confidence
-            </div>
-          )}
-          <p className="font-sans text-[12px] text-ink-soft mt-2 leading-snug max-w-[460px]">
-            {report.verdict.rationale}
-          </p>
-        </div>
+        <HeroTitleBlock report={report} />
+        <PitchVerdictBlock report={report} className="mt-5" />
       </div>
-
-      <aside className="flex flex-col items-center w-full md:w-[200px] shrink-0">
-        <PolygonRadar
-          vertices={polygonFromChrpScores(report.chrp_scores)}
-          mode={report.epi.mode}
-          epiScore={report.epi.score}
-        />
-        <div
-          className="mt-3 px-3 py-1.5"
-          style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
-        >
-          <span className="font-sans font-bold text-[12px]">
-            {report.epi.mode} mode
-          </span>
-        </div>
-        <div className="mt-2 font-sans text-[11px] text-ink-soft text-center">
-          <span className="font-bold text-kelly-green">
-            {report.epi.rank_in_mode}
-          </span>{" "}
-          of catalog in {report.epi.mode} mode
-        </div>
-      </aside>
+      <HeroPolygonAside report={report} />
     </section>
   );
 }
 
-function ScoresGrid({ report }: { report: ReportPayload }) {
+export function HeroTitleBlock({ report }: { report: ReportPayload }) {
+  return (
+    <>
+      <h1 className="font-display font-bold text-[44px] md:text-[64px] display-tight">
+        {report.track.title}
+      </h1>
+      <p className="font-display italic text-[18px] md:text-[22px] text-ink-soft mt-1">
+        by {report.track.artist}
+      </p>
+      <p className="font-sans text-[11px] text-ink-light mt-3">
+        {report.report_meta.scanned_at_display} &nbsp;//&nbsp; ISRC{" "}
+        {report.track.isrc}
+      </p>
+    </>
+  );
+}
+
+export function PitchVerdictBlock({
+  report,
+  className = "",
+}: {
+  report: ReportPayload;
+  className?: string;
+}) {
+  const conf = report.verdict.confidence;
+  return (
+    <div
+      className={`pl-4 py-2 border-l-[3px] max-w-[480px] ${className}`}
+      style={{ borderLeftColor: "var(--chrp-yellow)" }}
+    >
+      <div className="font-sans font-bold text-[10px] tracking-wider text-ink-soft">
+        PITCH READINESS
+      </div>
+      <div className="font-display font-bold text-[32px] md:text-[36px] leading-none mt-1">
+        {report.verdict.call}
+      </div>
+      {conf && (
+        <div
+          className={`font-sans font-bold text-[11px] mt-1.5 ${confidenceColor(
+            conf,
+          )}`}
+        >
+          {conf} confidence
+        </div>
+      )}
+      <p className="font-sans text-[12px] text-ink-soft mt-2 leading-snug max-w-[460px]">
+        {report.verdict.rationale}
+      </p>
+    </div>
+  );
+}
+
+export function HeroPolygonAside({ report }: { report: ReportPayload }) {
+  const chip = MODE_COLORS[report.epi.mode];
+  return (
+    <aside className="flex flex-col items-center w-full md:w-[200px] shrink-0">
+      <PolygonRadar
+        vertices={polygonFromChrpScores(report.chrp_scores)}
+        mode={report.epi.mode}
+        epiScore={report.epi.score}
+      />
+      <div
+        className="mt-3 px-3 py-1.5"
+        style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
+      >
+        <span className="font-sans font-bold text-[12px]">
+          {report.epi.mode} mode
+        </span>
+      </div>
+      <div className="mt-2 font-sans text-[11px] text-ink-soft text-center">
+        <span className="font-bold text-kelly-green">
+          {report.epi.rank_in_mode}
+        </span>{" "}
+        of catalog in {report.epi.mode} mode
+      </div>
+    </aside>
+  );
+}
+
+export function ScoresGrid({ report }: { report: ReportPayload }) {
   return (
     <section className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
       <ScoreCol
@@ -195,7 +219,7 @@ function ScoreRowView({ row }: { row: ScoreRow }) {
   );
 }
 
-function RhodesSection({ text }: { text: string }) {
+export function RhodesSection({ text }: { text: string }) {
   return (
     <section className="mt-10">
       <div className="flex items-end justify-between">
@@ -219,7 +243,7 @@ function RhodesSection({ text }: { text: string }) {
   );
 }
 
-function SignatureSection({ text }: { text: string }) {
+export function SignatureSection({ text }: { text: string }) {
   return (
     <section className="mt-10">
       <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
@@ -233,7 +257,7 @@ function SignatureSection({ text }: { text: string }) {
   );
 }
 
-function BuiltForSection({
+export function BuiltForSection({
   placements,
 }: {
   placements: ReportPayload["placements"];
@@ -271,7 +295,7 @@ function BuiltForSection({
   );
 }
 
-function ThroughComp({ report }: { report: ReportPayload }) {
+export function ThroughComp({ report }: { report: ReportPayload }) {
   return (
     <section className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
       <div>
@@ -303,7 +327,7 @@ function ThroughComp({ report }: { report: ReportPayload }) {
   );
 }
 
-function WhereLives({
+export function WhereLives({
   lives,
 }: {
   lives: ReportPayload["where_this_music_lives"];
@@ -360,7 +384,7 @@ function WhereLives({
   );
 }
 
-function CreatorBand({
+export function CreatorBand({
   creator,
 }: {
   creator: ReportPayload["creator"];
@@ -385,7 +409,7 @@ function CreatorBand({
   );
 }
 
-function Footer({ id, reportId }: { id: string; reportId: string }) {
+export function Footer({ id, reportId }: { id: string; reportId: string }) {
   return (
     <footer className="mt-6 pt-3 border-t border-rule flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6">
       <div className="font-sans text-[11px] text-ink-soft">

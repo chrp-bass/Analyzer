@@ -12,7 +12,29 @@ const ORDER: ProductId[] = [
   "annual_unlimited",
 ];
 
-const MOST_POPULAR: ProductId = "extended_catalog";
+const MOST_POPULAR: ProductId = "artist_catalog";
+
+const PER_TRACK_MATH: Partial<
+  Record<ProductId, { perTrack: string; savingsPct: number }>
+> = {
+  artist_catalog: { perTrack: "$9.93", savingsPct: 66 },
+  extended_catalog: { perTrack: "$7.48", savingsPct: 74 },
+  manager_roster: { perTrack: "$6.65", savingsPct: 77 },
+};
+
+function PerTrackMath({ productId }: { productId: ProductId }) {
+  const data = PER_TRACK_MATH[productId];
+  if (!data) return null;
+  return (
+    <div
+      className="mt-2 font-sans font-bold text-[10px] text-kelly-green"
+      style={{ letterSpacing: "0.2px" }}
+    >
+      {data.perTrack} per track &nbsp;·&nbsp; save {data.savingsPct}% vs single
+      scans
+    </div>
+  );
+}
 
 export function TierPicker({
   scanId,
@@ -82,6 +104,7 @@ export function TierPicker({
               <div className="font-display font-bold text-[38px] leading-none mt-2 text-chrp-black">
                 ${tier.priceUsd.toLocaleString()}
               </div>
+              <PerTrackMath productId={id} />
               <div className="hairline my-4" />
               <ul className="flex flex-col gap-1.5 font-sans text-[12.5px] text-ink-soft">
                 <li>

@@ -33,7 +33,7 @@ export const TIERS: Record<ProductId, TierConfig> = {
   artist_catalog: {
     id: "artist_catalog",
     label: "Artist Catalog",
-    priceUsd: 199,
+    priceUsd: 149,
     trackLimit: 15,
     artistLimit: 1,
     durationDays: 365,
@@ -42,7 +42,7 @@ export const TIERS: Record<ProductId, TierConfig> = {
   extended_catalog: {
     id: "extended_catalog",
     label: "Extended Catalog",
-    priceUsd: 399,
+    priceUsd: 299,
     trackLimit: 40,
     artistLimit: 1,
     durationDays: 365,
@@ -51,7 +51,7 @@ export const TIERS: Record<ProductId, TierConfig> = {
   manager_roster: {
     id: "manager_roster",
     label: "Manager Roster",
-    priceUsd: 899,
+    priceUsd: 499,
     trackLimit: 75,
     artistLimit: 5,
     durationDays: 365,
@@ -60,7 +60,7 @@ export const TIERS: Record<ProductId, TierConfig> = {
   annual_unlimited: {
     id: "annual_unlimited",
     label: "Annual Unlimited",
-    priceUsd: 1499,
+    priceUsd: 999,
     trackLimit: null,
     artistLimit: null,
     durationDays: 365,

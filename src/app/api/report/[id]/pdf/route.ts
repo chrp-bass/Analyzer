@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { getReportById } from "@/lib/fixtures/tracks";
+import { decodeScanId } from "@/lib/scan-id";
 import { ReportPDF } from "@/components/ReportPDF";
 import path from "path";
 import { promises as fs } from "fs";
@@ -29,15 +30,17 @@ export async function GET(
   _req: Request,
   { params }: { params: { id: string } },
 ) {
-  const report = getReportById(params.id);
-  if (!report) {
+  // Accept either a raw track slug (legacy) or a scan id (current).
+  const slug = getReportById(params.id) ? params.id : decodeScanId(params.id);
+  const report = slug ? getReportById(slug) : null;
+  if (!report || !slug) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   const fonts = await loadFonts();
   const buffer = await renderToBuffer(
     ReportPDF({ report, fonts }) as React.ReactElement,
   );
-  const filename = `chrp-report-${params.id}.pdf`;
+  const filename = `chrp-report-${slug}.pdf`;
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
     headers: {

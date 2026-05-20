@@ -238,12 +238,12 @@ function CreditsCard({
       </div>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2">
         <div className="font-display font-bold text-[20px] text-chrp-black">
-          {tier.label}
+          ${tier.priceUsd.toLocaleString()} {tier.label}
         </div>
         <div className="font-sans text-[12px] text-ink-soft">
           {remaining === null
             ? `Unlimited tracks · ${scanCount} scanned`
-            : `${remaining} of ${limit} tracks remaining`}
+            : `${used} of ${limit} scans used · ${remaining} remaining`}
         </div>
         <div className="font-sans text-[11px] text-ink-light">
           Expires {expires.toLocaleDateString()}

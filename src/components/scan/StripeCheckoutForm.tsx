@@ -31,7 +31,7 @@ export function StripeCheckoutForm({
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [productId, setProductId] = useState<ProductId>(productSlug);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(search.get("email") ?? "");
   const [card, setCard] = useState("");
   const [exp, setExp] = useState("");
   const [cvc, setCvc] = useState("");
@@ -79,10 +79,12 @@ export function StripeCheckoutForm({
       // Visual: 2-second Processing state, then unlock.
       await new Promise((r) => setTimeout(r, 2000));
       const result = await simulatePaymentSuccess(sessionId, email);
-      const magic = await sendMagicLink(email);
+      await sendMagicLink(email);
       await sendReceipt("demo", result.scanId);
+      // Unblur-in-place: route back to the preview, which detects paid
+      // status and animates the gated sections from blurred to unblurred.
       router.push(
-        `/scan/${result.scanId}/unlocking?token=${magic.token}&email=${encodeURIComponent(email)}`,
+        `/scan/${result.scanId}/preview?welcome=1&email=${encodeURIComponent(email)}`,
       );
     } catch (err) {
       console.error(err);
