@@ -38,6 +38,8 @@ const USER_KEY = "chrp_user";
 const SCANS_KEY = (uid: string) => `chrp_scans_${uid}`;
 const CATALOG_KEY = (uid: string) => `chrp_catalog_${uid}`;
 const PROFILE_SEEN_KEY = (uid: string) => `chrp_profile_seen_${uid}`;
+const CATALOG_COMPLETE_SEEN_KEY = (uid: string) =>
+  `chrp_catalog_complete_seen_${uid}`;
 
 function ls(): Storage | null {
   if (typeof window === "undefined") return null;
@@ -209,6 +211,17 @@ export async function markProfileUnlockSeen(userId: string): Promise<void> {
   s?.setItem(PROFILE_SEEN_KEY(userId), "1");
 }
 
+export async function hasSeenCatalogComplete(userId: string): Promise<boolean> {
+  const s = ls();
+  if (!s) return true;
+  return s.getItem(CATALOG_COMPLETE_SEEN_KEY(userId)) === "1";
+}
+
+export async function markCatalogCompleteSeen(userId: string): Promise<void> {
+  const s = ls();
+  s?.setItem(CATALOG_COMPLETE_SEEN_KEY(userId), "1");
+}
+
 export async function clearAllUserData(): Promise<void> {
   const s = ls();
   if (!s) return;
@@ -217,6 +230,7 @@ export async function clearAllUserData(): Promise<void> {
     s.removeItem(SCANS_KEY(user.id));
     s.removeItem(CATALOG_KEY(user.id));
     s.removeItem(PROFILE_SEEN_KEY(user.id));
+    s.removeItem(CATALOG_COMPLETE_SEEN_KEY(user.id));
   }
   s.removeItem(USER_KEY);
 }

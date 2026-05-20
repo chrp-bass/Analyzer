@@ -13,6 +13,8 @@ import {
   getUserCredits,
   hasSeenProfileUnlock,
   markProfileUnlockSeen,
+  hasSeenCatalogComplete,
+  markCatalogCompleteSeen,
   clearAllUserData,
 } from "@/lib/accounts";
 import { TIERS } from "@/lib/payments";
@@ -26,8 +28,11 @@ import { getCreatorProfile } from "@/lib/fixtures/profile";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { CreatorProfileStage } from "@/components/stages/CreatorProfileStage";
+import { ProgressCallout } from "@/components/dashboard/ProgressCallout";
+import { useRouter } from "next/navigation";
 
 const UNLOCK_THRESHOLD = 8;
+const CATALOG_COMPLETE_THRESHOLD = 15;
 
 export function Dashboard() {
   const [hydrated, setHydrated] = useState(false);
@@ -35,6 +40,8 @@ export function Dashboard() {
   const [scans, setScans] = useState<ScanRecordOnAccount[]>([]);
   const [credits, setCredits] = useState<CatalogPurchase | null>(null);
   const [showUnlockBanner, setShowUnlockBanner] = useState(false);
+  const [showCatalogCompleteBand, setShowCatalogCompleteBand] = useState(false);
+  const [playReveal, setPlayReveal] = useState(false);
 
   async function refresh() {
     const u = await getCurrentUser();
@@ -59,12 +66,18 @@ export function Dashboard() {
   useEffect(() => {
     if (!user || !hydrated) return;
     (async () => {
-      const seen = await hasSeenProfileUnlock(user.id);
-      if (!seen && scans.length >= UNLOCK_THRESHOLD) {
+      const seenProfile = await hasSeenProfileUnlock(user.id);
+      if (!seenProfile && scans.length >= UNLOCK_THRESHOLD) {
         await sendProfileUnlock(user.id);
         setShowUnlockBanner(true);
+        setPlayReveal(true);
         await markProfileUnlockSeen(user.id);
-        setTimeout(() => setShowUnlockBanner(false), 6000);
+        setTimeout(() => setShowUnlockBanner(false), 14000);
+      }
+      const seenComplete = await hasSeenCatalogComplete(user.id);
+      if (!seenComplete && scans.length >= CATALOG_COMPLETE_THRESHOLD) {
+        setShowCatalogCompleteBand(true);
+        await markCatalogCompleteSeen(user.id);
       }
     })();
   }, [user, hydrated, scans.length]);
@@ -83,6 +96,7 @@ export function Dashboard() {
   if (!user) return <EmptyState />;
 
   const unlocked = scans.length >= UNLOCK_THRESHOLD;
+  const catalogComplete = scans.length >= CATALOG_COMPLETE_THRESHOLD;
   const dominantTrack = scans[0]?.trackSlug ?? "glasshouse";
   const profile = getCreatorProfile(dominantTrack);
   const dominantReport = getReportById(dominantTrack);
@@ -91,8 +105,15 @@ export function Dashboard() {
     <div className="min-h-screen flex flex-col">
       <SiteHeader showCta={false} />
       <AnimatePresence>
+        {showCatalogCompleteBand && (
+          <CatalogCompleteBand
+            key="catalog-complete"
+            onDismiss={() => setShowCatalogCompleteBand(false)}
+          />
+        )}
         {showUnlockBanner && (
           <motion.div
+            key="profile-banner"
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -136,6 +157,8 @@ export function Dashboard() {
                   }}
                   scans={scans.length}
                   artistOverride={null}
+                  userScans={scans}
+                  playReveal={playReveal}
                 />
               </div>
             </motion.div>
@@ -147,9 +170,20 @@ export function Dashboard() {
             <h1 className="font-display font-bold text-[32px] md:text-[44px] leading-[1.0] text-chrp-black display-tight">
               Your scans
             </h1>
-            <p className="font-sans text-[12px] text-ink-soft mt-1">
+            <p className="font-sans text-[12px] text-ink-soft mt-1 flex items-center gap-2 flex-wrap">
               Signed in as{" "}
               <span className="text-chrp-black">{user.email ?? "guest"}</span>
+              {catalogComplete && (
+                <span
+                  className="font-sans font-bold text-[8px] tracking-wider uppercase px-2 py-0.5"
+                  style={{
+                    backgroundColor: "var(--chrp-yellow)",
+                    color: "var(--chrp-black)",
+                  }}
+                >
+                  Catalog Complete
+                </span>
+              )}
             </p>
           </div>
           <div className="flex gap-2">
@@ -165,6 +199,8 @@ export function Dashboard() {
         {credits && (
           <CreditsCard credits={credits} scanCount={scans.length} />
         )}
+
+        {!unlocked && <ProgressCallout scans={scans} />}
 
         {!unlocked && (
           <ProgressMeter
@@ -261,6 +297,7 @@ function ProgressMeter({
   threshold: number;
 }) {
   const filled = Math.min(scans.length, threshold);
+  const oneAway = scans.length === threshold - 1;
   return (
     <div className="mt-10">
       <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft">
@@ -273,8 +310,14 @@ function ProgressMeter({
         {Array.from({ length: threshold }).map((_, i) => {
           const scan = scans[i];
           const report = scan ? getReportById(scan.trackSlug) : null;
+          const highlight = oneAway && i === threshold - 1;
           return (
-            <ProgressCell key={i} report={report} index={i + 1} />
+            <ProgressCell
+              key={i}
+              report={report}
+              index={i + 1}
+              highlight={highlight}
+            />
           );
         })}
       </div>
@@ -290,17 +333,35 @@ function ProgressMeter({
 function ProgressCell({
   report,
   index,
+  highlight = false,
 }: {
   report: ReportPayload | null;
   index: number;
+  highlight?: boolean;
 }) {
   if (!report) {
     return (
       <div
-        className="flex-1 aspect-square border border-dashed border-rule flex items-center justify-center"
-        style={{ minWidth: 0 }}
+        className={`flex-1 aspect-square border ${
+          highlight
+            ? "border-solid animate-pulse"
+            : "border-dashed border-rule"
+        } flex items-center justify-center`}
+        style={{
+          minWidth: 0,
+          ...(highlight
+            ? {
+                borderColor: "var(--chrp-yellow)",
+                boxShadow: "0 0 0 1px var(--chrp-yellow) inset",
+                backgroundColor: "rgba(255, 209, 0, 0.08)",
+              }
+            : {}),
+        }}
       >
-        <span className="font-sans text-[11px] text-ink-light">
+        <span
+          className="font-sans text-[11px]"
+          style={{ color: highlight ? "var(--chrp-black)" : "var(--ink-light)" }}
+        >
           {String(index).padStart(2, "0")}
         </span>
       </div>
@@ -386,5 +447,67 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
+  const router = useRouter();
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  return (
+    <motion.div
+      initial={{ y: -60, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      className="px-5 md:px-8 py-5 md:py-6"
+      style={{ backgroundColor: "var(--chrp-yellow)", color: "var(--chrp-black)" }}
+    >
+      <div className="max-w-[1100px] mx-auto flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+        <div className="flex-1">
+          <div className="font-sans font-black text-[10px] tracking-wider uppercase">
+            Catalog complete
+          </div>
+          <p className="mt-1.5 font-display font-bold text-[20px] md:text-[24px] leading-[1.15]">
+            Your full Artist Catalog is now in CHRP&rsquo;s corpus.
+          </p>
+          <p className="mt-2 font-sans text-[12.5px] md:text-[13px] leading-[1.55] max-w-[60ch]">
+            Your signature is documented, your patterns are mapped, and your
+            tracks are positioned in the live market. Add new releases as they
+            come out to keep your profile current &mdash; your fingerprint
+            evolves with your work.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => router.push("/scan?tier=extended_catalog")}
+              className="font-sans font-bold text-[11.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-2.5"
+            >
+              Upgrade to Extended Catalog
+            </button>
+            <div className="relative">
+              <button
+                onClick={() => setTooltipOpen((v) => !v)}
+                className="font-sans font-bold text-[11.5px] tracking-wider uppercase border border-chrp-black px-4 py-2.5"
+              >
+                Stay current with new releases
+              </button>
+              {tooltipOpen && (
+                <div className="absolute z-10 left-0 mt-2 w-[280px] bg-chrp-white border border-chrp-black p-3 text-chrp-black font-sans text-[11.5px] leading-snug">
+                  When you release new music, add it to your existing catalog
+                  to keep your fingerprint, signature, and reliability index
+                  reflecting your current body of work.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="font-sans text-[10px] tracking-wider uppercase opacity-70 hover:opacity-100 self-start"
+          aria-label="Dismiss"
+        >
+          Dismiss
+        </button>
+      </div>
+    </motion.div>
   );
 }

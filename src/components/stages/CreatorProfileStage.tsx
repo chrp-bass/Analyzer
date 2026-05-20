@@ -1,8 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Mode, MODE_COLORS, ReportPayload } from "@/lib/fixtures/tracks";
 import { CreatorProfilePayload, PitchPriority } from "@/lib/fixtures/profile";
 import { PolygonRadar } from "@/components/PolygonRadar";
+import { ScanRecordOnAccount } from "@/lib/accounts";
+import {
+  getCatalogIntelligence,
+  getCatalogIntelligenceFromProfile,
+  CatalogIntelligence,
+  CatalogComparable,
+} from "@/lib/catalog-progression";
 
 const MODE_BG: Record<Mode, string> = {
   Ready: "var(--chrp-yellow)",
@@ -11,19 +20,89 @@ const MODE_BG: Record<Mode, string> = {
   Flow: "var(--french-blue)",
 };
 
+// Reveal step indices, used to gate visibility of each section during the
+// staged 8-second reveal.
+const STEP = {
+  POLYGON: 1,
+  CONSISTENCY: 2,
+  SIGNATURE: 3,
+  RELIABILITY: 4,
+  MODE_DIST: 5,
+  PATTERN_1: 6,
+  PATTERN_2: 7,
+  PATTERN_3: 8,
+  PITCH: 9,
+  COMPARABLE: 10,
+} as const;
+
+const STEP_DELAYS_MS = [
+  // step -> ms after reveal start when it becomes visible
+  0, // index 0 unused
+  2000, // POLYGON
+  3000, // CONSISTENCY
+  3800, // SIGNATURE
+  4600, // RELIABILITY
+  5400, // MODE_DIST
+  6400, // PATTERN_1
+  6700, // PATTERN_2
+  7000, // PATTERN_3
+  7500, // PITCH
+  8500, // COMPARABLE
+];
+
+const PROCESSING_MESSAGES = [
+  "Aggregating polygon shapes…",
+  "Computing consistency across catalog…",
+  "Comparing to corpus norms…",
+];
+
 export function CreatorProfileStage({
   report,
   profile,
   scans,
   artistOverride,
+  userScans,
+  playReveal = false,
 }: {
   report: ReportPayload;
   profile: CreatorProfilePayload;
   scans: number;
   artistOverride: string | null;
+  userScans?: ScanRecordOnAccount[];
+  playReveal?: boolean;
 }) {
   const artist = artistOverride ?? profile.creator.name;
   const tracksScanned = scans > 0 ? scans : profile.creator.tracks_scored;
+
+  const intel: CatalogIntelligence =
+    userScans && userScans.length > 0
+      ? getCatalogIntelligence(userScans)
+      : getCatalogIntelligenceFromProfile(profile);
+
+  const [currentStep, setCurrentStep] = useState(playReveal ? 0 : 99);
+  const [processingIdx, setProcessingIdx] = useState(0);
+
+  useEffect(() => {
+    if (!playReveal) return;
+    const timers: number[] = [];
+    // Cycle the processing copy during the first 2 seconds
+    for (let i = 1; i < PROCESSING_MESSAGES.length; i++) {
+      timers.push(
+        window.setTimeout(() => setProcessingIdx(i), (2000 / PROCESSING_MESSAGES.length) * i),
+      );
+    }
+    // Step transitions
+    STEP_DELAYS_MS.forEach((delay, step) => {
+      if (step === 0) return;
+      timers.push(
+        window.setTimeout(() => setCurrentStep((cur) => Math.max(cur, step)), delay),
+      );
+    });
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, [playReveal]);
+
+  const showProcessing = playReveal && currentStep < STEP.POLYGON;
+  const visible = (step: number) => currentStep >= step;
 
   return (
     <article className="px-6 md:px-10 lg:px-14 py-8 md:py-12 max-w-[920px] mx-auto w-full">
@@ -33,13 +112,132 @@ export function CreatorProfileStage({
         tracksScanned={tracksScanned}
         generatedDisplay={profile.creator.generated_display}
       />
-      <SignaturePolygon profile={profile} />
-      <Metrics profile={profile} />
-      <ModeDistribution dist={profile.mode_distribution} />
-      <PitchPriorities priorities={profile.pitch_priorities} />
+
+      <AnimatePresence>
+        {showProcessing && (
+          <motion.div
+            key="processing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mt-10 flex items-center gap-3 text-ink-soft"
+          >
+            <div className="w-4 h-4 border-2 border-chrp-black border-t-transparent rounded-full animate-spin" />
+            <span className="font-sans text-[12.5px]">
+              Computing your Creator Profile&hellip;{" "}
+              <span className="text-ink-light">
+                {PROCESSING_MESSAGES[processingIdx]}
+              </span>
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <FadeStage visible={visible(STEP.POLYGON)}>
+        <SignaturePolygon profile={profile} />
+      </FadeStage>
+
+      <section className="mt-12">
+        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+          Signature metrics
+        </div>
+        <div className="hairline mt-1" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 mt-5">
+          {profile.metrics.emotional_consistency && (
+            <FadeStage visible={visible(STEP.CONSISTENCY)}>
+              <MetricBlock
+                name="Emotional consistency"
+                score={profile.metrics.emotional_consistency.score}
+                label={profile.metrics.emotional_consistency.label}
+              />
+            </FadeStage>
+          )}
+          {profile.metrics.signature_strength && (
+            <FadeStage visible={visible(STEP.SIGNATURE)}>
+              <MetricBlock
+                name="Signature strength"
+                score={profile.metrics.signature_strength.score}
+                label={profile.metrics.signature_strength.label}
+              />
+            </FadeStage>
+          )}
+          {profile.metrics.reliability_index && (
+            <FadeStage visible={visible(STEP.RELIABILITY)}>
+              <MetricBlock
+                name="Reliability index"
+                score={profile.metrics.reliability_index.score}
+                label={profile.metrics.reliability_index.label}
+              />
+            </FadeStage>
+          )}
+        </div>
+      </section>
+
+      <FadeStage visible={visible(STEP.MODE_DIST)}>
+        <ModeDistribution dist={profile.mode_distribution} />
+      </FadeStage>
+
+      <section className="mt-10">
+        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+          Pattern intelligence
+        </div>
+        <div className="hairline mt-1" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 mt-5">
+          <FadeStage visible={visible(STEP.PATTERN_1)}>
+            <PatternCallout
+              lead="Mode versatility"
+              body={intel.modeVersatility}
+            />
+          </FadeStage>
+          <FadeStage visible={visible(STEP.PATTERN_2)}>
+            <PatternCallout
+              lead="Cross-track signature"
+              body={intel.crossTrackObservation}
+            />
+          </FadeStage>
+          <FadeStage visible={visible(STEP.PATTERN_3)}>
+            <PatternCallout
+              lead="Catalog vs. corpus"
+              body={intel.catalogVsCorpus}
+            />
+          </FadeStage>
+        </div>
+      </section>
+
+      <FadeStage visible={visible(STEP.PITCH)}>
+        <PitchPriorities priorities={profile.pitch_priorities} />
+      </FadeStage>
+
+      <FadeStage visible={visible(STEP.COMPARABLE)}>
+        <CatalogComparableSection comparable={intel.comparable} />
+      </FadeStage>
+
       <CreatorTease artist={artist} tracksScanned={tracksScanned} />
       <Footer reportId={`PRF-${report.report_meta.id.slice(0, 6)}`} />
     </article>
+  );
+}
+
+function FadeStage({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.div
+      initial={false}
+      animate={{
+        opacity: visible ? 1 : 0,
+        y: visible ? 0 : 14,
+      }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      style={{ pointerEvents: visible ? "auto" : "none" }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -119,41 +317,6 @@ function SignaturePolygon({ profile }: { profile: CreatorProfilePayload }) {
   );
 }
 
-function Metrics({ profile }: { profile: CreatorProfilePayload }) {
-  const m = profile.metrics;
-  return (
-    <section className="mt-12">
-      <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
-        Signature metrics
-      </div>
-      <div className="hairline mt-1" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 mt-5">
-        {m.emotional_consistency && (
-          <MetricBlock
-            name="Emotional consistency"
-            score={m.emotional_consistency.score}
-            label={m.emotional_consistency.label}
-          />
-        )}
-        {m.signature_strength && (
-          <MetricBlock
-            name="Signature strength"
-            score={m.signature_strength.score}
-            label={m.signature_strength.label}
-          />
-        )}
-        {m.reliability_index && (
-          <MetricBlock
-            name="Reliability index"
-            score={m.reliability_index.score}
-            label={m.reliability_index.label}
-          />
-        )}
-      </div>
-    </section>
-  );
-}
-
 function MetricBlock({
   name,
   score,
@@ -220,6 +383,25 @@ function ModeDistribution({
   );
 }
 
+function PatternCallout({
+  lead,
+  body,
+}: {
+  lead: string;
+  body: string;
+}) {
+  return (
+    <div className="border-t-2 border-chrp-black pt-3">
+      <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
+        {lead}
+      </div>
+      <p className="mt-2 font-sans text-[12.5px] text-chrp-black leading-[1.55]">
+        {body}
+      </p>
+    </div>
+  );
+}
+
 function PitchPriorities({
   priorities,
 }: {
@@ -283,6 +465,43 @@ function PriorityRow({
         </span>
       </div>
     </div>
+  );
+}
+
+function CatalogComparableSection({
+  comparable,
+}: {
+  comparable: CatalogComparable;
+}) {
+  return (
+    <section className="mt-10">
+      <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+        Your catalog comparable
+      </div>
+      <div className="hairline mt-1" />
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 md:gap-10">
+        <div>
+          <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
+            Closest signature
+          </div>
+          <div className="font-display font-bold text-[28px] md:text-[32px] leading-none mt-1 text-chrp-black">
+            {comparable.artist}
+          </div>
+          <div className="font-sans text-[11px] text-ink-soft mt-2">
+            Market demand{" "}
+            <span className="font-bold text-chrp-black">{comparable.demand}</span>
+          </div>
+        </div>
+        <p className="font-sans text-[12.5px] text-ink-soft leading-[1.55] max-w-[60ch]">
+          {comparable.artist}&rsquo;s catalog has historically performed in{" "}
+          <span className="text-chrp-black">{comparable.placements}</span>. The
+          live market currently shows{" "}
+          <span className="text-chrp-black">{comparable.demand}</span> demand in{" "}
+          <span className="text-chrp-black">{comparable.vertical}</span>. Your
+          catalog is positioned to compete in that lane.
+        </p>
+      </div>
+    </section>
   );
 }
 

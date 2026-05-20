@@ -84,6 +84,7 @@ export function DashboardProfile() {
         }}
         scans={scans.length}
         artistOverride={null}
+        userScans={scans}
       />
       <div className="px-6 md:px-10 pb-10 max-w-[920px] mx-auto w-full">
         <Link
