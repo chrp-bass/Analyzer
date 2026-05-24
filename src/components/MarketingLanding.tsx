@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TIERS } from "@/lib/payments";
+import { pickRandomTrackSlug } from "@/lib/fixtures/tracks";
 
 export function MarketingLanding() {
+  // Picked fresh on every render. /app/page.tsx uses force-dynamic so each
+  // visit gets a different featured sample track.
+  const featuredSlug = pickRandomTrackSlug();
+  const sampleHref = `/?stage=unlocked&track=${featuredSlug}`;
   return (
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
 
-      <Hero />
+      <Hero sampleHref={sampleHref} />
       <WhyTheEngineMatters />
-      <SampleStrip />
+      <SampleStrip sampleHref={sampleHref} />
       <PricingSnapshot />
       <FinalCta />
 
@@ -29,7 +34,7 @@ export function MarketingLanding() {
   );
 }
 
-function Hero() {
+function Hero({ sampleHref }: { sampleHref: string }) {
   return (
     <section className="px-6 md:px-10 pt-12 md:pt-20 pb-10 md:pb-14 max-w-[920px] mx-auto w-full">
       <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-4">
@@ -51,7 +56,7 @@ function Hero() {
           Scan your song
         </Link>
         <Link
-          href="/?stage=unlocked&track=glasshouse"
+          href={sampleHref}
           className="inline-flex items-center justify-center font-sans text-[13px] tracking-wider uppercase text-chrp-black border border-rule px-6 py-4 hover:bg-oat"
         >
           See a sample report
@@ -156,7 +161,7 @@ function EngineBlock({
   );
 }
 
-function SampleStrip() {
+function SampleStrip({ sampleHref }: { sampleHref: string }) {
   return (
     <section className="px-6 md:px-10 py-10 md:py-14 max-w-[920px] mx-auto w-full border-t border-rule">
       <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-4">
@@ -170,7 +175,7 @@ function SampleStrip() {
       </p>
       <div className="mt-5">
         <Link
-          href="/?stage=unlocked&track=glasshouse"
+          href={sampleHref}
           className="font-sans text-[12px] tracking-wider uppercase text-chrp-black underline underline-offset-4 hover:no-underline"
         >
           Read a sample report &rarr;

@@ -293,7 +293,7 @@ function PaywallCard({ scanId }: { scanId: string }) {
             </Link>
             <span className="text-ink-light">·</span>
             <Link
-              href="/?stage=unlocked&track=glasshouse"
+              href="/?stage=unlocked"
               className="hover:text-chrp-black"
             >
               Sample report

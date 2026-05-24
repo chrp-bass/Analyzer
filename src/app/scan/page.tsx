@@ -1,5 +1,6 @@
 import { ScanInput } from "@/components/ScanInput";
 import { SiteHeader } from "@/components/SiteHeader";
+import { trackOptions } from "@/lib/fixtures/tracks";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,33 @@ export default function ScanPage() {
         <div className="mt-10">
           <ScanInput />
         </div>
-        <p className="mt-8 font-sans text-[11px] text-ink-light">
-          Don&rsquo;t have a link handy? Try{" "}
-          <span className="text-ink-soft">thunderstruck</span>,{" "}
-          <span className="text-ink-soft">metallica nothing else matters</span>,
-          or paste any text — the demo will pick a sample track.
-        </p>
+
+        <div className="mt-10">
+          <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft mb-3">
+            Try one of ours
+          </div>
+          <div className="hairline mb-4" />
+          <ul className="flex flex-col">
+            {trackOptions.map((t) => (
+              <li
+                key={t.id}
+                className="grid grid-cols-[1fr_auto] items-baseline gap-4 py-2.5 border-b border-rule"
+              >
+                <span className="font-display font-bold text-[18px] md:text-[20px] text-chrp-black">
+                  {t.label}
+                </span>
+                <span className="font-sans text-[11px] text-ink-soft">
+                  {t.hint}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 font-sans text-[11px] text-ink-light">
+            Type any of the names above in the field, paste a Spotify URL, or
+            paste any text — the demo will route to one of the six sample
+            tracks.
+          </p>
+        </div>
       </section>
     </div>
   );

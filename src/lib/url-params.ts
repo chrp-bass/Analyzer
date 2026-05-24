@@ -1,4 +1,4 @@
-import { TRACK_SLUGS } from "@/lib/fixtures/tracks";
+import { TRACK_SLUGS, pickRandomTrackSlug } from "@/lib/fixtures/tracks";
 
 export type Stage = "reveal" | "paywall-preview" | "unlocked" | "creator-profile";
 export type Format = "web" | "pdf";
@@ -27,8 +27,9 @@ export function parseParams(
     return v;
   };
 
-  const rawTrack = (get("track") ?? "glasshouse").toLowerCase();
-  const track = TRACK_SLUGS.includes(rawTrack) ? rawTrack : "glasshouse";
+  const rawTrack = (get("track") ?? "").toLowerCase();
+  const track =
+    rawTrack && TRACK_SLUGS.includes(rawTrack) ? rawTrack : pickRandomTrackSlug();
 
   const rawStage = (get("stage") ?? "unlocked") as Stage;
   const stage: Stage = STAGES.includes(rawStage) ? rawStage : "unlocked";

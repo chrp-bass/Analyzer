@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getReportById, reports } from "@/lib/fixtures/tracks";
+import { getReportById } from "@/lib/fixtures/tracks";
 import { getCreatorProfile } from "@/lib/fixtures/profile";
 import { parseParams } from "@/lib/url-params";
 import { RevealStage } from "@/components/stages/RevealStage";
@@ -37,8 +37,8 @@ export default function Root({
     redirect(`/api/report/${params.track}/pdf`);
   }
 
-  const report =
-    getReportById(params.track) ?? getReportById(Object.keys(reports)[0])!;
+  // parseParams already validates the slug, so this lookup always resolves.
+  const report = getReportById(params.track)!;
   const embedClass = params.embed ? "chrp-embed" : "";
 
   let body: React.ReactNode;
@@ -56,8 +56,7 @@ export default function Root({
       body = <PaywallPreviewStage report={report} trackSlug={params.track} />;
       break;
     case "creator-profile": {
-      const profile =
-        getCreatorProfile(params.track) ?? getCreatorProfile("glasshouse")!;
+      const profile = getCreatorProfile(params.track)!;
       body = (
         <CreatorProfileStage
           report={report}

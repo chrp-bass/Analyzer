@@ -96,15 +96,25 @@ export function PitchVerdictBlock({
   className?: string;
 }) {
   const conf = report.verdict.confidence;
+  // Pitch now leads with CHRP Yellow + chrp-black call text. Develop and Hold
+  // get a muted treatment so the credibility of a non-go verdict reads
+  // visually distinct from an enthusiastic green-light.
+  const call = report.verdict.call;
+  const muted = call === "Develop" || call === "Hold";
+  const borderColor = muted ? "var(--ink-light)" : "var(--chrp-yellow)";
+  const callColor = muted ? "var(--ink-soft)" : "var(--chrp-black)";
   return (
     <div
       className={`pl-4 py-2 border-l-[3px] max-w-[480px] ${className}`}
-      style={{ borderLeftColor: "var(--chrp-yellow)" }}
+      style={{ borderLeftColor: borderColor }}
     >
       <div className="font-sans font-bold text-[10px] tracking-wider text-ink-soft">
         PITCH READINESS
       </div>
-      <div className="font-display font-bold text-[32px] md:text-[36px] leading-none mt-1">
+      <div
+        className="font-display font-bold text-[32px] md:text-[36px] leading-none mt-1"
+        style={{ color: callColor }}
+      >
         {report.verdict.call}
       </div>
       {conf && (

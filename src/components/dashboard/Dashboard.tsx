@@ -97,7 +97,7 @@ export function Dashboard() {
 
   const unlocked = scans.length >= UNLOCK_THRESHOLD;
   const catalogComplete = scans.length >= CATALOG_COMPLETE_THRESHOLD;
-  const dominantTrack = scans[0]?.trackSlug ?? "glasshouse";
+  const dominantTrack = scans[0]?.trackSlug ?? "copper-static";
   const profile = getCreatorProfile(dominantTrack);
   const dominantReport = getReportById(dominantTrack);
 
