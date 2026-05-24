@@ -138,7 +138,7 @@ export const reports: Record<string, ReportPayload> = {
       name: "Voss Black",
       tracks_scored: 1,
       tease:
-        "Scan your full catalog to unlock your emotional consistency profile and identify your strongest pitch-priority tracks.",
+        "your emotional consistency profile and identify your strongest pitch-priority tracks.",
     },
   },
 
@@ -216,7 +216,7 @@ export const reports: Record<string, ReportPayload> = {
       name: "Mara Quinn",
       tracks_scored: 1,
       tease:
-        "Scan your full catalog to unlock your emotional consistency profile, signature pattern, and creator reliability score.",
+        "your emotional consistency profile, signature pattern, and creator reliability score.",
     },
   },
 
@@ -294,7 +294,7 @@ export const reports: Record<string, ReportPayload> = {
       name: "Stellan Grey",
       tracks_scored: 1,
       tease:
-        "Scan your full catalog to unlock your creator profile — emotional consistency, signature pattern, and catalog reliability score.",
+        "your creator profile — emotional consistency, signature pattern, and catalog reliability score.",
     },
   },
 
@@ -372,7 +372,7 @@ export const reports: Record<string, ReportPayload> = {
       name: "Nadia Park",
       tracks_scored: 1,
       tease:
-        "Scan your full catalog to unlock your creator profile — signature pattern, emotional consistency, and catalog reliability score.",
+        "your creator profile — signature pattern, emotional consistency, and catalog reliability score.",
     },
   },
 
@@ -450,7 +450,7 @@ export const reports: Record<string, ReportPayload> = {
       name: "Juno Riis",
       tracks_scored: 1,
       tease:
-        "Scan your full catalog to unlock your creator profile — signature pattern, emotional consistency, and reliability score across your body of work.",
+        "your creator profile — signature pattern, emotional consistency, and reliability score across your body of work.",
     },
   },
 
@@ -528,7 +528,7 @@ export const reports: Record<string, ReportPayload> = {
       name: "The Common Thread",
       tracks_scored: 1,
       tease:
-        "Scan your full catalog to unlock your creator profile — emotional consistency, signature pattern, and creator reliability score.",
+        "your creator profile — emotional consistency, signature pattern, and creator reliability score.",
     },
   },
 };

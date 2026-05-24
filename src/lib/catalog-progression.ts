@@ -104,21 +104,29 @@ function computeSignatureDescriptor(
   return "emerging artistic range";
 }
 
+// Percentage-based branches per the cleanup brief:
+//   one mode >= 80% of tracks  -> single-mode commit copy
+//   one mode 50-79%            -> dominant-but-not-exclusive copy
+//   no mode > 50%              -> multi-mode copy keyed on modes-present count
 function modeVersatilityCallout(
   modesPresent: number,
   dominantMode: Mode | null,
+  dominantPct: number,
 ): string {
+  if (dominantPct >= 80 && dominantMode) {
+    return `Your catalog commits to a single mode. This is rare consistency. ${dominantMode}-only artists develop dedicated supervisor relationships and own their lane decisively.`;
+  }
+  if (dominantPct >= 50 && dominantMode) {
+    return `Your catalog has a dominant mode — ${dominantMode} leads at ${dominantPct}% — with deliberate range around it. This combination of signature and versatility is commercially strong: supervisors learn your sound while knowing you can adapt to brief.`;
+  }
   if (modesPresent >= 4) {
-    return "Your catalog spans all four modes. Top 8% versatility across the CHRP corpus. You move between emotional registers most artists never reach.";
+    return "Your catalog spans 4 distinct modes. Top 8% versatility across the CHRP corpus. Multi-mode artists place broader than single-mode performers and serve a wider range of active briefs.";
   }
   if (modesPresent === 3) {
-    return "Your catalog spans three modes. Top 18% versatility. Multi-mode artists place broader than single-mode performers.";
+    return "Your catalog spans 3 distinct modes. Top 18% versatility across the CHRP corpus. Multi-mode artists place broader than single-mode performers and serve a wider range of active briefs.";
   }
   if (modesPresent === 2) {
-    return "Your catalog leans into two complementary modes. This pairing places you in established territory with clear positioning advantages.";
-  }
-  if (modesPresent === 1 && dominantMode) {
-    return `Your catalog commits to a single mode. This is rare consistency. ${dominantMode}-only artists develop dedicated supervisor relationships and own their lane decisively.`;
+    return "Your catalog spans 2 distinct modes. Multi-mode artists place broader than single-mode performers and serve a wider range of active briefs.";
   }
   return "Your catalog is still emerging. Scan a wider range of tracks to position across modes.";
 }
@@ -268,14 +276,33 @@ function pickComparable(
   }
 }
 
+// crossTrackObservation copy must stay consistent with the mode-versatility
+// verdict. When the catalog clearly spans multiple modes (dominant < 80%),
+// the named-pair phrasing is misleading even if two polygons happen to be
+// close, so we suppress it and use the multi-mode range copy.
+function crossTrackForMulti(scans: ScanRecordOnAccount[]): string {
+  if (scans.length < 2) {
+    return multiModeRangeCopy();
+  }
+  return crossTrackObservation(scans);
+}
+
+function multiModeRangeCopy(): string {
+  return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this in pitches: you adapt to brief, you don't force one sound onto every placement.";
+}
+
 export function getCatalogIntelligence(
   scans: ScanRecordOnAccount[],
 ): CatalogIntelligence {
   const counts = modeCountsFor(scans);
   const { mode: dominantMode, count: dominantModeCount } = pickDominantMode(counts);
   const modesPresent = (Object.values(counts) as number[]).filter((n) => n > 0).length;
+  const totalCounted = (Object.values(counts) as number[]).reduce((a, b) => a + b, 0);
+  const dominantPct =
+    totalCounted > 0 ? Math.round((dominantModeCount / totalCounted) * 100) : 0;
   const averages = averageScoresFor(scans);
   const signatureDescriptor = computeSignatureDescriptor(averages, scans);
+  const multiMode = dominantPct < 80;
   return {
     scanCount: scans.length,
     dominantMode,
@@ -283,8 +310,8 @@ export function getCatalogIntelligence(
     modesPresent,
     signatureDescriptor,
     averages,
-    modeVersatility: modeVersatilityCallout(modesPresent, dominantMode),
-    crossTrackObservation: crossTrackObservation(scans),
+    modeVersatility: modeVersatilityCallout(modesPresent, dominantMode, dominantPct),
+    crossTrackObservation: multiMode ? multiModeRangeCopy() : crossTrackForMulti(scans),
     catalogVsCorpus: catalogVsCorpusCallout(averages),
     comparable: pickComparable(dominantMode, averages),
   };
@@ -300,6 +327,7 @@ export function getCatalogIntelligenceFromProfile(profile: {
   const dominantMode = profile.signature.dominant_mode;
   const dist = profile.mode_distribution;
   const modesPresent = (Object.values(dist) as number[]).filter((n) => n > 0).length;
+  const dominantPct = Math.max(...(Object.values(dist) as number[]));
   const averages = profile.signature.polygon;
   return {
     scanCount: 0,
@@ -308,9 +336,8 @@ export function getCatalogIntelligenceFromProfile(profile: {
     modesPresent,
     signatureDescriptor: computeSignatureDescriptor(averages, []),
     averages,
-    modeVersatility: modeVersatilityCallout(modesPresent, dominantMode),
-    crossTrackObservation:
-      "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this in pitches: you adapt to brief, you don't force one sound onto every placement.",
+    modeVersatility: modeVersatilityCallout(modesPresent, dominantMode, dominantPct),
+    crossTrackObservation: multiModeRangeCopy(),
     catalogVsCorpus: catalogVsCorpusCallout(averages),
     comparable: pickComparable(dominantMode, averages),
   };

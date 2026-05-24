@@ -1,4 +1,5 @@
 import { getScanById, updateScan } from "@/lib/scan-id";
+import { TRACK_SLUGS } from "@/lib/fixtures/tracks";
 
 export const MODE: "demo" | "production" =
   (typeof process !== "undefined" &&
@@ -99,12 +100,44 @@ export async function getOrCreateGuestUser(): Promise<User | null> {
   return createUser(null);
 }
 
+// Deterministic remap of unknown track slugs to one of the current six. The
+// scanId seeds the hash so a given scan record always lands on the same new
+// slug across reloads. Used to migrate scans saved before the track-fixture
+// rewrite without wiping user data.
+function migrateUnknownSlug(scanId: string): string {
+  const hash = Array.from(scanId).reduce(
+    (acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0,
+    0,
+  );
+  return TRACK_SLUGS[hash % TRACK_SLUGS.length];
+}
+
+function migrateScans(raw: ScanRecordOnAccount[]): {
+  scans: ScanRecordOnAccount[];
+  changed: boolean;
+} {
+  let changed = false;
+  const scans = raw.map((s) => {
+    if (TRACK_SLUGS.includes(s.trackSlug)) return s;
+    changed = true;
+    return { ...s, trackSlug: migrateUnknownSlug(s.id) };
+  });
+  return { scans, changed };
+}
+
 export async function getUserScans(userId: string): Promise<ScanRecordOnAccount[]> {
   if (MODE === "demo") {
     const s = ls();
     if (!s) return [];
     try {
-      return JSON.parse(s.getItem(SCANS_KEY(userId)) || "[]");
+      const raw: ScanRecordOnAccount[] = JSON.parse(
+        s.getItem(SCANS_KEY(userId)) || "[]",
+      );
+      const { scans, changed } = migrateScans(raw);
+      if (changed) {
+        s.setItem(SCANS_KEY(userId), JSON.stringify(scans));
+      }
+      return scans;
     } catch {
       return [];
     }
