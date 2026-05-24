@@ -38,9 +38,10 @@ export function PolygonRadar({
 
   return (
     <svg
-      viewBox="-128 -120 256 240"
+      viewBox="-132 -120 270 240"
       width={size}
       height={size}
+      overflow="visible"
       aria-label={`Emotional fingerprint, EPI ${epiScore}, ${mode} mode`}
     >
       <circle cx="0" cy="0" r="25" fill="none" stroke={RING} strokeWidth="0.4" />
