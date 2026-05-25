@@ -1,253 +1,566 @@
 import Link from "next/link";
-import { SiteHeader } from "@/components/SiteHeader";
-import { TIERS } from "@/lib/payments";
-import { pickRandomTrackSlug } from "@/lib/fixtures/tracks";
 
 export function MarketingLanding() {
-  // Picked fresh on every render. /app/page.tsx uses force-dynamic so each
-  // visit gets a different featured sample track.
-  const featuredSlug = pickRandomTrackSlug();
-  const sampleHref = `/?stage=unlocked&track=${featuredSlug}`;
   return (
-    <div className="min-h-screen flex flex-col">
-      <SiteHeader />
-
-      <Hero sampleHref={sampleHref} />
-      <WhyTheEngineMatters />
-      <SampleStrip sampleHref={sampleHref} />
-      <PricingSnapshot />
-      <FinalCta />
-
-      <footer className="px-6 md:px-10 py-6 border-t border-rule flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="font-sans text-[11px] text-ink-soft">
-          Scored by CHRP &nbsp;//&nbsp; scan.chrp.ai
-        </div>
-        <div className="font-sans text-[11px] text-ink-light">
-          Behavioral scoring only.{" "}
-          <Link href="/methodology" className="underline-offset-4 hover:underline">
-            Methodology
-          </Link>
-          .
-        </div>
-      </footer>
+    <div className="min-h-screen flex flex-col bg-chrp-white text-chrp-black">
+      <LandingNav />
+      <main className="flex-1">
+        <Hero />
+        <TheGap />
+        <RecognitionMoment />
+        <ThreePillars />
+        <SuccessMoment />
+        <WhatYouWalkAwayWith />
+        <Pricing />
+        <Segments />
+        <Stakes />
+        <FinalCta />
+      </main>
+      <LandingFooter />
     </div>
   );
 }
 
-function Hero({ sampleHref }: { sampleHref: string }) {
+// ─── Nav ──────────────────────────────────────────────────────────────────────
+function LandingNav() {
   return (
-    <section className="px-6 md:px-10 pt-12 md:pt-20 pb-10 md:pb-14 max-w-[920px] mx-auto w-full">
-      <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-4">
-        Emotional intelligence for music
-      </div>
-      <h1 className="font-display font-bold text-[44px] md:text-[72px] leading-[0.95] text-chrp-black display-tight">
-        Score the emotional fingerprint of any track in 10 seconds.
+    <header className="flex items-center justify-between px-5 md:px-10 py-4 border-b border-rule">
+      <Link
+        href="/"
+        className="font-sans font-black text-[14px] tracking-wider text-chrp-black"
+      >
+        CHRP
+      </Link>
+      <Link
+        href="/scan"
+        className="font-sans font-bold text-[11px] md:text-[12px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-2 hover:bg-ink-soft"
+      >
+        Scan your song <span aria-hidden>→</span>
+      </Link>
+    </header>
+  );
+}
+
+// ─── Section shells ──────────────────────────────────────────────────────────
+function Section({
+  children,
+  pad = "py-16 md:py-24",
+  className = "",
+}: {
+  children: React.ReactNode;
+  pad?: string;
+  className?: string;
+}) {
+  return (
+    <section className={`${pad} px-5 md:px-10 ${className}`}>
+      <div className="max-w-[720px] mx-auto w-full">{children}</div>
+    </section>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="font-sans font-black text-[10px] tracking-[0.18em] uppercase text-ink-light mb-5">
+      {children}
+    </div>
+  );
+}
+
+// ─── CTA button (used in 3 places) ───────────────────────────────────────────
+function CtaButton({ label }: { label: string }) {
+  return (
+    <Link
+      href="/scan"
+      className="block w-full md:w-auto md:inline-block md:min-w-[320px] md:max-w-[400px] text-center font-sans font-bold text-[13px] md:text-[14px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-4 md:px-8 md:py-5 hover:bg-ink-soft"
+    >
+      {label}
+    </Link>
+  );
+}
+
+// ─── 2. Hero ─────────────────────────────────────────────────────────────────
+function Hero() {
+  return (
+    <Section pad="pt-12 md:pt-24 pb-16 md:pb-24">
+      <h1 className="font-display font-bold text-[40px] leading-[1.04] md:text-[80px] md:leading-[1.0] text-chrp-black display-tight">
+        Your song is ready.
+        <br />
+        The room doesn&rsquo;t know it yet.
       </h1>
-      <p className="font-display italic text-[18px] md:text-[22px] text-ink-soft mt-6 max-w-[42ch]">
-        The emotional intelligence engine for working musicians. Trained on a
-        living corpus of scored songs. Calibrated to the live sync market.
+      <div className="mt-8 md:mt-10 font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft">
+        <p>Give it a position.</p>
+        <p>Give it a language.</p>
+        <p>Give it a shot.</p>
+      </div>
+      <div className="mt-10 md:mt-12 md:flex md:justify-center">
+        <CtaButton label="Get your EPI score — free now" />
+      </div>
+    </Section>
+  );
+}
+
+// ─── 3. The gap ──────────────────────────────────────────────────────────────
+function TheGap() {
+  return (
+    <Section className="border-t border-rule">
+      <div className="font-sans text-[16px] md:text-[18px] leading-[1.6] text-ink-soft space-y-5">
+        <p>You can see your streams.</p>
+        <p>You can see your playlists.</p>
+        <p>
+          You know trail runners found your track. Gym-goers added it to their
+          sets. The numbers are moving.
+        </p>
+        <p>
+          What you can&rsquo;t see is the brief that&rsquo;s actively looking
+          for exactly this sound right now. Or the forty words that make the
+          supervisor running that brief write your name down.
+        </p>
+      </div>
+
+      <div className="mt-10 md:mt-14 space-y-2">
+        <p className="font-display font-bold italic text-[24px] md:text-[32px] leading-[1.2] text-chrp-black">
+          Supervisors don&rsquo;t pass on bad music.
+        </p>
+        <p className="font-display font-bold italic text-[24px] md:text-[32px] leading-[1.2] text-chrp-black">
+          They pass on music they can&rsquo;t place.
+        </p>
+      </div>
+
+      <div className="mt-10 md:mt-14 font-sans text-[16px] md:text-[18px] leading-[1.6] text-ink-soft space-y-5">
+        <p>
+          The intelligence that closes that gap has always lived inside labels,
+          publishing companies, and sync agencies.
+        </p>
+        <p className="font-bold text-chrp-black">CHRP puts it in your hands.</p>
+      </div>
+    </Section>
+  );
+}
+
+// ─── 4. The recognition moment ───────────────────────────────────────────────
+function RecognitionMoment() {
+  return (
+    <Section className="border-t border-rule">
+      <SectionLabel>The recognition moment</SectionLabel>
+      <p className="font-sans text-[15px] md:text-[16px] text-ink-soft leading-[1.55]">
+        You&rsquo;ve said some version of this. Every artist has.
       </p>
 
-      <div className="mt-10 flex flex-col sm:flex-row gap-3">
-        <Link
-          href="/scan"
-          className="inline-flex items-center justify-center font-sans font-bold text-[13px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-4"
+      <div className="mt-8 space-y-5">
+        <div
+          className="p-5 md:p-7 bg-oat border-l-[3px]"
+          style={{ borderLeftColor: "var(--ink-light)" }}
         >
-          Scan your song
-        </Link>
-        <Link
-          href={sampleHref}
-          className="inline-flex items-center justify-center font-sans text-[13px] tracking-wider uppercase text-chrp-black border border-rule px-6 py-4 hover:bg-oat"
+          <div className="font-sans font-black text-[10px] tracking-[0.18em] uppercase text-ink-soft mb-3">
+            Without CHRP
+          </div>
+          <p className="font-display italic text-[18px] md:text-[22px] leading-[1.4] text-chrp-black">
+            &ldquo;It&rsquo;s kind of cinematic. Kind of indie. It has this
+            melancholy but hopeful feeling &mdash; I think it could work for a
+            TV show or maybe a car commercial.&rdquo;
+          </p>
+        </div>
+
+        <div
+          className="p-5 md:p-7 bg-oat border-l-[3px]"
+          style={{ borderLeftColor: "var(--chrp-yellow)" }}
         >
-          See a sample report
-        </Link>
+          <div className="font-sans font-black text-[10px] tracking-[0.18em] uppercase text-ink-soft mb-3">
+            With CHRP
+          </div>
+          <p className="font-display italic text-[18px] md:text-[22px] leading-[1.4] text-chrp-black">
+            &ldquo;Ready mode. Top 6% Motivation. Strongest active brief demand
+            in athletic and performance right now. Closest sync sibling to
+            Sigur R&oacute;s in prestige sport documentary. Here&rsquo;s the
+            throughline.&rdquo;
+          </p>
+        </div>
       </div>
-    </section>
+
+      <p className="mt-12 md:mt-16 font-sans font-bold text-[18px] md:text-[22px] text-chrp-black text-center leading-[1.3]">
+        One of these gets written down.
+      </p>
+
+      <div className="mt-10 md:mt-12 md:flex md:justify-center">
+        <CtaButton label="Scan your first track — free now" />
+      </div>
+    </Section>
   );
 }
 
-function WhyTheEngineMatters() {
+// ─── 5. Three pillars ────────────────────────────────────────────────────────
+function ThreePillars() {
   return (
-    <section className="px-6 md:px-10 py-12 md:py-20 max-w-[920px] mx-auto w-full border-t border-rule">
-      <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-6">
-        Why the engine matters
-      </div>
-      <h2 className="font-display font-bold text-[28px] md:text-[40px] leading-[1.02] text-chrp-black display-tight max-w-[20ch]">
-        CHRP doesn&rsquo;t analyze your song. CHRP positions it.
+    <Section className="border-t border-rule">
+      <SectionLabel>Why the engine matters</SectionLabel>
+      <h2 className="font-display font-bold text-[32px] md:text-[48px] leading-[1.05] text-chrp-black display-tight">
+        CHRP doesn&rsquo;t analyze your song.
+        <br />
+        CHRP positions it.
       </h2>
 
-      <div className="mt-10 flex flex-col gap-10 md:gap-14">
-        <EngineBlock
+      <div className="mt-12 md:mt-16 flex flex-col gap-12 md:gap-16">
+        <Pillar
           n="01"
-          headline="Most tools tell you what your song is. CHRP tells you where it sits."
-          body={
-            <>
-              Every scan you run is positioned against the CHRP corpus &mdash;
-              fingerprinted, scored, clustered, and mapped to commercial
-              outcomes. The number you see isn&rsquo;t a guess. It&rsquo;s a
-              coordinate. A song&rsquo;s emotional fingerprint only means
-              something when you know what it&rsquo;s near, what it&rsquo;s far
-              from, and which neighborhood predicts which kind of placement.
-              That&rsquo;s a problem of corpus, not cleverness.
-            </>
-          }
+          headline="Your song has a position."
+          body="Not a vibe. A coordinate. Scored against a corpus of music mapped to real commercial outcomes. The number you see isn't an opinion. It's where your song lives in the market right now."
         />
-        <EngineBlock
+        <Pillar
           n="02"
-          headline="A single song is a data point. The corpus is a behavior map."
-          body={
-            <>
-              CHRP&rsquo;s engine has learned, across scored tracks at scale,
-              which fingerprint patterns predict which placements, which
-              signatures hold together across an artist&rsquo;s catalog, which
-              clusters correlate with completion rates and sync receptivity.
-              When CHRP tells you a song belongs in athletic and performance
-              contexts &mdash; or that its Calm score will cost it placements
-              in wellness and intimate categories &mdash; the claim rests on
-              what comparable tracks have actually done in the market.
-            </>
-          }
+          headline="Your catalog has a signature."
+          body="Scan eight tracks and your creative pattern emerges — emotional consistency, signature shape, reliability across your body of work. The intelligence that defines a career, not a single release."
         />
-        <EngineBlock
+        <Pillar
           n="03"
-          headline="A static analysis is a snapshot. CHRP is a signal."
-          body={
-            <>
-              The corpus refreshes against active sync briefs, current listener
-              behavior, and placement outcomes. Your song&rsquo;s score today
-              reflects the market today &mdash; not last year&rsquo;s playlists
-              or generic genre conventions. When the market shifts &mdash;
-              toward calmer wellness tracks, toward higher-tempo athletic
-              anthems, toward whatever the next quarter demands &mdash; your
-              CHRP report shifts with it. The fingerprint stays. The position
-              moves.
-            </>
-          }
+          headline="The market is live."
+          body="Active briefs. Real demand signals. Refreshed weekly. You stop pitching last quarter's market and start pitching the one that's open right now."
         />
       </div>
-    </section>
+    </Section>
   );
 }
 
-function EngineBlock({
+function Pillar({
   n,
   headline,
   body,
 }: {
   n: string;
   headline: string;
-  body: React.ReactNode;
+  body: string;
 }) {
   return (
-    <div className="grid grid-cols-[48px_1fr] md:grid-cols-[72px_1fr] gap-4 md:gap-8 items-start border-t border-rule pt-8">
+    <div className="border-t border-rule pt-6 md:pt-8">
       <div
-        className="font-sans font-black text-[32px] md:text-[44px] leading-none"
+        className="font-sans font-black text-[36px] md:text-[48px] leading-none mb-3 md:mb-4"
         style={{
           color: "var(--chrp-yellow)",
-          WebkitTextStroke: "0.2px var(--chrp-black)",
+          WebkitTextStroke: "0.3px var(--chrp-black)",
         }}
       >
         {n}
       </div>
-      <div>
-        <p className="font-display font-bold text-[20px] md:text-[26px] leading-[1.12] text-chrp-black">
-          {headline}
+      <h3 className="font-display font-bold text-[22px] md:text-[28px] leading-[1.15] text-chrp-black">
+        {headline}
+      </h3>
+      <p className="mt-3 md:mt-4 font-sans text-[15px] md:text-[16px] leading-[1.6] text-ink-soft">
+        {body}
+      </p>
+    </div>
+  );
+}
+
+// ─── 6. The success moment ───────────────────────────────────────────────────
+function SuccessMoment() {
+  return (
+    <Section className="border-t border-rule">
+      <div className="font-sans text-[16px] md:text-[18px] leading-[1.6] text-ink-soft space-y-5">
+        <p>Picture the next conversation you have with a music supervisor.</p>
+        <p>They ask what the track is for.</p>
+        <p>
+          You don&rsquo;t reach for genre labels. You don&rsquo;t say &ldquo;it
+          has kind of a cinematic feel.&rdquo;
         </p>
-        <p className="mt-3 font-sans text-[13px] md:text-[14px] leading-[1.55] text-ink-soft max-w-[58ch]">
-          {body}
+        <p>
+          You tell them: Ready mode. Top 8% Motivation across the corpus.
+          Strongest active brief demand in athletic content right now. Closest
+          sync sibling to Sigur R&oacute;s for prestige sport documentary.
+          Here&rsquo;s the throughline in one sentence.
         </p>
+        <p>They write something down.</p>
+      </div>
+
+      <div className="mt-12 md:mt-16 text-center space-y-2 md:space-y-3">
+        <p className="font-display font-bold text-[24px] md:text-[36px] leading-[1.15] text-chrp-black">
+          That feeling has a name.
+        </p>
+        <p className="font-display font-bold text-[24px] md:text-[36px] leading-[1.15] text-chrp-black">
+          It&rsquo;s called knowing what you have.
+        </p>
+        <p className="font-display font-bold text-[24px] md:text-[36px] leading-[1.15] text-chrp-black">
+          CHRP gives you that.
+        </p>
+      </div>
+    </Section>
+  );
+}
+
+// ─── 7. What you walk away with ──────────────────────────────────────────────
+function WhatYouWalkAwayWith() {
+  const items = [
+    "Mode and EPI score: exactly what kind of track you made",
+    "Pitch readiness verdict: Pitch now, Develop, or Hold — with the reasoning",
+    "Dr. Rhodes' analysis: where it lives commercially and what to avoid",
+    "Three placements written in the language supervisors use",
+    "A throughline you can paste into any pitch email today",
+    "Live market signal on where active brief demand is right now",
+  ];
+  return (
+    <Section className="border-t border-rule">
+      <SectionLabel>What a scan returns</SectionLabel>
+      <p className="font-sans text-[16px] md:text-[18px] text-ink-soft mb-6">
+        One scan. Ten seconds. You walk away with:
+      </p>
+      <ul className="space-y-3 md:space-y-4 font-sans text-[15px] md:text-[16px] leading-[1.55] text-ink-soft">
+        {items.map((line) => (
+          <li
+            key={line}
+            className="grid grid-cols-[18px_1fr] gap-3"
+          >
+            <span aria-hidden className="text-ink-light">
+              &mdash;
+            </span>
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-8 md:mt-10 font-sans font-bold text-[16px] md:text-[18px] text-chrp-black leading-[1.45]">
+        Everything you need to walk into any room like you already know the
+        answer.
+      </p>
+      <p className="mt-4 font-sans text-[12px] md:text-[13px] text-ink-light leading-[1.5]">
+        Works on released tracks. Share privately for pre-release intelligence.
+      </p>
+
+      <div className="mt-10 md:mt-12 md:flex md:justify-center">
+        <CtaButton label="Scan your first track — free now" />
+      </div>
+    </Section>
+  );
+}
+
+// ─── 8. Pricing ──────────────────────────────────────────────────────────────
+function Pricing() {
+  return (
+    <Section className="border-t border-rule">
+      <SectionLabel>Pricing</SectionLabel>
+
+      <div className="space-y-12 md:space-y-14">
+        <TierBlock
+          name="Single scan"
+          price="$29"
+          body={
+            <>
+              <p>
+                One track. Know exactly what it is, where it belongs, and how
+                to pitch it.
+              </p>
+              <p>
+                Full report. Sixty-day access. Pitch verdict, analysis,
+                placement intelligence, live market signal.
+              </p>
+            </>
+          }
+        />
+
+        <div className="border-t border-rule pt-8 md:pt-10">
+          <div className="flex flex-col md:flex-row md:items-baseline md:gap-6 mb-4">
+            <div className="font-sans font-black text-[11px] tracking-[0.18em] uppercase text-ink-soft">
+              Catalog
+            </div>
+            <div className="font-display font-bold text-[28px] md:text-[36px] leading-none mt-1 md:mt-0 text-chrp-black">
+              from $149
+            </div>
+          </div>
+          <div className="font-sans text-[15px] md:text-[16px] leading-[1.6] text-ink-soft space-y-4">
+            <p>The intelligence that managers have. Now available without one.</p>
+            <p>
+              Score your catalog at a per-track rate. Scan eight tracks and
+              your creator profile unlocks &mdash; emotional consistency,
+              signature pattern, and reliability index that only emerge across
+              a body of work.
+            </p>
+          </div>
+          <div className="mt-6 space-y-1">
+            <p className="font-display italic text-[18px] md:text-[22px] leading-[1.35] text-chrp-black">
+              Your first scan tells you what you have.
+            </p>
+            <p className="font-display italic text-[18px] md:text-[22px] leading-[1.35] text-chrp-black">
+              Your eighth tells you who you are as a creator.
+            </p>
+          </div>
+        </div>
+
+        <TierBlock
+          name="Extended catalog"
+          price="$299"
+          body={
+            <p>
+              Full discography. Forty tracks. Complete catalog positioning.
+            </p>
+          }
+        />
+
+        <TierBlock
+          name="Manager roster"
+          price="$499"
+          body={
+            <p>
+              Managing a roster? The catalog tier covers multiple artists.
+              Scan your full roster and see who to lead with this quarter
+              &mdash; and against which active briefs.
+            </p>
+          }
+        />
+
+        <TierBlock
+          name="Annual unlimited"
+          price="$999"
+          body={
+            <p>
+              Labels, agencies, and sync-active management firms. Unlimited
+              scans. White-label exports. Priority engine access.
+            </p>
+          }
+        />
+      </div>
+
+      <p className="mt-12 md:mt-14 font-sans italic text-[13px] md:text-[14px] text-ink-soft text-center">
+        Free through June 30. Pricing starts July 1.
+      </p>
+    </Section>
+  );
+}
+
+function TierBlock({
+  name,
+  price,
+  body,
+}: {
+  name: string;
+  price: string;
+  body: React.ReactNode;
+}) {
+  return (
+    <div className="border-t border-rule pt-8 md:pt-10">
+      <div className="flex flex-col md:flex-row md:items-baseline md:gap-6 mb-4">
+        <div className="font-sans font-black text-[11px] tracking-[0.18em] uppercase text-ink-soft">
+          {name}
+        </div>
+        <div className="font-display font-bold text-[28px] md:text-[36px] leading-none mt-1 md:mt-0 text-chrp-black">
+          {price}
+        </div>
+      </div>
+      <div className="font-sans text-[15px] md:text-[16px] leading-[1.6] text-ink-soft space-y-3">
+        {body}
       </div>
     </div>
   );
 }
 
-function SampleStrip({ sampleHref }: { sampleHref: string }) {
+// ─── 9. Segments ─────────────────────────────────────────────────────────────
+function Segments() {
   return (
-    <section className="px-6 md:px-10 py-10 md:py-14 max-w-[920px] mx-auto w-full border-t border-rule">
-      <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-4">
-        What a scan returns
+    <Section className="border-t border-rule">
+      <SectionLabel>You&rsquo;re not the only one.</SectionLabel>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8">
+        <Segment
+          name="Producers"
+          line1="Scan during the creative process — not after."
+          line2="Know where the track is headed before it's finished."
+        />
+        <Segment
+          name="Managers"
+          line1="Ranked pitch priorities across your full roster against live briefs."
+          line2="See who to lead with this quarter."
+        />
+        <div>
+          <div className="font-sans font-black text-[11px] tracking-[0.18em] uppercase text-ink-soft mb-3">
+            A&amp;R
+          </div>
+          <p className="font-sans text-[15px] md:text-[15.5px] leading-[1.55] text-ink-soft">
+            Pre-commitment intelligence before the signing meeting.
+          </p>
+          <Link
+            href="/contact"
+            className="mt-3 inline-block font-sans font-bold text-[13px] tracking-wider uppercase text-chrp-black underline underline-offset-4 hover:no-underline"
+          >
+            &rarr; Let&rsquo;s talk about bulk access
+          </Link>
+        </div>
       </div>
-      <p className="font-display italic text-[16px] md:text-[20px] text-ink-soft max-w-[52ch]">
-        EPI score, mode, percentile rank in mode, four CHRP scores, four human
-        performance variables, a pitch readiness verdict, Dr.&nbsp;Rhodes&rsquo;
-        analysis, the placement brief, and where the music currently lives in
-        the sync market.
+    </Section>
+  );
+}
+
+function Segment({
+  name,
+  line1,
+  line2,
+}: {
+  name: string;
+  line1: string;
+  line2: string;
+}) {
+  return (
+    <div>
+      <div className="font-sans font-black text-[11px] tracking-[0.18em] uppercase text-ink-soft mb-3">
+        {name}
+      </div>
+      <p className="font-sans text-[15px] md:text-[15.5px] leading-[1.55] text-ink-soft">
+        {line1}
       </p>
-      <div className="mt-5">
-        <Link
-          href={sampleHref}
-          className="font-sans text-[12px] tracking-wider uppercase text-chrp-black underline underline-offset-4 hover:no-underline"
-        >
-          Read a sample report &rarr;
-        </Link>
-      </div>
-    </section>
+      <p className="font-sans text-[15px] md:text-[15.5px] leading-[1.55] text-ink-soft mt-1">
+        {line2}
+      </p>
+    </div>
   );
 }
 
-function PricingSnapshot() {
-  const single = TIERS.single.priceUsd;
-  const artist = TIERS.artist_catalog.priceUsd;
+// ─── 10. Stakes ──────────────────────────────────────────────────────────────
+function Stakes() {
   return (
-    <section className="px-6 md:px-10 py-10 md:py-14 max-w-[920px] mx-auto w-full border-t border-rule">
-      <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-4">
-        Pricing
+    <Section
+      pad="py-20 md:py-32"
+      className="border-t border-rule"
+    >
+      <div className="font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft space-y-4">
+        <p>
+          Every week you pitch without this is a week you&rsquo;re asking
+          supervisors to do your positioning work for you.
+        </p>
+        <p className="font-bold text-chrp-black">Most won&rsquo;t.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-        <div>
-          <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
-            Single scan
-          </div>
-          <div className="font-display font-bold text-[40px] leading-none mt-1 text-chrp-black">
-            ${single}
-          </div>
-          <p className="mt-3 font-sans text-[13px] text-ink-soft leading-snug max-w-[44ch]">
-            One track. The full report, 60-day access. Pitch verdict, analysis,
-            placement intelligence, market signal.
-          </p>
-        </div>
-        <div>
-          <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
-            Catalog scans
-          </div>
-          <div className="font-display font-bold text-[40px] leading-none mt-1 text-chrp-black">
-            from ${artist}
-          </div>
-          <p className="mt-3 font-sans text-[13px] text-ink-soft leading-snug max-w-[44ch]">
-            Score your catalog at a per-track rate. Scan eight tracks and the
-            creator profile unlocks &mdash; signature pattern, emotional
-            consistency, reliability across your body of work.
-          </p>
-        </div>
-      </div>
-    </section>
+    </Section>
   );
 }
 
+// ─── 11. Final CTA ───────────────────────────────────────────────────────────
 function FinalCta() {
   return (
-    <section className="px-6 md:px-10 py-12 md:py-16 max-w-[920px] mx-auto w-full border-t border-rule">
-      <h2 className="font-display font-bold text-[28px] md:text-[40px] leading-[1.05] text-chrp-black">
-        Scan your song.
+    <Section className="border-t border-rule">
+      <h2 className="font-display font-bold text-[32px] md:text-[56px] leading-[1.06] text-chrp-black display-tight">
+        You already know your music is good.
+        <br />
+        Now know what it&rsquo;s worth.
       </h2>
-      <p className="mt-3 font-display italic text-[16px] md:text-[18px] text-ink-soft max-w-[44ch]">
-        Ten seconds. A fingerprint, a position, and a pitch list ready to act
-        on.
-      </p>
-      <div className="mt-6 flex flex-col sm:flex-row gap-3">
-        <Link
-          href="/scan"
-          className="inline-flex items-center justify-center font-sans font-bold text-[13px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-4"
-        >
-          Scan your song
-        </Link>
-        <Link
-          href="/methodology"
-          className="inline-flex items-center justify-center font-sans text-[13px] tracking-wider uppercase text-chrp-black border border-rule px-6 py-4 hover:bg-oat"
-        >
-          Methodology
-        </Link>
+      <div className="mt-8 md:mt-10 md:flex md:justify-center">
+        <CtaButton label="Scan your first track — free through June 30" />
       </div>
-    </section>
+      <p className="mt-4 font-sans text-[12px] md:text-[13px] text-ink-light text-center md:text-left">
+        Pricing starts July 1. No credit card required.
+      </p>
+    </Section>
+  );
+}
+
+// ─── 12. Footer ──────────────────────────────────────────────────────────────
+function LandingFooter() {
+  return (
+    <footer className="border-t border-rule px-5 md:px-10 py-6">
+      <div className="max-w-[920px] mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-1 md:gap-6 font-sans text-[11px] md:text-[12px] text-ink-light">
+        <div>Scored by CHRP &nbsp;//&nbsp; scan.chrp.ai</div>
+        <div>
+          Behavioral scoring only.{" "}
+          <Link
+            href="/methodology"
+            className="underline underline-offset-4 hover:text-chrp-black"
+          >
+            Methodology at scan.chrp.ai/methodology
+          </Link>
+          .
+        </div>
+      </div>
+    </footer>
   );
 }
