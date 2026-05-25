@@ -11,6 +11,16 @@ import {
 import { ProductId } from "@/lib/accounts";
 import { sendMagicLink, sendReceipt } from "@/lib/email";
 
+// Beta-mode gate. Defaults to ON; flipped off by setting NEXT_PUBLIC_BETA_MODE
+// to "false" (which is what flips the card form back on for July 1 / Stripe
+// cutover). All card-form code below stays intact and is only suppressed via
+// {!BETA_MODE && ...} so flipping the env var brings it back without a code
+// change.
+const BETA_MODE = process.env.NEXT_PUBLIC_BETA_MODE !== "false";
+const PROMO_CODE = (
+  process.env.NEXT_PUBLIC_PROMO_CODE ?? "EARLYACCESS"
+).toUpperCase();
+
 type Mode = "single" | "tier";
 
 export function StripeCheckoutForm({
@@ -36,6 +46,7 @@ export function StripeCheckoutForm({
   const [exp, setExp] = useState("");
   const [cvc, setCvc] = useState("");
   const [zip, setZip] = useState("");
+  const [promo, setPromo] = useState("");
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +82,12 @@ export function StripeCheckoutForm({
     if (processing || !sessionId) return;
     if (!email.includes("@")) {
       setError("Enter an email address to receive your receipt.");
+      return;
+    }
+    if (BETA_MODE && promo.trim().toUpperCase() !== PROMO_CODE) {
+      setError(
+        `That code isn't valid. Early access code is ${PROMO_CODE}.`,
+      );
       return;
     }
     setError(null);
@@ -135,40 +152,53 @@ export function StripeCheckoutForm({
               placeholder="you@studio.com"
               autoComplete="email"
             />
-            <Field
-              label="Card number"
-              value={card}
-              onChange={setCard}
-              placeholder="1234 1234 1234 1234"
-              inputMode="numeric"
-              autoComplete="cc-number"
-            />
-            <div className="grid grid-cols-2 gap-3">
+
+            {BETA_MODE ? (
               <Field
-                label="Expiry"
-                value={exp}
-                onChange={setExp}
-                placeholder="MM / YY"
-                inputMode="numeric"
-                autoComplete="cc-exp"
+                label="Promo code"
+                value={promo}
+                onChange={(v) => setPromo(v.toUpperCase())}
+                placeholder="EARLYACCESS"
+                autoComplete="off"
               />
-              <Field
-                label="CVC"
-                value={cvc}
-                onChange={setCvc}
-                placeholder="CVC"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-              />
-            </div>
-            <Field
-              label="Billing ZIP"
-              value={zip}
-              onChange={setZip}
-              placeholder="ZIP"
-              inputMode="numeric"
-              autoComplete="postal-code"
-            />
+            ) : (
+              <>
+                <Field
+                  label="Card number"
+                  value={card}
+                  onChange={setCard}
+                  placeholder="1234 1234 1234 1234"
+                  inputMode="numeric"
+                  autoComplete="cc-number"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field
+                    label="Expiry"
+                    value={exp}
+                    onChange={setExp}
+                    placeholder="MM / YY"
+                    inputMode="numeric"
+                    autoComplete="cc-exp"
+                  />
+                  <Field
+                    label="CVC"
+                    value={cvc}
+                    onChange={setCvc}
+                    placeholder="CVC"
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
+                  />
+                </div>
+                <Field
+                  label="Billing ZIP"
+                  value={zip}
+                  onChange={setZip}
+                  placeholder="ZIP"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                />
+              </>
+            )}
 
             {error && (
               <div className="font-sans text-[12px] text-plum mt-1">
@@ -186,15 +216,24 @@ export function StripeCheckoutForm({
                   <Spinner />
                   Processing…
                 </>
+              ) : BETA_MODE ? (
+                <>Unlock &mdash; free through June 30</>
               ) : (
                 <>Pay {priceDisplay}</>
               )}
             </button>
 
-            <div className="font-sans text-[11px] text-[#9ca3af] text-center mt-3">
-              Demo checkout · no card data is captured · {priceCents}¢
-              simulated charge
-            </div>
+            {BETA_MODE ? (
+              <div className="font-sans text-[11px] text-ink-light text-center mt-3">
+                Pricing starts at $29 on July 1. No card required during early
+                access.
+              </div>
+            ) : (
+              <div className="font-sans text-[11px] text-[#9ca3af] text-center mt-3">
+                Demo checkout · no card data is captured · {priceCents}¢
+                simulated charge
+              </div>
+            )}
           </form>
         </div>
 
