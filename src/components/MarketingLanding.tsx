@@ -67,12 +67,17 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── CTA button (used in 3 places) ───────────────────────────────────────────
-function CtaButton({ label }: { label: string }) {
+// ─── CTA button (used in 4 places) ───────────────────────────────────────────
+// `accent` (CHRP Yellow on black text) is the hero treatment — the first
+// moment of color on the page. Subsequent CTAs use the default chrp-black bg.
+function CtaButton({ label, accent = false }: { label: string; accent?: boolean }) {
+  const palette = accent
+    ? "bg-chrp-yellow text-chrp-black hover:bg-[#d4c63d]"
+    : "bg-chrp-black text-chrp-white hover:bg-ink-soft";
   return (
     <Link
       href="/scan"
-      className="block w-full md:w-auto md:inline-block md:min-w-[320px] md:max-w-[400px] text-center font-sans font-bold text-[13px] md:text-[14px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-4 md:px-8 md:py-5 hover:bg-ink-soft"
+      className={`block w-full md:w-auto md:inline-block md:min-w-[320px] md:max-w-[400px] text-center font-sans font-bold text-[13px] md:text-[14px] tracking-wider uppercase px-6 py-4 md:px-8 md:py-5 ${palette}`}
     >
       {label}
     </Link>
@@ -82,33 +87,21 @@ function CtaButton({ label }: { label: string }) {
 // ─── 2. Hero ─────────────────────────────────────────────────────────────────
 function Hero() {
   return (
-    <section className="relative overflow-hidden pt-12 md:pt-24 pb-16 md:pb-24 px-5 md:px-10">
-      {/* Warm coral atmospheric glow at the bottom-left. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse at 0% 100%, rgba(232, 93, 36, 0.22) 0%, transparent 60%)",
-          zIndex: 0,
-        }}
-      />
-      <div className="relative z-[1] max-w-[720px] mx-auto w-full">
-        <h1 className="font-display font-bold text-[40px] leading-[1.04] md:text-[80px] md:leading-[1.0] text-chrp-black display-tight">
-          Your song is ready.
-          <br />
-          The room doesn&rsquo;t know it yet.
-        </h1>
-        <div className="mt-8 md:mt-10 font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft">
-          <p>Give it a position.</p>
-          <p>Give it a language.</p>
-          <p>Give it a shot.</p>
-        </div>
-        <div className="mt-10 md:mt-12 md:flex md:justify-center">
-          <CtaButton label="Get your EPI score — free now" />
-        </div>
+    <Section pad="pt-12 md:pt-24 pb-16 md:pb-24">
+      <h1 className="font-display font-bold text-[40px] leading-[1.04] md:text-[80px] md:leading-[1.0] text-chrp-black display-tight">
+        Your song is ready.
+        <br />
+        The room doesn&rsquo;t know it yet.
+      </h1>
+      <div className="mt-8 md:mt-10 font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft">
+        <p>Give it a position.</p>
+        <p>Give it a language.</p>
+        <p>Give it a shot.</p>
       </div>
-    </section>
+      <div className="mt-10 md:mt-12 md:flex md:justify-center">
+        <CtaButton label="Get your EPI score — free now" accent />
+      </div>
+    </Section>
   );
 }
 
@@ -557,14 +550,15 @@ function FinalCta() {
   );
 }
 
-// ─── Marquee — gradient band between page content and footer. ───────────────
+// ─── Marquee — dark editorial band between page content and footer. ─────────
 function Marquee() {
   return (
     <div className="chrp-marquee-section" aria-hidden>
       <div className="chrp-marquee-track">
-        Score your song. &nbsp;🐦&nbsp; Find Your Frequency. &nbsp;🐦&nbsp; Let
-        music move you. &nbsp;🐦&nbsp; Score your song. &nbsp;🐦&nbsp; Find Your
-        Frequency. &nbsp;🐦&nbsp; Let music move you. &nbsp;🐦&nbsp;
+        Score your song. &nbsp;&#10022;&nbsp; Find Your Frequency.
+        &nbsp;&#10022;&nbsp; Let music move you. &nbsp;&#10022;&nbsp; Score your
+        song. &nbsp;&#10022;&nbsp; Find Your Frequency. &nbsp;&#10022;&nbsp; Let
+        music move you. &nbsp;&#10022;&nbsp;
       </div>
     </div>
   );
@@ -573,14 +567,15 @@ function Marquee() {
 // ─── 12. Footer ──────────────────────────────────────────────────────────────
 function LandingFooter() {
   return (
-    <footer className="px-5 md:px-10 py-6">
-      <div className="max-w-[920px] mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-6 font-sans text-[11px] md:text-[13px]">
+    <footer className="border-t border-rule px-5 md:px-10 py-8 font-sans text-[12px] text-ink-light">
+      <div className="max-w-[920px] mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-6">
         <div>Scored by CHRP &nbsp;//&nbsp; scan.chrp.ai</div>
         <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
           <a
             href="https://mychrp.ai"
             target="_blank"
             rel="noreferrer"
+            className="hover:text-chrp-black"
           >
             mychrp.ai
           </a>
@@ -588,11 +583,14 @@ function LandingFooter() {
             href="https://chrp.ai"
             target="_blank"
             rel="noreferrer"
+            className="hover:text-chrp-black"
           >
             chrp.ai
           </a>
-          <Link href="/methodology">Methodology</Link>
-          <span className="opacity-60">Behavioral scoring only.</span>
+          <Link href="/methodology" className="hover:text-chrp-black">
+            Methodology
+          </Link>
+          <span>Behavioral scoring only.</span>
         </div>
       </div>
     </footer>

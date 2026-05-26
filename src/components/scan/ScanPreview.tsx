@@ -139,7 +139,7 @@ export function ScanPreview({
         )}
       </AnimatePresence>
 
-      <article className="chrp-report px-6 md:px-10 lg:px-14 py-8 md:py-12 max-w-[920px] mx-auto w-full">
+      <article className="px-6 md:px-10 lg:px-14 py-8 md:py-12 max-w-[920px] mx-auto w-full">
         <HeaderBand
           id={report.report_meta.id}
           version={report.report_meta.version}

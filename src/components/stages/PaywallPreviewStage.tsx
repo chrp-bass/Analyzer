@@ -16,7 +16,7 @@ export function PaywallPreviewStage({
   const chip = MODE_COLORS[report.epi.mode];
 
   return (
-    <div className="chrp-report relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden">
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
