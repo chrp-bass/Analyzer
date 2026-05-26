@@ -20,7 +20,6 @@ export interface PolygonRadarProps {
 const AXIS = "var(--polygon-axis)";
 const RING = "var(--polygon-ring)";
 const RING_OUTER = "var(--polygon-ring-outer)";
-const POLYGON_STROKE = "var(--polygon-stroke)";
 const POLYGON_LABEL = "var(--polygon-label)";
 const POLYGON_TEXT = "var(--polygon-text)";
 
@@ -35,6 +34,10 @@ export function PolygonRadar({
 }: PolygonRadarProps) {
   const v = vertices;
   const fill = MODE_COLORS[mode].polygonFill;
+  // The polygon outline and vertex dots pick up a per-mode stroke so the
+  // shape reads as one color. Inside .chrp-report this variable scope-
+  // restores to var(--chrp-black) so the cream-paper report stays in ink.
+  const stroke = `var(--mode-${mode.toLowerCase()}-stroke)`;
 
   const k = 0.9;
   const top = { x: 0, y: -v.focus * k };
@@ -64,6 +67,7 @@ export function PolygonRadar({
           bottom={bottom}
           left={left}
           fill={fill}
+          stroke={stroke}
         />
       ) : (
         <StaticShape
@@ -72,6 +76,7 @@ export function PolygonRadar({
           bottom={bottom}
           left={left}
           fill={fill}
+          stroke={stroke}
         />
       )}
 
@@ -89,12 +94,14 @@ function StaticShape({
   bottom,
   left,
   fill,
+  stroke,
 }: {
   top: { x: number; y: number };
   right: { x: number; y: number };
   bottom: { x: number; y: number };
   left: { x: number; y: number };
   fill: string;
+  stroke: string;
 }) {
   const points = `${top.x},${top.y} ${right.x},${right.y} ${bottom.x},${bottom.y} ${left.x},${left.y}`;
   return (
@@ -102,14 +109,14 @@ function StaticShape({
       <polygon
         points={points}
         fill={fill}
-        stroke={POLYGON_STROKE}
+        stroke={stroke}
         strokeWidth="1.2"
         strokeLinejoin="round"
       />
-      <circle cx={top.x} cy={top.y} r="2.6" fill={POLYGON_STROKE} />
-      <circle cx={right.x} cy={right.y} r="2.6" fill={POLYGON_STROKE} />
-      <circle cx={bottom.x} cy={bottom.y} r="2.6" fill={POLYGON_STROKE} />
-      <circle cx={left.x} cy={left.y} r="2.6" fill={POLYGON_STROKE} />
+      <circle cx={top.x} cy={top.y} r="2.6" fill={stroke} />
+      <circle cx={right.x} cy={right.y} r="2.6" fill={stroke} />
+      <circle cx={bottom.x} cy={bottom.y} r="2.6" fill={stroke} />
+      <circle cx={left.x} cy={left.y} r="2.6" fill={stroke} />
     </g>
   );
 }
@@ -120,12 +127,14 @@ function AnimatedShape({
   bottom,
   left,
   fill,
+  stroke,
 }: {
   top: { x: number; y: number };
   right: { x: number; y: number };
   bottom: { x: number; y: number };
   left: { x: number; y: number };
   fill: string;
+  stroke: string;
 }) {
   // Reveal timing inside the 3.5s back-half of the 10s sequence:
   //  6.0-7.0 Focus appears        → t=0.0-1.0 here
@@ -151,7 +160,7 @@ function AnimatedShape({
           y1={a.y}
           x2={b.x}
           y2={b.y}
-          stroke={POLYGON_STROKE}
+          stroke={stroke}
           strokeWidth="1.2"
           strokeLinejoin="round"
           initial={{ pathLength: 0, opacity: 0 }}
@@ -177,7 +186,7 @@ function AnimatedShape({
           cx={p.x}
           cy={p.y}
           r="2.6"
-          fill={POLYGON_STROKE}
+          fill={stroke}
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{

@@ -76,11 +76,14 @@ export function TierPicker({
                   `/scan/${scanId}/checkout-tier?product=${id}`,
                 )
               }
-              className={`relative flex flex-col items-stretch text-left p-5 border ${
-                popular
-                  ? "border-chrp-black"
-                  : "border-rule"
+              className={`relative flex flex-col items-stretch text-left p-5 rounded ${
+                popular ? "border" : "border border-rule"
               } bg-chrp-white hover:bg-oat disabled:opacity-60 disabled:cursor-not-allowed`}
+              style={
+                popular
+                  ? { borderColor: "rgba(230, 215, 79, 0.30)" }
+                  : undefined
+              }
             >
               {popular && (
                 <div

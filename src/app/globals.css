@@ -3,71 +3,108 @@
 @tailwind utilities;
 
 /*
- * Editorial-light theme. The V8 report is the canonical brand expression
- * and every page extends it: cream paper, black ink, Cormorant Garamond /
- * Lato, CHRP Yellow as the single accent. No dark surfaces except the
- * marquee band above the footer.
+ * Dark atmospheric editorial reskin.
+ *
+ * The Song Analyzer is the war room. mychrp.ai is the lounge. Both speak
+ * the same language - Cormorant + Lato + CHRP Yellow - but the Analyzer
+ * earns its authority through dark surfaces and surgical atmospheric
+ * accents. Moving from this surface into the V8 report (cream paper,
+ * scoped via .chrp-report) is the deliberate transition from lobby to
+ * document.
+ *
+ * Strategy: swap the existing Tailwind CSS-variable values to the dark
+ * palette so bg-chrp-white / text-chrp-black / bg-oat / etc. flip
+ * automatically. Inside .chrp-report (applied to the V8 report's
+ * <article>), restore the original light editorial palette so the
+ * report stays cream and matches the PDF.
  */
 
 :root {
   /* Base surfaces ------------------------------------------------------- */
-  --chrp-oat:     #F7F3EA;   /* page background */
-  --chrp-oat-mid: #EFEBE0;   /* subtle inline surface */
-  --chrp-white:   #FFFFFF;   /* elevated card surface */
+  --bg-base:         #0A0A0A;
+  --bg-surface:      #111111;
+  --bg-surface-mid:  #161616;
+  --bg-surface-high: #1C1C1C;
 
-  /* Brand aliases (kept so existing Tailwind classes continue to work) */
-  --oat:   var(--chrp-oat-mid);
+  /* Tailwind aliases — swap them so existing utilities flip site-wide. */
+  --chrp-white: var(--bg-surface);   /* bg-chrp-white surfaces (cards) */
+  --chrp-black: var(--text-primary); /* text-chrp-black text */
+  --oat:        var(--bg-surface-mid);
 
-  /* Type ---------------------------------------------------------------- */
-  --chrp-black: #0F0E0E;
-  --ink-soft:   #4A4540;
-  --ink-light:  #8A8278;
+  /* Type --------------------------------------------------------------- */
+  --text-primary:   #F0EDE6;
+  --text-secondary: #9A9490;
+  --text-tertiary:  #5A5550;
 
-  /* Accent + secondary palette ------------------------------------------ */
-  --chrp-yellow:   #E6D74F;
-  --magenta:       #C12C79;
-  --french-blue:   #406BD6;
-  --kelly-green:   #008054;
-  --cinnamon:      #D98068;
-  --plum:          #591739;
-  --pistachio:     #BEE2A8;
+  /* Tailwind ink aliases match the new tertiary/secondary semantics. */
+  --ink-soft:  var(--text-secondary);
+  --ink-light: var(--text-tertiary);
 
-  /* Rules + bars -------------------------------------------------------- */
-  --rule:            rgba(15, 14, 14, 0.18);   /* legacy alias used by .hairline */
-  --border-hairline: rgba(15, 14, 14, 0.09);   /* section rules */
-  --border-card:     rgba(15, 14, 14, 0.07);   /* card borders */
-  --bar-bg:          rgba(15, 14, 14, 0.08);
+  /* Accent + atmospherics ---------------------------------------------- */
+  --chrp-yellow:     #E6D74F;
+  --chrp-yellow-dim: rgba(230, 215, 79, 0.12);
 
-  /* Mode color system — fully restored to the V8 palette ---------------- */
-  --mode-ready-bg:      #E6D74F;
-  --mode-ready-fg:      #0F0E0E;
-  --mode-ready-fill:    rgba(230, 215, 79, 0.52);
+  --atm-coral:  #E85D24;
+  --atm-amber:  #F2A623;
+  --atm-plum:   #591739;
+  --atm-teal:   #0D4A3D;
+  --atm-indigo: #4A1D8A;
 
-  --mode-flow-bg:       #406BD6;
-  --mode-flow-fg:       #FFFFFF;
-  --mode-flow-fill:     rgba(64, 107, 214, 0.50);
+  /* Secondary palette - kept so existing Tailwind color utilities work. */
+  --magenta:     #C12C79;
+  --french-blue: #406BD6;
+  --kelly-green: #5DCAA5;
+  --cinnamon:    #E85D24;
+  --plum:        #AFA9EC;
+  --pistachio:   #5DCAA5;
 
-  --mode-recharge-bg:   #BEE2A8;
-  --mode-recharge-fg:   #0F0E0E;
-  --mode-recharge-fill: rgba(190, 226, 168, 0.52);
+  /* Borders ------------------------------------------------------------ */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-mid:    rgba(255, 255, 255, 0.12);
+  --rule:          var(--border-subtle);
+  --bar-bg:        rgba(255, 255, 255, 0.08);
 
-  --mode-recover-bg:    #591739;
-  --mode-recover-fg:    #FFFFFF;
-  --mode-recover-fill:  rgba(89, 23, 57, 0.48);
+  /* Mode colors — dark-calibrated ---------------------------------------*/
+  --mode-ready-bg:        rgba(230, 215, 79, 0.15);
+  --mode-ready-fg:        #E6D74F;
+  --mode-ready-fill:      rgba(230, 215, 79, 0.38);
+  --mode-ready-stroke:    rgba(230, 215, 79, 0.70);
 
-  /* Polygon radar tokens — fine dark ink on cream paper. */
-  --polygon-stroke:     rgba(15, 14, 14, 0.35);
-  --polygon-axis:       rgba(15, 14, 14, 0.10);
-  --polygon-ring:       rgba(15, 14, 14, 0.18);
-  --polygon-ring-outer: rgba(15, 14, 14, 0.30);
-  --polygon-label:      var(--ink-soft);
-  --polygon-text:       var(--chrp-black);
+  --mode-flow-bg:         rgba(64, 107, 214, 0.18);
+  --mode-flow-fg:         #7A9FE8;
+  --mode-flow-fill:       rgba(64, 107, 214, 0.38);
+  --mode-flow-stroke:     rgba(100, 140, 230, 0.80);
+
+  --mode-recharge-bg:     rgba(190, 226, 168, 0.14);
+  --mode-recharge-fg:     #A8D990;
+  --mode-recharge-fill:   rgba(190, 226, 168, 0.35);
+  --mode-recharge-stroke: rgba(190, 226, 168, 0.75);
+
+  --mode-recover-bg:      rgba(138, 58, 110, 0.20);
+  --mode-recover-fg:      #C990B8;
+  --mode-recover-fill:    rgba(138, 58, 110, 0.38);
+  --mode-recover-stroke:  rgba(175, 100, 155, 0.75);
+
+  /* Polygon radar tokens — dark surface defaults. Mode-specific stroke
+   * is resolved at render time in PolygonRadar via var(--mode-X-stroke). */
+  --polygon-stroke:     rgba(240, 237, 230, 0.25);
+  --polygon-axis:       rgba(240, 237, 230, 0.10);
+  --polygon-ring:       rgba(240, 237, 230, 0.18);
+  --polygon-ring-outer: rgba(240, 237, 230, 0.30);
+  --polygon-label:      var(--text-secondary);
+  --polygon-text:       var(--text-primary);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html,
 body {
-  background-color: var(--chrp-oat);
-  color: var(--chrp-black);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   font-family: var(--font-lato), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -82,26 +119,37 @@ body:has(main.chrp-embed) {
 
 ::selection {
   background: var(--chrp-yellow);
-  color: var(--chrp-black);
+  color: var(--bg-base);
 }
 
 ::placeholder {
-  color: var(--ink-light);
+  color: var(--text-tertiary);
 }
 
-/* Editorial input fields — cream paper, ink border, dark text. */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 3px;
+}
+
+/* Dark-theme input fields. Overridden inside .chrp-report. */
 input,
 textarea,
 select {
-  background: var(--chrp-white);
-  border: 1.5px solid rgba(15, 14, 14, 0.20);
-  color: var(--chrp-black);
+  background: var(--bg-surface-high);
+  border: 1px solid var(--border-mid);
+  color: var(--text-primary);
   border-radius: 2px;
 }
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: var(--chrp-black);
+  border-color: rgba(230, 215, 79, 0.5);
   outline: none;
 }
 
@@ -112,17 +160,201 @@ select {
   font: inherit;
   color: inherit;
 }
-
 button:focus {
   outline: none;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * V8 report scope - cream paper inside the dark surface.
+ * Applied to <article> of ReportPage, ScanPreview, PaywallPreviewStage.
+ * Specificity 0,0,2,0 (doubled selector) beats Tailwind's single utility
+ * for the font + button overrides without needing !important.
+ * ───────────────────────────────────────────────────────────────────── */
+.chrp-report {
+  --chrp-white:  #FBFBF4;
+  --chrp-black:  #0F0E0E;
+  --oat:         #F7F3EA;
+  --rule:        rgba(15, 14, 14, 0.18);
+  --ink-soft:    #4A4540;
+  --ink-light:   #8A8278;
+  --bar-bg:      rgba(15, 14, 14, 0.08);
+  --chrp-yellow: #E6D74F;
+  --magenta:     #C12C79;
+  --french-blue: #406BD6;
+  --kelly-green: #008054;
+  --cinnamon:    #D98068;
+  --plum:        #591739;
+  --pistachio:   #BEE2A8;
+
+  --polygon-stroke:     var(--chrp-black);
+  --polygon-axis:       rgba(15, 14, 14, 0.10);
+  --polygon-ring:       rgba(15, 14, 14, 0.18);
+  --polygon-ring-outer: rgba(15, 14, 14, 0.30);
+  --polygon-label:      var(--ink-soft);
+  --polygon-text:       var(--chrp-black);
+
+  /* V8 report mode colors restored to the cream-paper palette. */
+  --mode-ready-bg:      #E6D74F;
+  --mode-ready-fg:      #0F0E0E;
+  --mode-ready-fill:    rgba(230, 215, 79, 0.52);
+  --mode-ready-stroke:  var(--chrp-black);
+
+  --mode-flow-bg:       #406BD6;
+  --mode-flow-fg:       #FFFFFF;
+  --mode-flow-fill:     rgba(64, 107, 214, 0.50);
+  --mode-flow-stroke:   var(--chrp-black);
+
+  --mode-recharge-bg:   #BEE2A8;
+  --mode-recharge-fg:   #0F0E0E;
+  --mode-recharge-fill: rgba(190, 226, 168, 0.52);
+  --mode-recharge-stroke: var(--chrp-black);
+
+  --mode-recover-bg:    #591739;
+  --mode-recover-fg:    #FFFFFF;
+  --mode-recover-fill:  rgba(89, 23, 57, 0.48);
+  --mode-recover-stroke: var(--chrp-black);
+
+  background: var(--chrp-white);
+  color: var(--chrp-black);
+  font-family: var(--font-lato), system-ui, sans-serif;
+}
+
+/* Inside the report, font-display + font-sans bind to the editorial fonts. */
+.chrp-report.chrp-report .font-display,
+.chrp-report .font-display {
+  font-family: var(--font-cormorant), Georgia, serif;
+}
+.chrp-report.chrp-report .font-sans,
+.chrp-report .font-sans {
+  font-family: var(--font-lato), system-ui, sans-serif;
+}
+
+/* Inside the report, inputs return to the cream-paper treatment. */
+.chrp-report input,
+.chrp-report textarea,
+.chrp-report select {
+  background: var(--chrp-white);
+  border: 1.5px solid rgba(15, 14, 14, 0.20);
+  color: var(--chrp-black);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Sticky / blurred nav glass.
+ * ───────────────────────────────────────────────────────────────────── */
+header.site-nav,
+header.landing-nav {
+  background: rgba(10, 10, 10, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Hero atmospherics. Both blobs are pseudo-elements on .hero-section.
+ * ───────────────────────────────────────────────────────────────────── */
+.hero-section {
+  position: relative;
+  overflow: hidden;
+}
+.hero-section::before,
+.hero-section::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+.hero-section::before {
+  bottom: -80px;
+  left: -100px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(232, 93, 36, 0.18) 0%,
+    rgba(232, 93, 36, 0.06) 45%,
+    transparent 70%
+  );
+}
+.hero-section::after {
+  top: -60px;
+  right: -80px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(74, 29, 138, 0.14) 0%,
+    transparent 65%
+  );
+}
+.hero-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Three-pillar gradient feature cards.
+ * mychrp.ai family DNA - the gradient is the mood, the text is the brief.
+ * ───────────────────────────────────────────────────────────────────── */
+.pillar-card {
+  border-radius: 12px;
+  padding: 48px 40px;
+  position: relative;
+  overflow: hidden;
+  color: #F0EDE6;
+}
+.pillar-card[data-pillar="01"] {
+  background: linear-gradient(
+    135deg,
+    rgba(89, 23, 57, 0.90) 0%,
+    rgba(142, 40, 20, 0.80) 40%,
+    rgba(180, 90, 20, 0.70) 75%,
+    rgba(200, 140, 30, 0.60) 100%
+  );
+  border: 1px solid rgba(232, 93, 36, 0.20);
+}
+.pillar-card[data-pillar="02"] {
+  background: linear-gradient(
+    135deg,
+    rgba(13, 74, 61, 0.95)  0%,
+    rgba(20, 90, 80, 0.85)  40%,
+    rgba(40, 110, 95, 0.75) 75%,
+    rgba(70, 130, 110, 0.60) 100%
+  );
+  border: 1px solid rgba(13, 74, 61, 0.40);
+}
+.pillar-card[data-pillar="03"] {
+  background: linear-gradient(
+    135deg,
+    rgba(74, 29, 138, 0.95) 0%,
+    rgba(55, 30, 120, 0.85) 40%,
+    rgba(40, 50, 140, 0.80) 75%,
+    rgba(30, 80, 160, 0.65) 100%
+  );
+  border: 1px solid rgba(74, 29, 138, 0.40);
+}
+.pillar-number {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: rgba(240, 237, 230, 0.50);
+}
+.pillar-card h3 {
+  color: #F0EDE6;
+}
+.pillar-card p {
+  color: rgba(240, 237, 230, 0.78);
 }
 
 @layer utilities {
   .label-up {
     font-family: var(--font-lato), system-ui, sans-serif;
-    font-weight: 700;
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.14em;
     font-size: 0.66rem;
   }
   .hairline {
@@ -138,13 +370,12 @@ button:focus {
 }
 
 /* ────────────────────────────────────────────────────────────────────────
- * Marquee — the single intentional dark moment on the page.
- * Cormorant Garamond italic in CHRP Yellow on black. The contrast against
- * the surrounding cream is the point.
+ * Marquee - mychrp.ai signature. Purple-to-teal gradient, Cormorant
+ * italic, gold #D4A853 text, bird separators.
  * ───────────────────────────────────────────────────────────────────── */
 .chrp-marquee-section {
-  background: var(--chrp-black);
-  padding: 40px 0;
+  background: linear-gradient(135deg, #4a1d8a 0%, #0d4a3d 100%);
+  padding: 48px 0;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -153,8 +384,8 @@ button:focus {
   animation: chrp-marquee 30s linear infinite;
   font-family: var(--font-cormorant), Georgia, serif;
   font-style: italic;
-  font-size: clamp(22px, 3.5vw, 42px);
-  color: var(--chrp-yellow);
+  font-size: clamp(24px, 4vw, 48px);
+  color: #D4A853;
   letter-spacing: 0.04em;
 }
 @keyframes chrp-marquee {
@@ -162,18 +393,18 @@ button:focus {
   to   { transform: translateX(-50%); }
 }
 
-/* Optional mode-badge utility for any new components that want to opt in
- * by class + data-mode attribute. Existing components keep using the inline
- * MODE_COLORS lookup from tracks.ts. */
+/* Optional mode-badge utility class for opt-in use. Existing components
+ * keep using the inline MODE_COLORS lookup which now resolves to the
+ * dark-calibrated values via the --mode-* CSS variables above. */
 .mode-badge,
 .mode-chip {
   display: inline-block;
   border-radius: 2px;
   padding: 5px 12px;
   font-family: var(--font-lato), system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 .mode-badge[data-mode="Ready"],    .mode-chip[data-mode="Ready"]    { background: var(--mode-ready-bg);    color: var(--mode-ready-fg);    }

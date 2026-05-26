@@ -25,16 +25,21 @@ export function MarketingLanding() {
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function LandingNav() {
   return (
-    <header className="flex items-center justify-between px-5 md:px-10 py-4 border-b border-rule">
+    <header className="landing-nav flex items-center justify-between px-5 md:px-10 py-4">
       <Link
         href="/"
-        className="font-sans font-black text-[14px] tracking-wider text-chrp-black"
+        className="font-display font-bold text-[20px] tracking-[0.02em] text-chrp-black"
       >
         CHRP
       </Link>
       <Link
         href="/scan"
-        className="font-sans font-bold text-[11px] md:text-[12px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-2 hover:bg-ink-soft"
+        className="font-sans font-bold text-[12px] tracking-[0.08em] uppercase px-4 py-2 transition-colors"
+        style={{
+          color: "var(--chrp-yellow)",
+          border: "1px solid rgba(230, 215, 79, 0.40)",
+          borderRadius: "2px",
+        }}
       >
         Scan your song <span aria-hidden>→</span>
       </Link>
@@ -86,22 +91,26 @@ function CtaButton({ label, accent = false }: { label: string; accent?: boolean 
 
 // ─── 2. Hero ─────────────────────────────────────────────────────────────────
 function Hero() {
+  // .hero-section attaches the two atmospheric blobs via ::before / ::after
+  // (coral lower-left, indigo upper-right) — see globals.css.
   return (
-    <Section pad="pt-12 md:pt-24 pb-16 md:pb-24">
-      <h1 className="font-display font-bold text-[40px] leading-[1.04] md:text-[80px] md:leading-[1.0] text-chrp-black display-tight">
-        Your song is ready.
-        <br />
-        The room doesn&rsquo;t know it yet.
-      </h1>
-      <div className="mt-8 md:mt-10 font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft">
-        <p>Give it a position.</p>
-        <p>Give it a language.</p>
-        <p>Give it a shot.</p>
+    <section className="hero-section px-5 md:px-10 pt-16 md:pt-24 pb-16 md:pb-24">
+      <div className="max-w-[720px] mx-auto w-full">
+        <h1 className="font-display font-bold text-[42px] leading-[1.0] md:text-[88px] md:leading-[0.98] text-chrp-black display-tight">
+          Your song is ready.
+          <br />
+          The room doesn&rsquo;t know it yet.
+        </h1>
+        <div className="mt-8 md:mt-10 font-sans text-[16px] md:text-[18px] leading-[2.0] text-ink-soft font-light tracking-[0.02em]">
+          <p>Give it a position.</p>
+          <p>Give it a language.</p>
+          <p>Give it a shot.</p>
+        </div>
+        <div className="mt-10 md:mt-12 md:flex md:justify-center">
+          <CtaButton label="Get your EPI score — free now" accent />
+        </div>
       </div>
-      <div className="mt-10 md:mt-12 md:flex md:justify-center">
-        <CtaButton label="Get your EPI score — free now" accent />
-      </div>
-    </Section>
+    </section>
   );
 }
 
@@ -205,7 +214,7 @@ function ThreePillars() {
         CHRP positions it.
       </h2>
 
-      <div className="mt-12 md:mt-16 flex flex-col gap-12 md:gap-16">
+      <div className="mt-12 md:mt-16 flex flex-col gap-5">
         <Pillar
           n="01"
           headline="Your song has a position."
@@ -235,21 +244,14 @@ function Pillar({
   headline: string;
   body: string;
 }) {
+  // .pillar-card carries the per-pillar gradient via data-pillar in globals.css.
   return (
-    <div className="border-t border-rule pt-6 md:pt-8">
-      <div
-        className="font-sans font-black text-[36px] md:text-[48px] leading-none mb-3 md:mb-4"
-        style={{
-          color: "var(--chrp-yellow)",
-          WebkitTextStroke: "0.3px var(--chrp-black)",
-        }}
-      >
-        {n}
-      </div>
-      <h3 className="font-display font-bold text-[22px] md:text-[28px] leading-[1.15] text-chrp-black">
+    <div className="pillar-card" data-pillar={n}>
+      <div className="pillar-number">{n}</div>
+      <h3 className="font-display font-bold text-[28px] md:text-[42px] leading-[1.1] mt-3 md:mt-4 max-w-[18ch]">
         {headline}
       </h3>
-      <p className="mt-3 md:mt-4 font-sans text-[15px] md:text-[16px] leading-[1.6] text-ink-soft">
+      <p className="mt-5 md:mt-6 font-sans text-[14px] md:text-[15px] font-light leading-[1.7] max-w-[480px]">
         {body}
       </p>
     </div>
@@ -550,15 +552,15 @@ function FinalCta() {
   );
 }
 
-// ─── Marquee — dark editorial band between page content and footer. ─────────
+// ─── Marquee — mychrp.ai signature. Purple→teal gradient, Cormorant italic
+//     in gold, bird separators. Identical to the consumer site. ─────────────
 function Marquee() {
   return (
     <div className="chrp-marquee-section" aria-hidden>
       <div className="chrp-marquee-track">
-        Score your song. &nbsp;&#10022;&nbsp; Find Your Frequency.
-        &nbsp;&#10022;&nbsp; Let music move you. &nbsp;&#10022;&nbsp; Score your
-        song. &nbsp;&#10022;&nbsp; Find Your Frequency. &nbsp;&#10022;&nbsp; Let
-        music move you. &nbsp;&#10022;&nbsp;
+        Score your song. &nbsp;🐦&nbsp; Find Your Frequency. &nbsp;🐦&nbsp; Let
+        music move you. &nbsp;🐦&nbsp; Score your song. &nbsp;🐦&nbsp; Find Your
+        Frequency. &nbsp;🐦&nbsp; Let music move you. &nbsp;🐦&nbsp;
       </div>
     </div>
   );
