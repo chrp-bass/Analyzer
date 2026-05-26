@@ -607,28 +607,30 @@ export function resolveTrackSlug(input: string): string {
 // Back-compat alias for older call sites.
 export const matchInputToReportId = resolveTrackSlug;
 
+// mychrp.ai mode palette. chipBg + polygonFill share the same hue per mode
+// so the badge and the radar fill always match.
 export const MODE_COLORS: Record<
   Mode,
   { chipBg: string; chipText: string; polygonFill: string }
 > = {
   Ready: {
-    chipBg: "var(--chrp-yellow)",
-    chipText: "var(--chrp-black)",
-    polygonFill: "rgba(230,215,79,0.55)",
-  },
-  Recover: {
-    chipBg: "var(--plum)",
-    chipText: "var(--chrp-white)",
-    polygonFill: "rgba(89,23,57,0.45)",
-  },
-  Recharge: {
-    chipBg: "var(--pistachio)",
-    chipText: "var(--chrp-black)",
-    polygonFill: "rgba(190,226,168,0.65)",
+    chipBg: "var(--mode-ready-bg)",
+    chipText: "var(--mode-ready-fg)",
+    polygonFill: "var(--mode-ready-fill)",
   },
   Flow: {
-    chipBg: "var(--french-blue)",
-    chipText: "var(--chrp-white)",
-    polygonFill: "rgba(64,107,214,0.45)",
+    chipBg: "var(--mode-flow-bg)",
+    chipText: "var(--mode-flow-fg)",
+    polygonFill: "var(--mode-flow-fill)",
+  },
+  Recharge: {
+    chipBg: "var(--mode-recharge-bg)",
+    chipText: "var(--mode-recharge-fg)",
+    polygonFill: "var(--mode-recharge-fill)",
+  },
+  Recover: {
+    chipBg: "var(--mode-recover-bg)",
+    chipText: "var(--mode-recover-fg)",
+    polygonFill: "var(--mode-recover-fill)",
   },
 };

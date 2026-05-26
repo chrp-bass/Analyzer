@@ -16,6 +16,7 @@ export function MarketingLanding() {
         <Stakes />
         <FinalCta />
       </main>
+      <Marquee />
       <LandingFooter />
     </div>
   );
@@ -81,21 +82,33 @@ function CtaButton({ label }: { label: string }) {
 // ─── 2. Hero ─────────────────────────────────────────────────────────────────
 function Hero() {
   return (
-    <Section pad="pt-12 md:pt-24 pb-16 md:pb-24">
-      <h1 className="font-display font-bold text-[40px] leading-[1.04] md:text-[80px] md:leading-[1.0] text-chrp-black display-tight">
-        Your song is ready.
-        <br />
-        The room doesn&rsquo;t know it yet.
-      </h1>
-      <div className="mt-8 md:mt-10 font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft">
-        <p>Give it a position.</p>
-        <p>Give it a language.</p>
-        <p>Give it a shot.</p>
+    <section className="relative overflow-hidden pt-12 md:pt-24 pb-16 md:pb-24 px-5 md:px-10">
+      {/* Warm coral atmospheric glow at the bottom-left. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse at 0% 100%, rgba(232, 93, 36, 0.22) 0%, transparent 60%)",
+          zIndex: 0,
+        }}
+      />
+      <div className="relative z-[1] max-w-[720px] mx-auto w-full">
+        <h1 className="font-display font-bold text-[40px] leading-[1.04] md:text-[80px] md:leading-[1.0] text-chrp-black display-tight">
+          Your song is ready.
+          <br />
+          The room doesn&rsquo;t know it yet.
+        </h1>
+        <div className="mt-8 md:mt-10 font-sans text-[17px] md:text-[20px] leading-[1.55] text-ink-soft">
+          <p>Give it a position.</p>
+          <p>Give it a language.</p>
+          <p>Give it a shot.</p>
+        </div>
+        <div className="mt-10 md:mt-12 md:flex md:justify-center">
+          <CtaButton label="Get your EPI score — free now" />
+        </div>
       </div>
-      <div className="mt-10 md:mt-12 md:flex md:justify-center">
-        <CtaButton label="Get your EPI score — free now" />
-      </div>
-    </Section>
+    </section>
   );
 }
 
@@ -544,21 +557,42 @@ function FinalCta() {
   );
 }
 
+// ─── Marquee — gradient band between page content and footer. ───────────────
+function Marquee() {
+  return (
+    <div className="chrp-marquee-section" aria-hidden>
+      <div className="chrp-marquee-track">
+        Score your song. &nbsp;🐦&nbsp; Find Your Frequency. &nbsp;🐦&nbsp; Let
+        music move you. &nbsp;🐦&nbsp; Score your song. &nbsp;🐦&nbsp; Find Your
+        Frequency. &nbsp;🐦&nbsp; Let music move you. &nbsp;🐦&nbsp;
+      </div>
+    </div>
+  );
+}
+
 // ─── 12. Footer ──────────────────────────────────────────────────────────────
 function LandingFooter() {
   return (
-    <footer className="border-t border-rule px-5 md:px-10 py-6">
-      <div className="max-w-[920px] mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-1 md:gap-6 font-sans text-[11px] md:text-[12px] text-ink-light">
+    <footer className="px-5 md:px-10 py-6">
+      <div className="max-w-[920px] mx-auto w-full flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-6 font-sans text-[11px] md:text-[13px]">
         <div>Scored by CHRP &nbsp;//&nbsp; scan.chrp.ai</div>
-        <div>
-          Behavioral scoring only.{" "}
-          <Link
-            href="/methodology"
-            className="underline underline-offset-4 hover:text-chrp-black"
+        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-5">
+          <a
+            href="https://mychrp.ai"
+            target="_blank"
+            rel="noreferrer"
           >
-            Methodology at scan.chrp.ai/methodology
-          </Link>
-          .
+            mychrp.ai
+          </a>
+          <a
+            href="https://chrp.ai"
+            target="_blank"
+            rel="noreferrer"
+          >
+            chrp.ai
+          </a>
+          <Link href="/methodology">Methodology</Link>
+          <span className="opacity-60">Behavioral scoring only.</span>
         </div>
       </div>
     </footer>

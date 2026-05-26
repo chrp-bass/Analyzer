@@ -25,8 +25,13 @@ const config: Config = {
         "bar-bg": "var(--bar-bg)",
       },
       fontFamily: {
-        display: ["var(--font-cormorant)", "Georgia", "serif"],
-        sans: ["var(--font-lato)", "system-ui", "sans-serif"],
+        // Site-wide default: Playfair Display / DM Sans (mychrp.ai identity).
+        // Inside the V8 report, .chrp-report scope-overrides these back to
+        // Cormorant / Lato in globals.css.
+        display: ["var(--font-playfair)", "Georgia", "serif"],
+        sans: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
+        cormorant: ["var(--font-cormorant)", "Georgia", "serif"],
+        lato: ["var(--font-lato)", "system-ui", "sans-serif"],
       },
     },
   },

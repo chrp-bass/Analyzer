@@ -76,11 +76,10 @@ export function TierPicker({
                   `/scan/${scanId}/checkout-tier?product=${id}`,
                 )
               }
-              className={`relative flex flex-col items-stretch text-left p-5 border ${
-                popular
-                  ? "border-chrp-black"
-                  : "border-rule"
-              } bg-chrp-white hover:bg-oat disabled:opacity-60 disabled:cursor-not-allowed`}
+              className={`relative flex flex-col items-stretch text-left p-5 rounded-2xl bg-chrp-white hover:bg-oat disabled:opacity-60 disabled:cursor-not-allowed ${
+                popular ? "border-2" : "border"
+              } ${popular ? "" : "border-rule"}`}
+              style={popular ? { borderColor: "#D4A853" } : undefined}
             >
               {popular && (
                 <div

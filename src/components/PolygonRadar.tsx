@@ -14,9 +14,15 @@ export interface PolygonRadarProps {
   showCenter?: boolean;
 }
 
-const AXIS = "rgba(15,14,14,0.1)";
-const RING = "rgba(15,14,14,0.18)";
-const RING_OUTER = "rgba(15,14,14,0.3)";
+// Colors come from CSS variables so the radar adapts to its container.
+// Inside .chrp-report (cream paper) the variables resolve to dark strokes;
+// elsewhere (dark theme) they resolve to translucent light strokes.
+const AXIS = "var(--polygon-axis)";
+const RING = "var(--polygon-ring)";
+const RING_OUTER = "var(--polygon-ring-outer)";
+const POLYGON_STROKE = "var(--polygon-stroke)";
+const POLYGON_LABEL = "var(--polygon-label)";
+const POLYGON_TEXT = "var(--polygon-text)";
 
 export function PolygonRadar({
   vertices,
@@ -96,14 +102,14 @@ function StaticShape({
       <polygon
         points={points}
         fill={fill}
-        stroke="var(--chrp-black)"
+        stroke={POLYGON_STROKE}
         strokeWidth="1.2"
         strokeLinejoin="round"
       />
-      <circle cx={top.x} cy={top.y} r="2.6" fill="var(--chrp-black)" />
-      <circle cx={right.x} cy={right.y} r="2.6" fill="var(--chrp-black)" />
-      <circle cx={bottom.x} cy={bottom.y} r="2.6" fill="var(--chrp-black)" />
-      <circle cx={left.x} cy={left.y} r="2.6" fill="var(--chrp-black)" />
+      <circle cx={top.x} cy={top.y} r="2.6" fill={POLYGON_STROKE} />
+      <circle cx={right.x} cy={right.y} r="2.6" fill={POLYGON_STROKE} />
+      <circle cx={bottom.x} cy={bottom.y} r="2.6" fill={POLYGON_STROKE} />
+      <circle cx={left.x} cy={left.y} r="2.6" fill={POLYGON_STROKE} />
     </g>
   );
 }
@@ -145,7 +151,7 @@ function AnimatedShape({
           y1={a.y}
           x2={b.x}
           y2={b.y}
-          stroke="var(--chrp-black)"
+          stroke={POLYGON_STROKE}
           strokeWidth="1.2"
           strokeLinejoin="round"
           initial={{ pathLength: 0, opacity: 0 }}
@@ -171,7 +177,7 @@ function AnimatedShape({
           cx={p.x}
           cy={p.y}
           r="2.6"
-          fill="var(--chrp-black)"
+          fill={POLYGON_STROKE}
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{
@@ -195,7 +201,7 @@ function AxisLabels() {
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
         fontSize="8"
-        fill="var(--ink-soft)"
+        fill={POLYGON_LABEL}
       >
         Focus
       </text>
@@ -206,7 +212,7 @@ function AxisLabels() {
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
         fontSize="8"
-        fill="var(--ink-soft)"
+        fill={POLYGON_LABEL}
       >
         Balance
       </text>
@@ -217,7 +223,7 @@ function AxisLabels() {
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
         fontSize="8"
-        fill="var(--ink-soft)"
+        fill={POLYGON_LABEL}
       >
         Motivation
       </text>
@@ -228,7 +234,7 @@ function AxisLabels() {
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
         fontSize="8"
-        fill="var(--ink-soft)"
+        fill={POLYGON_LABEL}
       >
         Calm
       </text>
@@ -252,7 +258,7 @@ function CenterReadout({
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
         fontSize="6"
-        fill="var(--ink-soft)"
+        fill={POLYGON_LABEL}
         letterSpacing="0.5"
         initial={animated ? { opacity: 0 } : false}
         animate={animated ? { opacity: 1 } : undefined}
@@ -267,7 +273,7 @@ function CenterReadout({
         fontFamily="var(--font-cormorant), Georgia, serif"
         fontWeight={700}
         fontSize="38"
-        fill="var(--chrp-black)"
+        fill={POLYGON_TEXT}
         initial={animated ? { opacity: 0 } : false}
         animate={animated ? { opacity: 1 } : undefined}
         transition={animated ? { delay: 3.0, duration: 0.5 } : undefined}
