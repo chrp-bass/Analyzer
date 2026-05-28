@@ -3,96 +3,98 @@
 @tailwind utilities;
 
 /*
- * Dark atmospheric editorial reskin.
+ * Dark atmospheric editorial — matched to public/brand/chain/scan-chrp-TARGET.html.
  *
- * The Song Analyzer is the war room. mychrp.ai is the lounge. Both speak
- * the same language - Cormorant + Lato + CHRP Yellow - but the Analyzer
- * earns its authority through dark surfaces and surgical atmospheric
- * accents. Moving from this surface into the V8 report (cream paper,
- * scoped via .chrp-report) is the deliberate transition from lobby to
- * document.
+ * Tokens mirror the target's :root and brand/chrp-tokens.css. V8 report stays
+ * cream + Cormorant via the .chrp-report scope-restore at the bottom.
  *
- * Strategy: swap the existing Tailwind CSS-variable values to the dark
- * palette so bg-chrp-white / text-chrp-black / bg-oat / etc. flip
- * automatically. Inside .chrp-report (applied to the V8 report's
- * <article>), restore the original light editorial palette so the
- * report stays cream and matches the PDF.
+ * Restraint rule:
+ *   #E6D74F (CHRP Yellow) — primary CTA, EPI number, Ready chip ONLY
+ *   #D4A853 (gold)        — all other gold/yellow accents
  */
 
 :root {
-  /* Base surfaces ------------------------------------------------------- */
-  --bg-base:         #0A0A0A;
-  --bg-surface:      #111111;
-  --bg-surface-mid:  #161616;
-  --bg-surface-high: #1C1C1C;
+  /* Brand canonical (from /brand/chrp-tokens.css) */
+  --chrp-yellow:  #E6D74F;   /* signal yellow — 3 brand moments only */
+  --chrp-gold:    #D4A853;   /* editorial gold — everywhere else */
+  --chrp-black:   #0F0E0E;
+  --chrp-white:   #FBFBF4;
+  --chrp-paper:   #F7F3EA;
 
-  /* Tailwind aliases — swap them so existing utilities flip site-wide. */
-  --chrp-white: var(--bg-surface);   /* bg-chrp-white surfaces (cards) */
-  --chrp-black: var(--text-primary); /* text-chrp-black text */
-  --oat:        var(--bg-surface-mid);
+  /* Secondary palette */
+  --chrp-magenta:     #C12C79;
+  --chrp-blue:        #406BD6;
+  --chrp-green:       #008054;
+  --chrp-cinnamon:    #D98068;
+  --chrp-blue-factor: #A1DBFF;
+  --chrp-plum:        #591739;
+  --chrp-pistachio:   #BEE2A8;
 
-  /* Type --------------------------------------------------------------- */
-  --text-primary:   #F0EDE6;
-  --text-secondary: #9A9490;
-  --text-tertiary:  #5A5550;
+  /* Surface system (from target) */
+  --black: #0F0E0E;
+  --near:  #13110F;
+  --card:  #19160F;
 
-  /* Tailwind ink aliases match the new tertiary/secondary semantics. */
-  --ink-soft:  var(--text-secondary);
-  --ink-light: var(--text-tertiary);
+  /* Text shades (from target) */
+  --t1: #F4F2EC;
+  --t2: #C7C2B8;
+  --t3: #8E897F;
+  --line: rgba(255, 255, 255, 0.09);
 
-  /* Accent + atmospherics ---------------------------------------------- */
-  --chrp-yellow:     #E6D74F;
-  --chrp-yellow-dim: rgba(230, 215, 79, 0.12);
+  /* Legacy Tailwind aliases — kept so existing utilities flip site-wide. */
+  --oat:        var(--card);
+  --rule:       var(--line);
+  --bar-bg:     rgba(255, 255, 255, 0.08);
+  --ink-soft:   var(--t2);
+  --ink-light:  var(--t3);
 
-  --atm-coral:  #E85D24;
-  --atm-amber:  #F2A623;
-  --atm-plum:   #591739;
-  --atm-teal:   #0D4A3D;
-  --atm-indigo: #4A1D8A;
+  /* Tailwind brand-color aliases. text-chrp-black / bg-chrp-white flip
+   * to dark-theme values automatically; .chrp-report scope restores. */
+  --tw-chrp-white: var(--card);
+  --tw-chrp-black: var(--t1);
+  /* (Tailwind reads --chrp-white / --chrp-black directly in v1 of this
+   * project; keep them pointing at the surface colors for utility flip.) */
 
-  /* Secondary palette - kept so existing Tailwind color utilities work. */
-  --magenta:     #C12C79;
-  --french-blue: #406BD6;
-  --kelly-green: #5DCAA5;
-  --cinnamon:    #E85D24;
-  --plum:        #AFA9EC;
-  --pistachio:   #5DCAA5;
+  /* Secondary palette aliases for existing class consumers */
+  --magenta:     var(--chrp-magenta);
+  --french-blue: var(--chrp-blue);
+  --kelly-green: var(--chrp-green);
+  --cinnamon:    var(--chrp-cinnamon);
+  --plum:        var(--chrp-plum);
+  --pistachio:   var(--chrp-pistachio);
 
-  /* Borders ------------------------------------------------------------ */
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-mid:    rgba(255, 255, 255, 0.12);
-  --rule:          var(--border-subtle);
-  --bar-bg:        rgba(255, 255, 255, 0.08);
-
-  /* Mode colors — dark-calibrated ---------------------------------------*/
-  --mode-ready-bg:        rgba(230, 215, 79, 0.15);
+  /* Mode tokens — dark-calibrated for radar + chips outside the report. */
+  --mode-ready-bg:        rgba(230, 215, 79, 0.18);
   --mode-ready-fg:        #E6D74F;
-  --mode-ready-fill:      rgba(230, 215, 79, 0.38);
-  --mode-ready-stroke:    rgba(230, 215, 79, 0.70);
+  --mode-ready-fill:      rgba(230, 215, 79, 0.42);
+  --mode-ready-stroke:    rgba(230, 215, 79, 0.78);
 
   --mode-flow-bg:         rgba(64, 107, 214, 0.18);
   --mode-flow-fg:         #7A9FE8;
-  --mode-flow-fill:       rgba(64, 107, 214, 0.38);
+  --mode-flow-fill:       rgba(64, 107, 214, 0.40);
   --mode-flow-stroke:     rgba(100, 140, 230, 0.80);
 
   --mode-recharge-bg:     rgba(190, 226, 168, 0.14);
   --mode-recharge-fg:     #A8D990;
-  --mode-recharge-fill:   rgba(190, 226, 168, 0.35);
-  --mode-recharge-stroke: rgba(190, 226, 168, 0.75);
+  --mode-recharge-fill:   rgba(190, 226, 168, 0.38);
+  --mode-recharge-stroke: rgba(190, 226, 168, 0.78);
 
   --mode-recover-bg:      rgba(138, 58, 110, 0.20);
   --mode-recover-fg:      #C990B8;
-  --mode-recover-fill:    rgba(138, 58, 110, 0.38);
-  --mode-recover-stroke:  rgba(175, 100, 155, 0.75);
+  --mode-recover-fill:    rgba(138, 58, 110, 0.40);
+  --mode-recover-stroke:  rgba(175, 100, 155, 0.78);
 
-  /* Polygon radar tokens — dark surface defaults. Mode-specific stroke
-   * is resolved at render time in PolygonRadar via var(--mode-X-stroke). */
-  --polygon-stroke:     rgba(240, 237, 230, 0.25);
+  /* Polygon radar */
+  --polygon-stroke:     rgba(240, 237, 230, 0.30);
   --polygon-axis:       rgba(240, 237, 230, 0.10);
-  --polygon-ring:       rgba(240, 237, 230, 0.18);
-  --polygon-ring-outer: rgba(240, 237, 230, 0.30);
-  --polygon-label:      var(--text-secondary);
-  --polygon-text:       var(--text-primary);
+  --polygon-ring:       rgba(240, 237, 230, 0.16);
+  --polygon-ring-outer: rgba(240, 237, 230, 0.28);
+  --polygon-label:      var(--t2);
+  --polygon-text:       var(--t1);
+
+  /* Flip Tailwind brand colors so bg-chrp-white = card surface. */
+  --chrp-white: #19160F;
+  --chrp-black: #F4F2EC;
 }
 
 *,
@@ -103,12 +105,12 @@
 
 html,
 body {
-  background-color: var(--bg-base);
-  color: var(--text-primary);
+  background-color: var(--black);
+  color: var(--t1);
   font-family: var(--font-lato), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: 0;
+  line-height: 1.55;
 }
 
 main.chrp-embed,
@@ -119,37 +121,25 @@ body:has(main.chrp-embed) {
 
 ::selection {
   background: var(--chrp-yellow);
-  color: var(--bg-base);
+  color: var(--black);
 }
 
 ::placeholder {
-  color: var(--text-tertiary);
+  color: var(--t3);
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-base);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-mid);
-  border-radius: 3px;
-}
-
-/* Dark-theme input fields. Overridden inside .chrp-report. */
 input,
 textarea,
 select {
-  background: var(--bg-surface-high);
-  border: 1px solid var(--border-mid);
-  color: var(--text-primary);
+  background: #1c1c1c;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--t1);
   border-radius: 2px;
 }
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: rgba(230, 215, 79, 0.5);
+  border-color: rgba(212, 168, 83, 0.55);
   outline: none;
 }
 
@@ -164,11 +154,806 @@ button:focus {
   outline: none;
 }
 
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--black); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+
 /* ────────────────────────────────────────────────────────────────────────
- * V8 report scope - cream paper inside the dark surface.
- * Applied to <article> of ReportPage, ScanPreview, PaywallPreviewStage.
- * Specificity 0,0,2,0 (doubled selector) beats Tailwind's single utility
- * for the font + button overrides without needing !important.
+ * Type roles (target parity)
+ * ───────────────────────────────────────────────────────────────────── */
+.display {
+  font-family: var(--font-tiempos), "Tiempos Fine", Georgia, "Times New Roman", serif;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+}
+.eyebrow {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 0.30em;
+  text-transform: uppercase;
+  color: var(--chrp-gold);
+  display: block;
+  margin-bottom: 26px;
+}
+.eyebrow.dim { color: var(--t3); }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Buttons — sharp, no pill, restraint-yellow vs editorial-gold
+ * ───────────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-block;
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 18px 32px;
+  border-radius: 2px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.3s ease, opacity 0.2s ease;
+  border: none;
+}
+.btn-y {
+  background: var(--chrp-yellow);
+  color: var(--black);
+}
+.btn-y:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 50px rgba(230, 215, 79, 0.28);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--t1);
+  border: 1px solid var(--line);
+}
+.btn-ghost:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Layout container
+ * ───────────────────────────────────────────────────────────────────── */
+.w {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+@media (max-width: 640px) {
+  .w { padding: 0 24px; }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * NAV — sticky glass
+ * ───────────────────────────────────────────────────────────────────── */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  height: 68px;
+  background: rgba(15, 14, 14, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .site-nav { padding: 0 24px; }
+}
+.logo-slot {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  text-decoration: none;
+}
+.logo-slot img {
+  height: 24px;
+  width: auto;
+  display: block;
+}
+.nav-cta {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--chrp-gold);
+  border: 1px solid rgba(212, 168, 83, 0.40);
+  border-radius: 2px;
+  padding: 10px 17px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.nav-cta:hover { background: rgba(212, 168, 83, 0.10); }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Color-burst AURA — saturated radial blobs with drift
+ * ───────────────────────────────────────────────────────────────────── */
+.aura {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.aura span {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+}
+.b-mag  { width: 46vw; height: 46vw; background: radial-gradient(circle, var(--chrp-magenta), transparent 64%); opacity: 0.55; }
+.b-blue { width: 50vw; height: 50vw; background: radial-gradient(circle, var(--chrp-blue),    transparent 64%); opacity: 0.50; }
+.b-warm { width: 34vw; height: 34vw; background: radial-gradient(circle, var(--chrp-cinnamon), transparent 62%); opacity: 0.42; }
+.b-gold { width: 26vw; height: 26vw; background: radial-gradient(circle, var(--chrp-gold),     transparent 60%); opacity: 0.28; }
+.drift1 { animation: d1 22s ease-in-out infinite; }
+.drift2 { animation: d2 26s ease-in-out infinite; }
+@keyframes d1 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(5vw, 3vw); } }
+@keyframes d2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-4vw, -3vw); } }
+.grain {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * HERO — two-column, photo on right bleeding into the hero
+ * ───────────────────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+.hero .aura .b-mag  { top: -16vw; left: 38vw; }
+.hero .aura .b-blue { top: -8vw;  left: 46vw; }
+.hero .aura .b-warm { bottom: -12vw; left: 30vw; }
+.hero .aura .b-gold { top: 18vw; left: 20vw; }
+.hero-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 48px;
+  align-items: center;
+  padding: 104px 0 96px;
+}
+@media (max-width: 860px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 40px; padding: 72px 0 64px; }
+}
+.hero h1 {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(46px, 6.4vw, 86px);
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+  max-width: 13ch;
+  margin-bottom: 28px;
+}
+.hero h1 em {
+  font-style: italic;
+  color: var(--chrp-gold);
+}
+.hero-sub {
+  font-weight: 300;
+  font-size: 18px;
+  color: var(--t2);
+  line-height: 1.7;
+  margin-bottom: 22px;
+  max-width: 40ch;
+}
+.hero-def {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--t2);
+  line-height: 1.6;
+  border-left: 2px solid var(--chrp-gold);
+  padding-left: 16px;
+  margin-bottom: 34px;
+  max-width: 42ch;
+}
+.hero-ctas {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Portrait — aura-treated hero photo, bleeding into the hero left edge. */
+.portrait {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55);
+}
+.portrait .photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Soft left mask only — photo bleeds into hero on the left edge. No filters. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28%, #000 100%);
+          mask-image: linear-gradient(to right, transparent 0%, #000 28%, #000 100%);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Section band
+ * ───────────────────────────────────────────────────────────────────── */
+.band {
+  position: relative;
+  padding: 104px 0;
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .band { padding: 72px 0; }
+}
+.kicker {
+  font-size: clamp(32px, 4.4vw, 56px);
+  line-height: 1.06;
+}
+
+/* GAP */
+.gap p {
+  font-weight: 300;
+  font-size: 18px;
+  color: var(--t2);
+  line-height: 1.85;
+  margin-bottom: 30px;
+  max-width: 58ch;
+}
+.gap .punch {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-size: clamp(28px, 3.8vw, 46px);
+  line-height: 1.12;
+  margin-bottom: 30px;
+  max-width: 20ch;
+}
+.gap .close {
+  font-weight: 300;
+  font-size: 17px;
+  color: var(--t2);
+  line-height: 1.75;
+  border-left: 3px solid var(--chrp-magenta);
+  padding-left: 22px;
+  max-width: 52ch;
+}
+.gap .close b { color: var(--t1); font-weight: 700; }
+
+/* RECOGNITION */
+.recog-intro {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: 22px;
+  color: var(--t2);
+  margin-bottom: 30px;
+}
+.qbox {
+  border-radius: 8px;
+  padding: 30px 32px;
+  margin-bottom: 14px;
+}
+.qbox.before {
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.qbox.after {
+  background: linear-gradient(120deg, rgba(193, 44, 121, 0.14), rgba(64, 107, 214, 0.12));
+  border: 1px solid rgba(212, 168, 83, 0.30);
+  border-left: 3px solid var(--chrp-gold);
+}
+.qlabel {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.qbox.before .qlabel { color: var(--t3); }
+.qbox.after .qlabel  { color: var(--chrp-gold); }
+.qbox blockquote {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: 20px;
+  line-height: 1.55;
+}
+.qbox.before blockquote { color: var(--t2); }
+.qbox.after blockquote  { color: var(--t1); }
+.recog-closer {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-size: clamp(26px, 3.6vw, 40px);
+  margin: 18px 0 30px;
+}
+
+/* PILLARS */
+.pillars h2 { margin-bottom: 44px; }
+.pgrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 780px) {
+  .pgrid { grid-template-columns: repeat(3, 1fr); }
+}
+.pcard {
+  border-radius: 14px;
+  padding: 46px 30px 34px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: relative;
+  overflow: hidden;
+}
+.pcard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 14, 14, 0.18);
+}
+.pcard > * { position: relative; z-index: 1; }
+.pcard .pn {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  position: absolute;
+  top: 26px;
+  left: 30px;
+}
+.pcard h3 {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.1;
+  margin-bottom: 14px;
+}
+.pcard p {
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.9);
+}
+.pc1 { background: linear-gradient(155deg, #4a0c2c, var(--chrp-magenta) 48%, var(--chrp-cinnamon) 110%); }
+.pc2 { background: linear-gradient(155deg, #06281f, var(--chrp-green) 50%, var(--chrp-blue) 110%); }
+.pc3 { background: linear-gradient(155deg, #1a0e3a, #4a1d8a 45%, var(--chrp-blue) 100%); }
+
+/* SUCCESS */
+.success .narrative {
+  font-weight: 300;
+  font-size: 17px;
+  color: var(--t2);
+  line-height: 1.85;
+  margin-bottom: 30px;
+  max-width: 56ch;
+}
+.success .narrative em {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  color: var(--t1);
+}
+.success .pivot {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: clamp(32px, 5vw, 52px);
+  color: var(--t1);
+  line-height: 1.1;
+  margin-bottom: 40px;
+  letter-spacing: -0.02em;
+}
+.success .closer {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-size: 22px;
+  color: var(--t2);
+  line-height: 1.6;
+  max-width: 48ch;
+}
+.success .closer b { display: block; font-weight: 400; font-size: 26px; color: var(--t1); }
+
+/* EPI INSTRUMENT */
+.epi .modes-label {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin-bottom: 32px;
+}
+.epi-wrap {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 56px;
+  align-items: center;
+}
+@media (max-width: 720px) { .epi-wrap { grid-template-columns: 1fr; gap: 32px; } }
+.gauge {
+  position: relative;
+  width: 230px;
+  height: 230px;
+}
+.gauge svg { transform: rotate(-90deg); }
+.gauge .num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.gauge .num b {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-weight: 300;
+  font-size: 78px;
+  line-height: 1;
+  color: var(--chrp-yellow);   /* SIGNAL YELLOW — EPI number */
+  letter-spacing: -0.02em;
+}
+.gauge .num small {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin-top: 6px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--t2);
+  border: 1px solid var(--line);
+}
+.chip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.chip.ready    { background: var(--chrp-yellow); color: var(--black); border: none; }  /* SIGNAL YELLOW — Ready chip */
+.chip.ready i  { background: var(--black); }
+.chip.flow i     { background: var(--chrp-blue); }
+.chip.recharge i { background: var(--chrp-pistachio); }
+.chip.recover i  { background: var(--chrp-plum); }
+.epi-detail {
+  font-weight: 300;
+  font-size: 15px;
+  color: var(--t2);
+  line-height: 1.7;
+  max-width: 48ch;
+}
+.epi-detail b { color: var(--t1); font-weight: 700; }
+
+/* PRICING */
+.prow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  max-width: 720px;
+}
+@media (min-width: 560px) { .prow { grid-template-columns: 1fr 1fr; } }
+.pcard2 {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 34px 30px;
+}
+.pcard2.feat {
+  border-color: rgba(212, 168, 83, 0.42);
+  position: relative;
+}
+.pcard2.feat::before {
+  content: "MOST POPULAR";
+  position: absolute;
+  top: -9px;
+  left: 28px;
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  background: var(--chrp-gold);
+  color: var(--black);
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+.ptier {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin-bottom: 12px;
+}
+.pprice {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-weight: 300;
+  font-size: 58px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 16px;
+}
+.pdesc {
+  font-weight: 300;
+  font-size: 14px;
+  color: var(--t2);
+  line-height: 1.65;
+}
+.pital {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--t1);
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  line-height: 1.5;
+}
+.pnote {
+  font-weight: 300;
+  font-size: 12px;
+  color: var(--t3);
+  letter-spacing: 0.04em;
+  margin-top: 22px;
+}
+
+/* SEGMENTS */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 700px) { .seg { grid-template-columns: repeat(3, 1fr); } }
+.segc { padding: 0 28px 28px 0; }
+@media (min-width: 700px) {
+  .segc { border-right: 1px solid var(--line); padding: 6px 28px; }
+  .segc:last-child { border-right: none; }
+}
+.segl {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--chrp-gold);
+  margin-bottom: 12px;
+}
+.segc p {
+  font-weight: 300;
+  font-size: 14px;
+  color: var(--t2);
+  line-height: 1.7;
+}
+
+/* FINAL CTA */
+.final {
+  position: relative;
+  text-align: center;
+  padding: 130px 40px 140px;
+  overflow: hidden;
+}
+.final .aura .b-mag  { bottom: -10vw; left: 18vw; opacity: 0.5; }
+.final .aura .b-blue { top: -10vw; right: 14vw; opacity: 0.45; }
+.final .aura .b-warm { bottom: -14vw; right: 24vw; }
+.final .aura .b-gold { top: 20vw; left: 40vw; }
+.final-inner { position: relative; z-index: 2; }
+.final .stakes {
+  font-weight: 300;
+  font-size: 16px;
+  color: var(--t2);
+  max-width: 46ch;
+  margin: 0 auto 42px;
+  line-height: 1.85;
+}
+.final .stakes em {
+  display: block;
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  color: var(--t1);
+  font-size: 20px;
+  margin-top: 10px;
+}
+.final h2 {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(44px, 7vw, 84px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+}
+.final h2 em { font-style: italic; color: var(--chrp-gold); }
+.final .fine {
+  display: block;
+  font-weight: 300;
+  font-size: 11px;
+  color: var(--t3);
+  letter-spacing: 0.05em;
+  margin-top: 20px;
+}
+
+/* MARQUEE — purple→teal, Tiempos italic, paper-cream text, icon separator */
+.chrp-marquee-section,
+.mq {
+  background: linear-gradient(110deg, #3d1575, #0d4a3d);
+  padding: 34px 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.chrp-marquee-track,
+.mq-t {
+  display: inline-block;
+  animation: chrp-marquee 30s linear infinite;
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: clamp(26px, 3.6vw, 46px);
+  color: var(--chrp-paper);
+}
+.mq-icon {
+  display: inline-block;
+  vertical-align: middle;
+  height: 0.85em;
+  width: auto;
+  margin: 0 0.45em;
+  opacity: 0.95;
+}
+@keyframes chrp-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* REPORT TIE-BACK — cream paper bleed at the bottom of the landing */
+.report-lead {
+  text-align: center;
+  padding: 44px 24px 24px;
+}
+.report-lead .eyebrow { color: var(--t3); }
+.report-lead .sub {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--t3);
+}
+/* The landing's report tie-back. --chrp-black is flipped to cream at :root,
+ * so this scope hardcodes ink so the title reads as ink-on-cream. */
+.report {
+  background: var(--chrp-paper);
+  color: #0F0E0E;
+}
+.report-in {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 60px 40px 52px;
+  border-top: 3px solid var(--chrp-yellow);
+}
+.report-meta {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8A8278;
+  margin-bottom: 26px;
+}
+.report-h {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-weight: 500;
+  font-size: 62px;
+  line-height: 1;
+  margin-bottom: 6px;
+  color: #0F0E0E;
+}
+.report-by {
+  font-family: var(--font-tiempos), Georgia, serif;
+  font-style: italic;
+  font-size: 22px;
+  color: #4A4540;
+  margin-bottom: 20px;
+}
+.report-isrc {
+  font-family: var(--font-lato), sans-serif;
+  font-size: 10px;
+  color: #8A8278;
+  letter-spacing: 0.04em;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(15, 14, 14, 0.1);
+  margin-bottom: 20px;
+}
+.report-chip {
+  display: inline-block;
+  background: var(--chrp-yellow);
+  color: #0F0E0E;
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 13px;
+  border-radius: 2px;
+}
+.report-sub {
+  font-family: var(--font-lato), sans-serif;
+  font-size: 11px;
+  color: #8A8278;
+  margin-left: 10px;
+}
+.report-note {
+  font-family: var(--font-lato), sans-serif;
+  font-weight: 300;
+  font-style: italic;
+  font-size: 10px;
+  color: #8A8278;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(15, 14, 14, 0.08);
+  text-align: center;
+}
+
+/* FOOTER (landing) */
+.site-footer {
+  background: #080706;
+  padding: 26px 40px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+}
+.ft {
+  font-weight: 300;
+  font-size: 10px;
+  color: var(--t3);
+  letter-spacing: 0.03em;
+}
+.site-footer a {
+  color: var(--t3);
+  text-decoration: none;
+}
+.site-footer a:hover { color: var(--chrp-gold); }
+
+@layer utilities {
+  .label-up {
+    font-family: var(--font-lato), system-ui, sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.66rem;
+  }
+  .hairline { border-top: 1px solid var(--line); }
+  .display-tight { letter-spacing: -0.01em; line-height: 1; }
+  .text-balance { text-wrap: balance; }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * V8 report scope — cream paper + Cormorant + Lato.
+ * Applied to <article> of ReportPage / ScanPreview / PaywallPreviewStage.
+ * Specificity 0,0,2,0 (.chrp-report.chrp-report) wins over Tailwind utility.
  * ───────────────────────────────────────────────────────────────────── */
 .chrp-report {
   --chrp-white:  #FBFBF4;
@@ -178,7 +963,6 @@ button:focus {
   --ink-soft:    #4A4540;
   --ink-light:   #8A8278;
   --bar-bg:      rgba(15, 14, 14, 0.08);
-  --chrp-yellow: #E6D74F;
   --magenta:     #C12C79;
   --french-blue: #406BD6;
   --kelly-green: #008054;
@@ -193,7 +977,6 @@ button:focus {
   --polygon-label:      var(--ink-soft);
   --polygon-text:       var(--chrp-black);
 
-  /* V8 report mode colors restored to the cream-paper palette. */
   --mode-ready-bg:      #E6D74F;
   --mode-ready-fg:      #0F0E0E;
   --mode-ready-fill:    rgba(230, 215, 79, 0.52);
@@ -218,8 +1001,6 @@ button:focus {
   color: var(--chrp-black);
   font-family: var(--font-lato), system-ui, sans-serif;
 }
-
-/* Inside the report, font-display + font-sans bind to the editorial fonts. */
 .chrp-report.chrp-report .font-display,
 .chrp-report .font-display {
   font-family: var(--font-cormorant), Georgia, serif;
@@ -228,8 +1009,6 @@ button:focus {
 .chrp-report .font-sans {
   font-family: var(--font-lato), system-ui, sans-serif;
 }
-
-/* Inside the report, inputs return to the cream-paper treatment. */
 .chrp-report input,
 .chrp-report textarea,
 .chrp-report select {
@@ -237,177 +1016,3 @@ button:focus {
   border: 1.5px solid rgba(15, 14, 14, 0.20);
   color: var(--chrp-black);
 }
-
-/* ────────────────────────────────────────────────────────────────────────
- * Sticky / blurred nav glass.
- * ───────────────────────────────────────────────────────────────────── */
-header.site-nav,
-header.landing-nav {
-  background: rgba(10, 10, 10, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-subtle);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-/* ────────────────────────────────────────────────────────────────────────
- * Hero atmospherics. Both blobs are pseudo-elements on .hero-section.
- * ───────────────────────────────────────────────────────────────────── */
-.hero-section {
-  position: relative;
-  overflow: hidden;
-}
-.hero-section::before,
-.hero-section::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-}
-.hero-section::before {
-  bottom: -80px;
-  left: -100px;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(232, 93, 36, 0.18) 0%,
-    rgba(232, 93, 36, 0.06) 45%,
-    transparent 70%
-  );
-}
-.hero-section::after {
-  top: -60px;
-  right: -80px;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(74, 29, 138, 0.14) 0%,
-    transparent 65%
-  );
-}
-.hero-section > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ────────────────────────────────────────────────────────────────────────
- * Three-pillar gradient feature cards.
- * mychrp.ai family DNA - the gradient is the mood, the text is the brief.
- * ───────────────────────────────────────────────────────────────────── */
-.pillar-card {
-  border-radius: 12px;
-  padding: 48px 40px;
-  position: relative;
-  overflow: hidden;
-  color: #F0EDE6;
-}
-.pillar-card[data-pillar="01"] {
-  background: linear-gradient(
-    135deg,
-    rgba(89, 23, 57, 0.90) 0%,
-    rgba(142, 40, 20, 0.80) 40%,
-    rgba(180, 90, 20, 0.70) 75%,
-    rgba(200, 140, 30, 0.60) 100%
-  );
-  border: 1px solid rgba(232, 93, 36, 0.20);
-}
-.pillar-card[data-pillar="02"] {
-  background: linear-gradient(
-    135deg,
-    rgba(13, 74, 61, 0.95)  0%,
-    rgba(20, 90, 80, 0.85)  40%,
-    rgba(40, 110, 95, 0.75) 75%,
-    rgba(70, 130, 110, 0.60) 100%
-  );
-  border: 1px solid rgba(13, 74, 61, 0.40);
-}
-.pillar-card[data-pillar="03"] {
-  background: linear-gradient(
-    135deg,
-    rgba(74, 29, 138, 0.95) 0%,
-    rgba(55, 30, 120, 0.85) 40%,
-    rgba(40, 50, 140, 0.80) 75%,
-    rgba(30, 80, 160, 0.65) 100%
-  );
-  border: 1px solid rgba(74, 29, 138, 0.40);
-}
-.pillar-number {
-  font-family: var(--font-cormorant), Georgia, serif;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
-  color: rgba(240, 237, 230, 0.50);
-}
-.pillar-card h3 {
-  color: #F0EDE6;
-}
-.pillar-card p {
-  color: rgba(240, 237, 230, 0.78);
-}
-
-@layer utilities {
-  .label-up {
-    font-family: var(--font-lato), system-ui, sans-serif;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    font-size: 0.66rem;
-  }
-  .hairline {
-    border-top: 1px solid var(--rule);
-  }
-  .display-tight {
-    letter-spacing: -0.01em;
-    line-height: 1;
-  }
-  .text-balance {
-    text-wrap: balance;
-  }
-}
-
-/* ────────────────────────────────────────────────────────────────────────
- * Marquee - mychrp.ai signature. Purple-to-teal gradient, Cormorant
- * italic, gold #D4A853 text, bird separators.
- * ───────────────────────────────────────────────────────────────────── */
-.chrp-marquee-section {
-  background: linear-gradient(135deg, #4a1d8a 0%, #0d4a3d 100%);
-  padding: 48px 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.chrp-marquee-track {
-  display: inline-block;
-  animation: chrp-marquee 30s linear infinite;
-  font-family: var(--font-cormorant), Georgia, serif;
-  font-style: italic;
-  font-size: clamp(24px, 4vw, 48px);
-  color: #D4A853;
-  letter-spacing: 0.04em;
-}
-@keyframes chrp-marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
-/* Optional mode-badge utility class for opt-in use. Existing components
- * keep using the inline MODE_COLORS lookup which now resolves to the
- * dark-calibrated values via the --mode-* CSS variables above. */
-.mode-badge,
-.mode-chip {
-  display: inline-block;
-  border-radius: 2px;
-  padding: 5px 12px;
-  font-family: var(--font-lato), system-ui, sans-serif;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-}
-.mode-badge[data-mode="Ready"],    .mode-chip[data-mode="Ready"]    { background: var(--mode-ready-bg);    color: var(--mode-ready-fg);    }
-.mode-badge[data-mode="Flow"],     .mode-chip[data-mode="Flow"]     { background: var(--mode-flow-bg);     color: var(--mode-flow-fg);     }
-.mode-badge[data-mode="Recharge"], .mode-chip[data-mode="Recharge"] { background: var(--mode-recharge-bg); color: var(--mode-recharge-fg); }
-.mode-badge[data-mode="Recover"],  .mode-chip[data-mode="Recover"]  { background: var(--mode-recover-bg);  color: var(--mode-recover-fg);  }

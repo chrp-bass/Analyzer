@@ -25,8 +25,13 @@ const config: Config = {
         "bar-bg": "var(--bar-bg)",
       },
       fontFamily: {
-        display: ["var(--font-cormorant)", "Georgia", "serif"],
+        // Site-wide default: Tiempos Fine for display, Lato for sans. The V8
+        // report scope (.chrp-report in globals.css) re-binds font-display
+        // back to Cormorant so the report stays editorial.
+        display: ["var(--font-tiempos)", "Georgia", "Times New Roman", "serif"],
         sans: ["var(--font-lato)", "system-ui", "sans-serif"],
+        cormorant: ["var(--font-cormorant)", "Georgia", "serif"],
+        tiempos: ["var(--font-tiempos)", "Georgia", "serif"],
       },
     },
   },
