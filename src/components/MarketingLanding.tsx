@@ -1,318 +1,225 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 
-const CTA_LABEL = "Scan your first track — free through June 30";
+const CTA_FREE = "Scan your first track — free";
+const CTA_FREE_LONG = "Scan your first track — free through June 30";
 
 export function MarketingLanding() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <SiteNav />
-      <main className="flex-1">
-        <Hero />
-        <GapSection />
-        <RecognitionSection />
-        <PillarsSection />
-        <SuccessSection />
-        <EpiInstrumentSection />
-        <PricingSection />
-        <SegmentsSection />
-        <FinalCta />
-      </main>
+    <>
+      <Nav />
+      <Hero />
+      <Manifesto />
+      <RecognitionMoment />
+      <Pillars />
+      <ConversationAndWalkaway />
+      <Pricing />
+      <Audience />
+      <Kicker />
+      <Closing />
       <Marquee />
-      <ReportTieBack />
-      <SiteFooter />
-    </div>
+      <Footer />
+    </>
   );
 }
 
 // ─── Nav ─────────────────────────────────────────────────────────────────────
-function SiteNav() {
+function Nav() {
   return (
-    <nav className="site-nav">
-      <Link href="/" className="logo-slot" aria-label="CHRP home">
-        {/* Real CHRP logo SVG served from public/brand/. */}
-        <img src="/brand/logo/chrp-logo.svg" alt="CHRP" height={24} />
-      </Link>
-      <Link href="/scan" className="nav-cta">
-        Scan your song <span aria-hidden>→</span>
-      </Link>
-    </nav>
+    <header className="nav">
+      <div className="wrap">
+        <Link href="/" className="logo" aria-label="CHRP home">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
+        </Link>
+        <Link href="/scan" className="btn-nav">
+          Scan your song &rarr;
+        </Link>
+      </div>
+    </header>
   );
 }
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 function Hero() {
   return (
-    <section className="hero">
-      <Aura />
-      <div className="grain" />
-      <div className="w hero-grid">
-        <div>
-          <span className="eyebrow reveal" style={{ animationDelay: "0.05s" }}>
-            Emotional intelligence for music
-          </span>
-          <h1 className="display reveal" style={{ animationDelay: "0.15s" }}>
+    <section className="hero grain">
+      <div className="hero-bg">
+        <span className="g1" />
+        <span className="g2" />
+      </div>
+      <div className="wrap">
+        <div className="hero-left">
+          <div className="hero-eyebrow fu d1">
+            <span className="eyebrow">Sync Intelligence</span>
+          </div>
+          <h1 className="fu d2">
             Your song is ready.
             <br />
-            The room doesn&rsquo;t <em>know it yet.</em>
+            The room <em>doesn&rsquo;t know it yet.</em>
           </h1>
-          <p className="hero-sub reveal" style={{ animationDelay: "0.30s" }}>
-            Give it a position. Give it a language. Give it a shot.
+          <p className="sub fu d3">
+            Give it a position. Give it a language. <b>Give it a shot.</b>
           </p>
-          <p className="hero-def reveal" style={{ animationDelay: "0.40s" }}>
-            Your EPI Score is your track&rsquo;s emotional signature, scored
-            against a live commercial corpus. Not a vibe. A coordinate.
-          </p>
-          <div className="hero-ctas reveal" style={{ animationDelay: "0.50s" }}>
+          <div className="hero-cta fu d4">
             <Link href="/scan" className="btn btn-y">
-              {CTA_LABEL}
+              {CTA_FREE}
             </Link>
-            <Link href="/?stage=unlocked&amp;track=redline" className="btn btn-ghost">
-              See a sample report
-            </Link>
+            <span className="hero-note">
+              Free through June 30 &middot; one 10-second scan
+            </span>
           </div>
         </div>
-        <div className="reveal" style={{ animationDelay: "0.35s" }}>
-          <div className="portrait">
-            {/* Real aura-treated hero photo. object-fit:cover + soft left mask
-                applied in globals.css. Parent .portrait is position:relative. */}
+        <div className="reveal fu d5">
+          <div className="photo-frame">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/graphics/hero-artist-aura.png"
               alt=""
-              className="photo"
               aria-hidden
             />
           </div>
+          <div className="epi-card">
+            <div className="epi-top">
+              <span className="epi-lab">EPI Score</span>
+              <span className="chip chip-ready">Ready</span>
+            </div>
+            <div className="epi-num">
+              87<span>/100</span>
+            </div>
+            <div className="epi-rows">
+              <div className="epi-row">
+                <span className="k">Verdict</span>
+                <span className="v">Pitch now</span>
+              </div>
+              <div className="epi-row">
+                <span className="k">Sync demand</span>
+                <span className="v">Athletic &middot; High</span>
+              </div>
+              <div className="epi-row">
+                <span className="k">Closest sibling</span>
+                <span className="v">Sigur R&oacute;s</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-// Blob positions are controlled by the parent's .hero or .final scope in
-// globals.css, so the Aura component itself takes no props.
-function Aura() {
+// ─── Manifesto ──────────────────────────────────────────────────────────────
+function Manifesto() {
   return (
-    <div className="aura" aria-hidden>
-      <span className="b-mag drift1" />
-      <span className="b-blue drift2" />
-      <span className="b-warm drift1" />
-      <span className="b-gold drift2" />
-    </div>
-  );
-}
-
-// ─── Sections ────────────────────────────────────────────────────────────────
-function GapSection() {
-  return (
-    <section className="band gap">
-      <div className="w">
-        <p>
-          You can see your streams. You can see your playlists. You know trail
-          runners found your track and gym-goers added it to their sets. The
-          numbers are moving.
+    <section className="cream manifesto gap-1">
+      <div className="wrap col">
+        <span className="eyebrow">The gap</span>
+        <h2
+          className="shead"
+          style={{
+            margin: "14px 0 28px",
+            fontSize: "clamp(28px,3.2vw,40px)",
+            lineHeight: 1.1,
+          }}
+        >
+          You can see the numbers move. You can&rsquo;t see the brief that&rsquo;s
+          looking for you.
+        </h2>
+        <p className="lead">
+          Streams, playlists, trail-runners who found your track, gym-goers who
+          added it. The numbers are moving. What you can&rsquo;t see is the
+          brief actively hunting for exactly this sound right now &mdash; or the
+          forty words that make the supervisor running it write your name down.
         </p>
-        <div className="punch display">
+        <p className="pull">
           Supervisors don&rsquo;t pass on bad music. They pass on music they
           can&rsquo;t place.
-        </div>
-        <div className="close">
-          The intelligence that closes that gap has always lived inside labels,
-          publishing companies, and sync agencies.
-          <br />
-          <br />
-          <b>CHRP puts it in your hands.</b>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function RecognitionSection() {
-  return (
-    <section className="band">
-      <div className="w">
-        <span className="eyebrow dim">The recognition moment</span>
-        <p className="recog-intro">
-          You&rsquo;ve said some version of this. Every artist has.
         </p>
-        <div className="qbox before">
-          <div className="qlabel">Without CHRP</div>
-          <blockquote>
-            &ldquo;It&rsquo;s kind of cinematic. Kind of indie. It has this
-            melancholy but hopeful feeling, I think it could work for a TV show
-            or maybe a car commercial.&rdquo;
-          </blockquote>
-        </div>
-        <div className="qbox after">
-          <div className="qlabel">With CHRP</div>
-          <blockquote>
-            &ldquo;Ready mode. Top 6% Motivation. Strongest active brief demand
-            in athletic and performance right now. Closest sync sibling to Sigur
-            R&oacute;s in prestige sport documentary. Here&rsquo;s the
-            throughline.&rdquo;
-          </blockquote>
-        </div>
-        <div className="recog-closer display">
-          One of these gets written down.
-        </div>
-        <Link href="/scan" className="btn btn-y">
-          {CTA_LABEL}
-        </Link>
+        <p className="lead close">
+          That intelligence has always lived inside labels, publishers, and sync
+          agencies. <b>CHRP puts it in your hands.</b>
+        </p>
       </div>
     </section>
   );
 }
 
-function PillarsSection() {
+// ─── Recognition Moment ─────────────────────────────────────────────────────
+function RecognitionMoment() {
   return (
-    <section className="band pillars">
-      <div className="w">
-        <span className="eyebrow dim">Why the engine matters</span>
-        <h2 className="display kicker">
-          CHRP doesn&rsquo;t analyze your song. CHRP positions it.
-        </h2>
-        <div className="pgrid">
-          <div className="pcard pc1">
-            <div className="pn display">01</div>
-            <h3>Your song has a position.</h3>
-            <p>
-              Not a vibe. A coordinate. Scored against a corpus mapped to real
-              commercial outcomes. The number isn&rsquo;t an opinion, it&rsquo;s
-              where your song lives in the market.
+    <section className="cream moment gap-2">
+      <div className="wrap">
+        <span className="eyebrow">The recognition moment</span>
+        <p className="intro">
+          You&rsquo;ve said some version of this about your own track. Every
+          artist has.
+        </p>
+        <div className="qgrid">
+          <div className="qbox before">
+            <span className="qlabel">Without CHRP</span>
+            <p className="qtext">
+              &ldquo;It&rsquo;s kind of cinematic. Kind of indie. It has this
+              melancholy-but-hopeful feeling &mdash; maybe a TV show, maybe a
+              car commercial?&rdquo;
             </p>
           </div>
-          <div className="pcard pc2">
-            <div className="pn display">02</div>
-            <h3>Your catalog has a signature.</h3>
-            <p>
-              Scan eight tracks and your creative pattern emerges: emotional
-              consistency, signature shape, reliability across your body of
-              work.
-            </p>
-          </div>
-          <div className="pcard pc3">
-            <div className="pn display">03</div>
-            <h3>The market is live.</h3>
-            <p>
-              Active briefs. Real demand signals. Refreshed weekly. Stop
-              pitching last quarter&rsquo;s market and start pitching the one
-              open right now.
+          <div className="qbox after">
+            <span className="qlabel">With CHRP</span>
+            <p className="qtext">
+              &ldquo;Ready mode. Top 6% Motivation. Strongest active brief
+              demand in athletic and performance right now. Closest sync sibling
+              to Sigur R&oacute;s in prestige sport documentary. Here&rsquo;s
+              the throughline.&rdquo;
             </p>
           </div>
         </div>
+        <p className="verdict">One of these gets written down.</p>
       </div>
     </section>
   );
 }
 
-function SuccessSection() {
+// ─── Pillars ─────────────────────────────────────────────────────────────────
+function Pillars() {
   return (
-    <section className="band success">
-      <div className="w">
-        <span className="eyebrow dim">The success moment</span>
-        <div className="narrative">
-          Picture the next conversation with a music supervisor. They ask what
-          the track is for. You don&rsquo;t reach for genre labels. You
-          don&rsquo;t say <em>&ldquo;it has kind of a cinematic feel.&rdquo;</em>{" "}
-          You tell them the mode, the percentile, the live brief it fits.
+    <section className="pillars grain">
+      <div className="wrap">
+        <div className="shead">
+          <span className="eyebrow">Why position matters</span>
+          <h2>CHRP doesn&rsquo;t analyze your song. It positions it.</h2>
         </div>
-        <div className="pivot">They write something down.</div>
-        <div className="closer">
-          That feeling has a name.{" "}
-          <b>It&rsquo;s called knowing what you have.</b> CHRP gives you that.
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function EpiInstrumentSection() {
-  const [epi, setEpi] = useState(0);
-  const [arcOffset, setArcOffset] = useState(653);
-  const ref = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const target = 91;
-    const duration = 1600;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0].isIntersecting) return;
-        const start = performance.now();
-        const step = (now: number) => {
-          const p = Math.min((now - start) / duration, 1);
-          const k = 1 - Math.pow(1 - p, 3);
-          setEpi(Math.round(k * target));
-          setArcOffset(653 - 653 * 0.91 * k);
-          if (p < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-        observer.disconnect();
-      },
-      { threshold: 0.4 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  return (
-    <section className="band epi" ref={ref}>
-      <div className="w">
-        <div className="modes-label">Mode classification + EPI scoring</div>
-        <div className="epi-wrap">
-          <div className="gauge">
-            <svg width="230" height="230" viewBox="0 0 230 230">
-              <circle
-                cx="115"
-                cy="115"
-                r="104"
-                fill="none"
-                stroke="rgba(255,255,255,0.08)"
-                strokeWidth="3"
-              />
-              <circle
-                cx="115"
-                cy="115"
-                r="104"
-                fill="none"
-                stroke="#E6D74F"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray="653"
-                strokeDashoffset={arcOffset}
-              />
-            </svg>
-            <div className="num">
-              <b>{epi}</b>
-              <small>EPI Score</small>
+        <div className="pcards">
+          <div className="pcard c1">
+            <span className="n">01</span>
+            <div className="h3wrap">
+              <h3>Your song has a position.</h3>
+              <p>
+                Not a vibe &mdash; a coordinate. Scored against a corpus mapped
+                to real commercial outcomes. The number isn&rsquo;t an opinion.
+                It&rsquo;s where your song lives in the market right now.
+              </p>
             </div>
           </div>
-          <div>
-            <div className="chips">
-              <span className="chip ready">
-                <i />
-                Ready
-              </span>
-              <span className="chip flow">
-                <i />
-                Flow
-              </span>
-              <span className="chip recharge">
-                <i />
-                Recharge
-              </span>
-              <span className="chip recover">
-                <i />
-                Recover
-              </span>
+          <div className="pcard c2">
+            <span className="n">02</span>
+            <div className="h3wrap">
+              <h3>Your catalog has a signature.</h3>
+              <p>
+                Scan eight tracks and your pattern emerges &mdash; emotional
+                consistency, signature shape, reliability across your body of
+                work. The intelligence that defines a career, not a release.
+              </p>
             </div>
-            <p className="epi-detail">
-              <b>Top 3% across the corpus. Top 4% in Ready mode.</b> Strongest
-              active brief demand in athletic and performance right now. The
-              score is the start of the conversation, not the end of it.
-            </p>
+          </div>
+          <div className="pcard c3">
+            <span className="n">03</span>
+            <div className="h3wrap">
+              <h3>The market is live.</h3>
+              <p>
+                Active briefs. Real demand signals. Refreshed weekly. Stop
+                pitching last quarter&rsquo;s market and start pitching the one
+                that&rsquo;s open right now.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -320,62 +227,212 @@ function EpiInstrumentSection() {
   );
 }
 
-function PricingSection() {
+// ─── Conversation + Walkaway ────────────────────────────────────────────────
+function ConversationAndWalkaway() {
+  const items: { bold: string; rest: string }[] = [
+    {
+      bold: "Mode & EPI Score",
+      rest: "exactly what kind of track you made.",
+    },
+    {
+      bold: "Pitch-readiness verdict",
+      rest: "Pitch now, Develop, or Hold, with the reasoning.",
+    },
+    {
+      bold: "Dr. Rhodes' analysis",
+      rest: "where it lives commercially and what to avoid.",
+    },
+    {
+      bold: "Three placements",
+      rest: "written in the language supervisors actually use.",
+    },
+    {
+      bold: "A throughline",
+      rest: "you can paste into any pitch email today.",
+    },
+    {
+      bold: "Live market signal",
+      rest: "on where active brief demand sits right now.",
+    },
+  ];
   return (
-    <section className="band">
-      <div className="w">
-        <span className="eyebrow dim">Pricing</span>
-        <div className="prow">
-          <div className="pcard2">
-            <div className="ptier">Single scan</div>
-            <div className="pprice display">$29</div>
-            <div className="pdesc">
+    <section className="deep">
+      <div className="wrap">
+        <div className="conv">
+          <span className="eyebrow">The next conversation</span>
+          <p style={{ marginTop: 16 }}>
+            Picture the next call you have with a music supervisor. They ask
+            what the track is for. You don&rsquo;t reach for genre labels or
+            &ldquo;it has that cinematic feel.&rdquo;
+          </p>
+          <div className="spoken">
+            &ldquo;Ready mode. Top 8% Motivation &mdash; Develop or Hold, with
+            the reasoning. Three placements written in the language supervisors
+            use. A throughline I can paste into any pitch email today. Live
+            signal on where active brief demand is right now.&rdquo;
+          </div>
+          <p>
+            <b>They write something down.</b>
+          </p>
+        </div>
+        <p className="namestmt">
+          That feeling has a name. It&rsquo;s called knowing what you have
+          &mdash; <em>and CHRP gives it to you.</em>
+        </p>
+
+        <div className="walk">
+          <span className="eyebrow">
+            One scan &middot; ten seconds &middot; you walk away with
+          </span>
+          <div className="wgrid">
+            {items.map((it) => (
+              <div key={it.bold} className="witem">
+                <span className="ck">&#10003;</span>
+                <span>
+                  <b>{it.bold}</b> &mdash; {it.rest}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="close">
+            Everything you need to walk into any room like you already know the
+            answer.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Pricing (5 tiers) ──────────────────────────────────────────────────────
+function Pricing() {
+  return (
+    <section className="cream pricing gap-2">
+      <div className="wrap">
+        <div className="shead">
+          <span className="eyebrow">Pricing</span>
+          <h2>Price one track. Or position the whole catalog.</h2>
+        </div>
+        <div className="tiers">
+          <div className="tier">
+            <span className="teyebrow">Single scan</span>
+            <div className="tprice">$29</div>
+            <p className="tdesc">
               One track. Know exactly what it is, where it belongs, and how to
-              pitch it. Full report. Sixty-day access.
-            </div>
+              pitch it.
+            </p>
+            <ul className="tfeat">
+              <li>Full report, 60-day access</li>
+              <li>Pitch verdict &amp; analysis</li>
+              <li>Live market signal</li>
+            </ul>
+            <Link href="/scan" className="btn btn-ghost">
+              Start a scan
+            </Link>
           </div>
-          <div className="pcard2 feat">
-            <div className="ptier">Artist catalog</div>
-            <div className="pprice display">$149</div>
-            <div className="pdesc">
-              The intelligence that managers have. Now available without one.
+          <div className="tier feat">
+            <span className="tbadge">Most chosen</span>
+            <span className="teyebrow">Catalog</span>
+            <div className="tprice">
+              <span className="pre">from</span>$149
             </div>
-            <div className="pital">
-              Your first scan tells you what you have. Your eighth tells you who
-              you are.
+            <p className="tdesc">
+              Scan eight tracks and your creator profile unlocks &mdash; the
+              intelligence managers have, without one.
+            </p>
+            <ul className="tfeat">
+              <li>Per-track catalog rate</li>
+              <li>Signature &amp; consistency notes</li>
+              <li>Creator profile</li>
+            </ul>
+            <Link href="/scan" className="btn btn-y">
+              {CTA_FREE}
+            </Link>
+          </div>
+          <div className="tier">
+            <span className="teyebrow">Extended catalog</span>
+            <div className="tprice">$299</div>
+            <p className="tdesc">
+              Full discography. Forty tracks. Complete catalog positioning.
+            </p>
+            <ul className="tfeat">
+              <li>Up to 40 tracks</li>
+              <li>Full profile</li>
+              <li>Career-arc view</li>
+            </ul>
+            <Link href="/scan" className="btn btn-ghost">
+              Position my catalog
+            </Link>
+          </div>
+          <div className="tier">
+            <span className="teyebrow">Manager roster</span>
+            <div className="tprice">$499</div>
+            <p className="tdesc">
+              Scan your full roster and see who to lead with this quarter
+              &mdash; against which active briefs.
+            </p>
+            <ul className="tfeat">
+              <li>Multiple artists</li>
+              <li>Ranked pitch priorities</li>
+              <li>Brief matching</li>
+            </ul>
+            <Link href="/scan" className="btn btn-ghost">
+              Scan the roster
+            </Link>
+          </div>
+          <div className="tier">
+            <span className="teyebrow">Annual unlimited</span>
+            <div className="tprice">
+              $999<small>/yr</small>
             </div>
+            <p className="tdesc">
+              For labels, agencies, and sync-active firms. Unlimited scans,
+              white-label exports.
+            </p>
+            <ul className="tfeat">
+              <li>Unlimited scans</li>
+              <li>White-label exports</li>
+              <li>Priority engine access</li>
+            </ul>
+            <Link href="/contact" className="btn btn-ghost">
+              Talk to us
+            </Link>
           </div>
         </div>
-        <p className="pnote">Free through June 30 &middot; Pricing starts July 1</p>
+        <p className="pnote">Free through June 30. Pricing starts July 2.</p>
       </div>
     </section>
   );
 }
 
-function SegmentsSection() {
+// ─── Audience ────────────────────────────────────────────────────────────────
+function Audience() {
   return (
-    <section className="band">
-      <div className="w">
-        <div className="seg">
-          <div className="segc">
-            <div className="segl">Producers</div>
+    <section className="cream aud">
+      <div className="wrap">
+        <span className="eyebrow">You&rsquo;re not the only one who scans</span>
+        <div className="acols">
+          <div className="acol">
+            <h4>Producers</h4>
             <p>
-              Scan during the creative process, not after. Know where the track
-              is headed before it&rsquo;s finished.
+              Scan during the creative process &mdash; not after. Know where a
+              track is headed before it&rsquo;s finished.
             </p>
           </div>
-          <div className="segc">
-            <div className="segl">Managers</div>
+          <div className="acol">
+            <h4>Managers</h4>
             <p>
               Ranked pitch priorities across your full roster against live
               briefs. See who to lead with this quarter.
             </p>
           </div>
-          <div className="segc">
-            <div className="segl">A&amp;R</div>
+          <div className="acol">
+            <h4>A&amp;R</h4>
             <p>
-              Pre-commitment intelligence. Walk into the signing meeting knowing
-              what the catalog is worth commercially.
+              Pre-commitment intelligence before the signing meeting.{" "}
+              <Link href="/contact">
+                Let&rsquo;s talk about bulk access &rarr;
+              </Link>
             </p>
           </div>
         </div>
@@ -384,36 +441,42 @@ function SegmentsSection() {
   );
 }
 
-function FinalCta() {
+// ─── Kicker band ─────────────────────────────────────────────────────────────
+function Kicker() {
   return (
-    <section className="final">
-      <Aura />
-      <div className="grain" />
-      <div className="final-inner">
-        <div className="stakes">
-          Every week you pitch without this is a week you&rsquo;re asking
-          supervisors to do your positioning work for you.{" "}
-          <em>Most won&rsquo;t.</em>
-        </div>
-        <h2>
-          You already know your music is good.
-          <br />
-          <em>Now know what it&rsquo;s worth.</em>
-        </h2>
-        <Link href="/scan" className="btn btn-y">
-          {CTA_LABEL}
-        </Link>
-        <span className="fine">
-          Pricing starts July 1 &middot; No credit card required
-        </span>
+    <section className="kick">
+      <div className="wrap">
+        <p>
+          Every week you pitch without this, you&rsquo;re asking supervisors to
+          do your positioning work for you. <b>Most won&rsquo;t.</b>
+        </p>
       </div>
     </section>
   );
 }
 
-// ─── Marquee with chrp-icon separators ───────────────────────────────────────
+// ─── Closing ─────────────────────────────────────────────────────────────────
+function Closing() {
+  return (
+    <section className="close-sec grain">
+      <span className="g" />
+      <div className="wrap">
+        <h2>
+          You already know your music is good.
+          <br />
+          Now know what it&rsquo;s worth.
+        </h2>
+        <Link href="/scan" className="btn btn-y">
+          {CTA_FREE_LONG}
+        </Link>
+        <p className="hero-note">No credit card. One 10-second scan.</p>
+      </div>
+    </section>
+  );
+}
+
+// ─── Marquee with chrp-icon separator ────────────────────────────────────────
 function Marquee() {
-  // Six segments + six separators per loop, doubled in the CSS via translate(-50%).
   const segments = [
     "Score your song",
     "Find Your Frequency",
@@ -423,11 +486,12 @@ function Marquee() {
     "Let music move you",
   ];
   return (
-    <div className="chrp-marquee-section" aria-hidden>
-      <div className="chrp-marquee-track">
+    <div className="mq" aria-hidden>
+      <div className="mq-t">
         {segments.map((s, i) => (
           <span key={i}>
             {s}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/icon/chrp-icon.png"
               alt=""
@@ -440,58 +504,24 @@ function Marquee() {
   );
 }
 
-// ─── Report tie-back — cream paper bleed ─────────────────────────────────────
-function ReportTieBack() {
-  return (
-    <>
-      <div className="report-lead">
-        <span className="eyebrow">The report — intentional contrast</span>
-        <div className="sub">
-          Moving from the dark instrument into the premium intelligence document
-        </div>
-      </div>
-      <div className="report">
-        <div className="report-in">
-          <div className="report-meta">
-            Emotional intelligence report // No. RDL-052026-VB // v1.0
-          </div>
-          <div className="report-h">Redline</div>
-          <div className="report-by">by Voss Black</div>
-          <div className="report-isrc">
-            2026.05.20 // 09:14 CST // ISRC GBUM72600412
-          </div>
-          <span className="report-chip">Ready mode</span>
-          <span className="report-sub">Top 4% of catalog in Ready mode</span>
-          <div className="report-note">
-            &uarr; The report stays cream and sets in Tiempos. The shift from
-            dark instrument to light document is the deliberate tie-back to the
-            CHRP brand.
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ─── Footer ──────────────────────────────────────────────────────────────────
-function SiteFooter() {
+function Footer() {
   return (
-    <footer className="site-footer">
-      <span className="ft">Scored by CHRP &nbsp;//&nbsp; scan.chrp.ai</span>
-      <span className="ft">
-        Behavioral scoring only &middot;{" "}
-        <Link href="/methodology">
-          Methodology at scan.chrp.ai/methodology
+    <footer className="foot">
+      <div className="wrap">
+        <Link href="/" className="logo">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
         </Link>
-        {" "}&middot;{" "}
-        <a href="https://mychrp.ai" target="_blank" rel="noreferrer">
-          mychrp.ai
-        </a>{" "}
-        &middot;{" "}
-        <a href="https://chrp.ai" target="_blank" rel="noreferrer">
-          chrp.ai
-        </a>
-      </span>
+        <div className="links">
+          <Link href="/methodology">Privacy</Link>
+          <Link href="/methodology">Terms</Link>
+          <Link href="/methodology">Methodology</Link>
+        </div>
+        <span className="cr">
+          &copy; 2026 CHRP &middot; Let music move you.
+        </span>
+      </div>
     </footer>
   );
 }
