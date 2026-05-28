@@ -1,0 +1,46 @@
+/* CHRP Brand Tokens — single source of truth for color and type.
+   Import once per site: @import url("/brand/chrp-tokens.css");
+   Values from Brand Guidelines V1A. */
+
+:root {
+  /* ── Core ── */
+  --chrp-yellow: #E6D74F;   /* umbrella signal — logo, EPI Score, primary CTA */
+  --chrp-black:  #0F0E0E;
+  --chrp-white:  #FBFBF4;
+
+  /* ── Secondary ── */
+  --chrp-magenta:      #C12C79;
+  --chrp-french-blue:  #406BD6;
+  --chrp-kelly-green:  #008054;
+  --chrp-cinnamon:     #D98068;
+  --chrp-blue-factor:  #A1DBFF;
+  --chrp-plum:         #591739;
+  --chrp-pistachio:    #BEE2A8;
+  --chrp-oat:          #F7F3EA;
+
+  /* ── Semantic ── */
+  --chrp-bg:     var(--chrp-black);
+  --chrp-text:   var(--chrp-white);
+  --chrp-accent: var(--chrp-yellow);
+
+  /* ── Type ── */
+  --chrp-font-headline: "Tiempos Fine", Georgia, "Times New Roman", serif;
+  --chrp-font-body:     "Lato", system-ui, -apple-system, sans-serif;
+  --chrp-lh-headline:   1.1;   /* 110% */
+  --chrp-lh-body:       1.4;   /* ~140% */
+  --chrp-tracking:      0;     /* 0% — never all caps for headlines */
+  --chrp-weight-headline: 300; /* Tiempos Fine Light is the cut on hand */
+
+  /* ── Gradients (encoded from the approved families; tune stops to source) ── */
+  --chrp-gradient-green-blue:    linear-gradient(135deg, #008054 0%, #406BD6 100%);
+  --chrp-gradient-warm:          linear-gradient(135deg, #E6D74F 0%, #D98068 55%, #C6D3F3 100%);
+  --chrp-gradient-blue-magenta:  linear-gradient(135deg, #406BD6 0%, #C12C79 60%, #0F0E0E 100%);
+  --chrp-gradient-yellow-plum:   linear-gradient(135deg, #E6D74F 0%, #C12C79 50%, #192A55 100%);
+
+  /* ── Site conventions (not from guidelines; adjust per surface) ── */
+  --chrp-radius: 2px;
+}
+
+/* Convenience base styles — optional */
+.chrp-headline { font-family: var(--chrp-font-headline); font-weight: var(--chrp-weight-headline); line-height: var(--chrp-lh-headline); letter-spacing: var(--chrp-tracking); text-transform: none; }
+.chrp-body     { font-family: var(--chrp-font-body);     line-height: var(--chrp-lh-body); }

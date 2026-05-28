@@ -1,0 +1,51 @@
+{
+  "color": {
+    "core": {
+      "yellow": "#E6D74F",
+      "black": "#0F0E0E",
+      "white": "#FBFBF4"
+    },
+    "secondary": {
+      "magenta": "#C12C79",
+      "frenchBlue": "#406BD6",
+      "kellyGreen": "#008054",
+      "cinnamon": "#D98068",
+      "blueFactor": "#A1DBFF",
+      "plum": "#591739",
+      "pistachio": "#BEE2A8",
+      "oat": "#F7F3EA"
+    },
+    "semantic": {
+      "bg": "#0F0E0E",
+      "text": "#FBFBF4",
+      "accent": "#E6D74F",
+      "note": "CHRP Yellow is the umbrella signal: logo, EPI Score, primary CTA on every surface."
+    }
+  },
+  "type": {
+    "headline": { "family": "Tiempos Fine", "fallback": "Georgia, Times New Roman, serif", "lineHeight": 1.1, "tracking": 0, "case": "sentence", "licensed": true },
+    "body": { "family": "Lato", "fallback": "system-ui, -apple-system, sans-serif", "lineHeight": 1.4, "source": "Google Fonts" },
+    "sizeRelationships": { "subheadOfHeadline": "25-50%", "bodyOfSubhead": "40-50%" }
+  },
+  "gradients": {
+    "greenBlue": "linear-gradient(135deg, #008054 0%, #406BD6 100%)",
+    "warm": "linear-gradient(135deg, #E6D74F 0%, #D98068 55%, #C6D3F3 100%)",
+    "blueMagenta": "linear-gradient(135deg, #406BD6 0%, #C12C79 60%, #0F0E0E 100%)",
+    "yellowPlum": "linear-gradient(135deg, #E6D74F 0%, #C12C79 50%, #192A55 100%)",
+    "note": "Encoded from the approved families; tune stops to source swatches once gathered."
+  },
+  "logo": {
+    "colorsAllowed": ["black", "yellow", "white", "approved gradient"],
+    "overPhotos": ["white", "black"],
+    "minWidthPx": 40,
+    "never": ["stretch", "recolor type vs bird separately", "outline", "shadow", "restyle"],
+    "files": "see /brand/logo and /brand/icon (gather from repo)"
+  },
+  "lexicon": {
+    "tagline": "Let music move you.",
+    "campaignLines": ["Find Your Frequency", "CHRP is your new edge", "The soundtrack of how you feel"],
+    "epiScore": { "term": "EPI Score", "modes": ["Flow", "Ready", "Recharge", "Recover"] },
+    "use": "emotional intelligence",
+    "avoid": "emotional insights"
+  }
+}
