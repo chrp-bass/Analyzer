@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { decodeScanId } from "@/lib/scan-id";
 import { getReportById } from "@/lib/fixtures/tracks";
 import { ScanProcessing } from "@/components/scan/ScanProcessing";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,11 @@ export default function Processing({
   const report = getReportById(trackSlug);
   if (!report) notFound();
   return (
-    <ScanProcessing report={report} scanId={params.scanId} trackSlug={trackSlug} />
+    <div className="product-shell">
+      <SiteHeader showCta={false} />
+      <main>
+        <ScanProcessing report={report} scanId={params.scanId} trackSlug={trackSlug} />
+      </main>
+    </div>
   );
 }

@@ -857,6 +857,314 @@ em { font-style: italic; }
 }
 
 /* ────────────────────────────────────────────────────────────────────────
+ * Page-shell system. Two modes:
+ *
+ *   .page-shell      brand surfaces — dark ink + cream document inserts.
+ *                    homepage, methodology, narrative pages.
+ *
+ *   .product-shell   product surfaces — light cream paper + dark ink.
+ *                    scan flow, dashboard, paywall, forms, results.
+ *                    optimised for clarity and conversion.
+ *
+ * Both share the same nav + footer markup and the same brand language
+ * (gold accents, eyebrow labels, Tiempos headlines, btn-y signal yellow).
+ * The .product-shell scope flips the CSS variables back to ink-on-cream
+ * exactly like .chrp-report does, so every utility class and inline
+ * var(--*) reference resolves correctly without per-component edits.
+ * ───────────────────────────────────────────────────────────────────── */
+.page-shell {
+  background: var(--ink);
+  color: var(--on-dark);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.page-shell > main { flex: 1; }
+
+/* ── PRODUCT SHELL (light) ── */
+.product-shell {
+  /* Surface tokens flip back to V8-style cream paper. */
+  --bg-base:    var(--paper);
+  --on-dark:    var(--on-light);   /* "body text on the page" -> dark ink */
+  --on-dark-2:  var(--on-light-2);
+  --line-dark:  var(--line-light);
+
+  /* Legacy Tailwind aliases pick up the editorial palette. */
+  --chrp-white: var(--paper);
+  --chrp-black: var(--on-light);
+  --oat:        var(--oat-2);
+  --rule:       var(--line-light);
+  --bar-bg:     rgba(15, 14, 14, 0.08);
+  --ink-soft:   var(--on-light-2);
+  --ink-light:  rgba(110, 102, 90, 0.7);
+
+  /* Polygon adapts to light surface. */
+  --polygon-stroke:     rgba(15, 14, 14, 0.32);
+  --polygon-axis:       rgba(15, 14, 14, 0.10);
+  --polygon-ring:       rgba(15, 14, 14, 0.16);
+  --polygon-ring-outer: rgba(15, 14, 14, 0.28);
+  --polygon-label:      var(--on-light-2);
+  --polygon-text:       var(--on-light);
+
+  /* Mode chips read on cream (V8 palette). */
+  --mode-ready-bg:      #E6D74F;
+  --mode-ready-fg:      #0F0E0E;
+  --mode-ready-fill:    rgba(230, 215, 79, 0.52);
+  --mode-ready-stroke:  #0F0E0E;
+  --mode-flow-bg:       #406BD6;
+  --mode-flow-fg:       #FFFFFF;
+  --mode-flow-fill:     rgba(64, 107, 214, 0.50);
+  --mode-flow-stroke:   #0F0E0E;
+  --mode-recharge-bg:   #BEE2A8;
+  --mode-recharge-fg:   #0F0E0E;
+  --mode-recharge-fill: rgba(190, 226, 168, 0.52);
+  --mode-recharge-stroke: #0F0E0E;
+  --mode-recover-bg:    #591739;
+  --mode-recover-fg:    #FFFFFF;
+  --mode-recover-fill:  rgba(89, 23, 57, 0.48);
+  --mode-recover-stroke: #0F0E0E;
+
+  background: var(--paper);
+  color: var(--on-light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--s);
+}
+.product-shell > main { flex: 1; }
+
+/* Product-shell nav: light glass surface, dark wordmark. The chrp-logo.svg
+ * ships in white; we invert it to ink for the cream surface. Same component
+ * markup as the dark nav, just scope-restyled. */
+.product-shell .nav {
+  background: rgba(251, 251, 244, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line-light);
+}
+.product-shell .logo img {
+  filter: invert(1) brightness(0) saturate(100%);
+}
+.product-shell .btn-nav {
+  color: var(--gold);
+  border-color: rgba(194, 154, 69, 0.45);
+}
+.product-shell .btn-nav:hover {
+  background: rgba(194, 154, 69, 0.08);
+}
+
+/* Product-shell footer: light surface, ink links. */
+.product-shell .foot {
+  background: var(--oat);
+  color: var(--on-light-2);
+  border-top: 1px solid var(--line-light);
+}
+.product-shell .foot a { color: var(--on-light-2); }
+.product-shell .foot a:hover { color: var(--on-light); }
+.product-shell .foot .logo img {
+  filter: invert(1) brightness(0) saturate(100%);
+}
+
+/* Product-shell ghost button uses ink-on-cream. */
+.product-shell .btn-ghost {
+  background: transparent;
+  color: var(--on-light);
+  border: 1px solid var(--line-light);
+}
+.product-shell .btn-ghost:hover {
+  background: rgba(15, 14, 14, 0.04);
+}
+
+/* Product-shell inputs: cream paper, ink border, dark text. */
+.product-shell input,
+.product-shell textarea,
+.product-shell select {
+  background: var(--paper);
+  border: 1.5px solid rgba(15, 14, 14, 0.20);
+  color: var(--on-light);
+  border-radius: 4px;
+}
+.product-shell ::placeholder { color: var(--on-light-2); }
+.product-shell input:focus,
+.product-shell textarea:focus,
+.product-shell select:focus {
+  border-color: var(--on-light);
+}
+
+/* Product card system — premium, restrained, report-first. */
+.product-card {
+  background: var(--paper);
+  border: 1px solid var(--line-light);
+  border-radius: 10px;
+  padding: 24px 22px;
+}
+.product-card-elev {
+  background: var(--paper);
+  border: 1px solid var(--line-light);
+  border-radius: 10px;
+  padding: 28px 24px;
+  box-shadow: 0 14px 36px -20px rgba(0, 0, 0, 0.12);
+}
+.product-card-soft {
+  background: var(--oat);
+  border: 1px solid var(--line-light);
+  border-radius: 10px;
+  padding: 24px 22px;
+}
+
+/* Product hero — clean editorial intro on cream. */
+.product-shell .page-hero {
+  padding: 64px 0 40px;
+}
+.product-shell .page-hero h1 {
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(34px, 4.8vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: var(--on-light);
+  margin-top: 14px;
+}
+.product-shell .page-hero .sub {
+  font-family: var(--d);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.4;
+  color: var(--on-light-2);
+  margin-top: 18px;
+  max-width: 52ch;
+}
+.product-shell .page-hero .eyebrow {
+  color: var(--gold);
+  display: inline-block;
+}
+
+/* Product-shell band */
+.product-shell .page-band {
+  padding: 56px 0 96px;
+  border-bottom: none;
+}
+.product-shell .page-band .eyebrow { color: var(--gold); }
+
+/* Hairline divider for product pages. */
+.product-shell .hairline { border-top: 1px solid var(--line-light); }
+
+.page-hero {
+  position: relative;
+  padding: 64px 0 56px;
+}
+.page-hero h1 {
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(38px, 5.4vw, 68px);
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  color: var(--paper);
+  margin-top: 14px;
+}
+.page-hero .sub {
+  font-family: var(--d);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(18px, 2.2vw, 22px);
+  line-height: 1.35;
+  color: var(--on-dark-2);
+  margin-top: 22px;
+  max-width: 48ch;
+}
+.page-hero .eyebrow {
+  display: inline-block;
+}
+
+/* Cream document insert for long-form content (e.g. methodology). */
+.page-document {
+  background: var(--paper);
+  color: var(--on-light);
+  padding: 80px 0 96px;
+}
+.page-document .col {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+@media (max-width: 560px) {
+  .page-document .col { padding: 0 22px; }
+}
+.page-document h2 {
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(28px, 3.2vw, 40px);
+  line-height: 1.12;
+  color: var(--on-light);
+  margin-top: 56px;
+  margin-bottom: 18px;
+}
+.page-document h2:first-child { margin-top: 0; }
+.page-document p {
+  font-family: var(--s);
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--on-light);
+  margin-bottom: 18px;
+}
+.page-document p + p { margin-top: 0; }
+.page-document .small {
+  font-size: 13px;
+  color: var(--on-light-2);
+  letter-spacing: 0.01em;
+}
+.page-document .eyebrow {
+  color: var(--gold);
+  margin-bottom: 22px;
+  display: inline-block;
+}
+
+/* Reusable section band for non-homepage pages. */
+.page-band {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--line-dark);
+}
+.page-band-cream {
+  background: var(--oat);
+  color: var(--on-light);
+  padding: 80px 0;
+}
+.page-band-cream .eyebrow { color: var(--gold); }
+
+/* Standard list inside a cream document */
+.page-document ul {
+  list-style: none;
+  margin: 12px 0 22px;
+  padding: 0;
+}
+.page-document ul li {
+  padding-left: 22px;
+  position: relative;
+  margin-bottom: 10px;
+  line-height: 1.6;
+  font-size: 15.5px;
+}
+.page-document ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold-2);
+}
+
+/* Gold underlined inline links (matches the homepage audience block). */
+.page-document a,
+.page-band a {
+  color: var(--gold);
+  font-weight: 700;
+  border-bottom: 1px solid rgba(194, 154, 69, 0.4);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
  * V8 report scope — cream paper, Cormorant + Lato. Untouched.
  * ───────────────────────────────────────────────────────────────────── */
 .chrp-report {

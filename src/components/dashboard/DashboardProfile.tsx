@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import {
   getCurrentUser,
   getUserScans,
@@ -35,35 +36,53 @@ export function DashboardProfile() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="product-shell">
         <SiteHeader showCta={false} />
         <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-chrp-black border-t-transparent rounded-full animate-spin" />
         </div>
+        <SiteFooter />
       </div>
     );
   }
 
   if (!user || scans.length < THRESHOLD) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="product-shell">
         <SiteHeader showCta={false} />
         <section className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <div className="font-display font-bold text-[28px] md:text-[36px] text-chrp-black">
-            Creator profile is locked.
-          </div>
-          <p className="font-sans text-[13px] text-ink-soft mt-3 max-w-md">
-            Scan {THRESHOLD - scans.length} more track
-            {THRESHOLD - scans.length === 1 ? "" : "s"} to unlock your aggregated
-            profile.
-          </p>
-          <Link
-            href="/dashboard"
-            className="mt-6 font-sans font-bold text-[12px] tracking-wider uppercase bg-chrp-black text-chrp-white px-5 py-3"
+          <span className="eyebrow" style={{ marginBottom: 18 }}>
+            Creator profile
+          </span>
+          <h1
+            style={{
+              fontFamily: "var(--d)",
+              fontWeight: 300,
+              fontSize: "clamp(30px, 4vw, 48px)",
+              color: "var(--on-light)",
+            }}
           >
+            Locked until eight scans.
+          </h1>
+          <p
+            style={{
+              fontFamily: "var(--s)",
+              fontSize: 15,
+              color: "var(--on-light-2)",
+              marginTop: 14,
+              maxWidth: 460,
+              lineHeight: 1.6,
+            }}
+          >
+            Scan {THRESHOLD - scans.length} more track
+            {THRESHOLD - scans.length === 1 ? "" : "s"} to unlock your
+            aggregated profile.
+          </p>
+          <Link href="/dashboard" className="btn btn-y" style={{ marginTop: 26 }}>
             Back to dashboard
           </Link>
         </section>
+        <SiteFooter />
       </div>
     );
   }
@@ -74,7 +93,7 @@ export function DashboardProfile() {
   if (!profile || !report) return null;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="product-shell">
       <SiteHeader showCta={false} />
       <CreatorProfileStage
         report={report}
@@ -89,11 +108,19 @@ export function DashboardProfile() {
       <div className="px-6 md:px-10 pb-10 max-w-[920px] mx-auto w-full">
         <Link
           href="/dashboard"
-          className="font-sans text-[11px] tracking-wider uppercase text-ink-light hover:text-chrp-black"
+          style={{
+            fontFamily: "var(--s)",
+            fontSize: 11,
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            color: "var(--gold-2)",
+          }}
         >
-          ← Back to dashboard
+          &larr; Back to dashboard
         </Link>
       </div>
+      <SiteFooter />
     </div>
   );
 }

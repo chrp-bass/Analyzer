@@ -1,4 +1,5 @@
 import { MagicLinkClaim } from "@/components/auth/MagicLinkClaim";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -7,5 +8,12 @@ export default function ClaimPage({
 }: {
   params: { token: string };
 }) {
-  return <MagicLinkClaim token={params.token} />;
+  return (
+    <div className="product-shell">
+      <SiteHeader showCta={false} />
+      <main>
+        <MagicLinkClaim token={params.token} />
+      </main>
+    </div>
+  );
 }

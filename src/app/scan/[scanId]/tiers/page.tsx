@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { decodeScanId } from "@/lib/scan-id";
 import { getReportById } from "@/lib/fixtures/tracks";
 import { TierPicker } from "@/components/scan/TierPicker";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -14,5 +16,13 @@ export default function TiersPage({
   if (!trackSlug) notFound();
   const report = getReportById(trackSlug);
   if (!report) notFound();
-  return <TierPicker scanId={params.scanId} report={report} />;
+  return (
+    <div className="product-shell">
+      <SiteHeader showCta={false} />
+      <main>
+        <TierPicker scanId={params.scanId} report={report} />
+      </main>
+      <SiteFooter />
+    </div>
+  );
 }

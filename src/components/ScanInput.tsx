@@ -26,10 +26,11 @@ export function ScanInput() {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <label
         htmlFor="scan-input"
-        className="font-sans text-[11px] tracking-wider uppercase text-ink-soft"
+        className="eyebrow"
+        style={{ display: "block", marginBottom: 4 }}
       >
         Spotify URL or track name
       </label>
@@ -39,16 +40,19 @@ export function ScanInput() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="https://open.spotify.com/track/..."
-        className="w-full font-sans text-[15px] md:text-[16px] text-chrp-black bg-chrp-white border border-rule px-4 py-3 focus:outline-none focus:border-chrp-black"
+        style={{ width: "100%", fontSize: 16, padding: "14px 16px" }}
         autoFocus
       />
       {error && (
-        <div className="font-sans text-[12px] text-plum">{error}</div>
+        <div style={{ fontFamily: "var(--s)", fontSize: 13, color: "#C12C79" }}>
+          {error}
+        </div>
       )}
       <button
         type="submit"
         disabled={busy}
-        className="mt-2 inline-flex items-center justify-center font-sans font-bold text-[13px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-4 disabled:opacity-60"
+        className="btn btn-y"
+        style={{ marginTop: 8, alignSelf: "flex-start", opacity: busy ? 0.6 : 1 }}
       >
         {busy ? "Resolving…" : "Analyze"}
       </button>

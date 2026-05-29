@@ -1,44 +1,32 @@
 import Link from "next/link";
 
+/**
+ * Shared site header. Mirrors the homepage's <Nav> exactly so the look of
+ * every non-homepage marketing/utility page reads as one system: dark glass
+ * background, real CHRP logo SVG, gold-outline "Scan your song" CTA.
+ */
 export function SiteHeader({
+  showCta = true,
   ctaHref = "/scan",
   ctaLabel = "Scan your song",
-  showCta = true,
 }: {
+  showCta?: boolean;
   ctaHref?: string;
   ctaLabel?: string;
-  showCta?: boolean;
 }) {
   return (
-    <header className="flex items-center justify-between px-6 md:px-10 py-4 border-b border-rule">
-      <Link
-        href="/"
-        className="font-sans font-black text-[14px] tracking-wider text-chrp-black"
-      >
-        CHRP
-      </Link>
-      <nav className="flex items-center gap-4 md:gap-6">
-        <Link
-          href="/methodology"
-          className="hidden md:inline font-sans text-[11px] tracking-wider uppercase text-ink-soft hover:text-chrp-black"
-        >
-          Methodology
-        </Link>
-        <Link
-          href="/dashboard"
-          className="font-sans text-[11px] tracking-wider uppercase text-ink-soft hover:text-chrp-black"
-        >
-          Dashboard
+    <header className="nav">
+      <div className="wrap">
+        <Link href="/" className="logo" aria-label="CHRP home">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
         </Link>
         {showCta && (
-          <Link
-            href={ctaHref}
-            className="font-sans font-bold text-[11px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-2 hover:bg-ink-soft"
-          >
-            {ctaLabel}
+          <Link href={ctaHref} className="btn-nav">
+            {ctaLabel} <span aria-hidden>&rarr;</span>
           </Link>
         )}
-      </nav>
+      </div>
     </header>
   );
 }
