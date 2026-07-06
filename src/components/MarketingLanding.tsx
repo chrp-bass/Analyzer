@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const CTA_FREE = "Scan your first track — free";
-const CTA_FREE_LONG = "Scan your first track — free through June 30";
+const CTA_FREE_LONG = "Scan your first track — free through August 31";
 
 export function MarketingLanding() {
   return (
@@ -65,7 +65,7 @@ function Hero() {
               {CTA_FREE}
             </Link>
             <span className="hero-note">
-              Free through June 30 &middot; one 10-second scan
+              Free through August 31 &middot; one 10-second scan
             </span>
           </div>
         </div>
@@ -399,7 +399,7 @@ function Pricing() {
             </Link>
           </div>
         </div>
-        <p className="pnote">Free through June 30. Pricing starts July 2.</p>
+        <p className="pnote">Free through August 31. Pricing starts September 1.</p>
       </div>
     </section>
   );

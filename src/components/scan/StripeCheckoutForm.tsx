@@ -12,7 +12,7 @@ import { ProductId } from "@/lib/accounts";
 import { sendMagicLink, sendReceipt } from "@/lib/email";
 
 // Beta-mode gate. Defaults to ON; flipped off by setting NEXT_PUBLIC_BETA_MODE
-// to "false" (which is what flips the card form back on for July 1 / Stripe
+// to "false" (which is what flips the card form back on for September 1 / Stripe
 // cutover). All card-form code below stays intact and is only suppressed via
 // {!BETA_MODE && ...} so flipping the env var brings it back without a code
 // change.
@@ -217,7 +217,7 @@ export function StripeCheckoutForm({
                   Processing…
                 </>
               ) : BETA_MODE ? (
-                <>Unlock &mdash; free through June 30</>
+                <>Unlock &mdash; free through August 31</>
               ) : (
                 <>Pay {priceDisplay}</>
               )}
@@ -225,7 +225,7 @@ export function StripeCheckoutForm({
 
             {BETA_MODE ? (
               <div className="font-sans text-[11px] text-ink-light text-center mt-3">
-                Pricing starts at $29 on July 1. No card required during early
+                Pricing starts at $29 on September 1. No card required during early
                 access.
               </div>
             ) : (
