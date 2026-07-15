@@ -116,12 +116,13 @@ async function main() {
   console.log(JSON.stringify(data, null, 2));
 
   console.log("\n▸ Calling generateReport()…");
-  const report = await generateReport(data);
-  console.log("\n═══ CHRP REPORT ═══\n");
-  console.log(report);
+  const sections = await generateReport(data);
+  const sectionsJson = JSON.stringify(sections, null, 2);
+  console.log("\n═══ CHRP REPORT (structured sections) ═══\n");
+  console.log(sectionsJson);
 
   console.log("\n▸ Calling generateRhodesReading()…");
-  const rhodes = await generateRhodesReading(data, report);
+  const rhodes = await generateRhodesReading(data, sectionsJson);
   console.log("\n═══ DR. RHODES READING ═══\n");
   console.log(rhodes);
 }

@@ -1,3 +1,15 @@
+export interface Placement {
+  title: string
+  body: string
+}
+
+export interface ReportSections {
+  signature: string
+  placements: Placement[]
+  throughline: string
+  comparable: string
+}
+
 export interface TrackData {
   track: string
   artist: string
@@ -55,19 +67,21 @@ VOCABULARY:
 Always use: coordinate, EPI Score, corpus, mode, position, placement, brief, throughline, pitch-ready, demand signal, emotional performance.
 Never use: wellness, mental health, AI, algorithm, app, vibes, feel, beautiful, amazing, powerful, score out of ten, we think, we believe.
 
-OUTPUT — exactly these four sections:
+REASONING — do internally, do not emit:
+Think through Position, Market, three Placements, and the Throughline the way the older four-section prompt asked. Position analyses mode + EPI + specific Spotify values + what the track does to people. Market names brief categories, references demand signal, ends with one honest placement consideration. Placements are three supervisor-voice sync briefs, distinct in tone and context. Throughline crystallizes mode + EPI position + primary placement + emotional function.
 
-## Position
-One paragraph, 3-5 sentences. Open with mode and EPI Score. Reference at least two specific Spotify values. Describe what this track does to people. Name commitment if 90+, range if 70-89, ambiguity if below 70.
+OUTPUT — return ONLY valid JSON, exactly this shape. No markdown, no code fences, no prose before or after. Nothing but the JSON object.
 
-## Market
-One paragraph, 4-6 sentences. Specific brief categories. Reference demand signal. Crossover potential if data supports it. End with one honest placement consideration.
-
-## Three Placements
-Three numbered items. Complete placement descriptions written as a supervisor writes a brief. All three different in tone and context.
-
-## The Throughline
-One sentence. Mode, EPI position, primary placement category, emotional function.
+{
+  "signature": "One sentence. The crystallized position — what this track is and does. Comes out of Position reasoning.",
+  "placements": [
+    {"title": "supervisor-brief style title", "body": "3-4 sentences of supervisor voice: the visual, the brand or show type, the emotional function in the moment, why this track."},
+    {"title": "distinct from placement 1", "body": "same shape, different tone and context"},
+    {"title": "distinct from placements 1 and 2", "body": "same shape, different tone and context"}
+  ],
+  "throughline": "One sentence. Mode, EPI position, primary placement category, emotional function. Specific enough that a supervisor knows what they're getting before pressing play.",
+  "comparable": "Prose sentence starting with a phrase like \\"Sits alongside\\" or \\"Lives in the same territory as\\". Names 1-2 comparable artists and the specific placement category they land in. Comes out of Market reasoning."
+}
 `
 
 const DR_RHODES_SYSTEM_PROMPT = `
@@ -94,7 +108,7 @@ Second: what that means commercially, stated as fact.
 Third: the one thing the artist carries out of this reading.
 `
 
-export async function generateReport(trackData: TrackData): Promise<string> {
+export async function generateReport(trackData: TrackData): Promise<ReportSections> {
   const userMessage = `Generate the CHRP commercial intelligence report for this track.\n\nTRACK DATA:\n${JSON.stringify(trackData, null, 2)}`
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -106,7 +120,7 @@ export async function generateReport(trackData: TrackData): Promise<string> {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 1000,
+      max_tokens: 1200,
       system: CHRP_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }]
     })
@@ -114,7 +128,24 @@ export async function generateReport(trackData: TrackData): Promise<string> {
 
   const data = await response.json()
   if (data.type === 'error') throw new Error(data.error.message)
-  return data.content[0].text
+  const raw: string = data.content[0].text
+  // Defensive: strip ```json fences if the model wraps despite the instruction.
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim()
+  const parsed = JSON.parse(cleaned) as ReportSections
+  if (
+    typeof parsed.signature !== 'string' ||
+    !Array.isArray(parsed.placements) ||
+    parsed.placements.length < 1 ||
+    typeof parsed.throughline !== 'string' ||
+    typeof parsed.comparable !== 'string'
+  ) {
+    throw new Error('generateReport: response JSON missing required fields')
+  }
+  return parsed
 }
 
 export async function generateRhodesReading(trackData: TrackData, chrpReport: string): Promise<string> {
