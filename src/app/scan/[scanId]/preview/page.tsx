@@ -1,19 +1,46 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { decodeScanId } from "@/lib/scan-id";
-import { getReportById } from "@/lib/fixtures/tracks";
+import { getReportById, type ReportPayload } from "@/lib/fixtures/tracks";
+import { getScanReport } from "@/lib/data-source";
 import { ScanPreview } from "@/components/scan/ScanPreview";
 
-export const dynamic = "force-dynamic";
-
+/**
+ * Preview page — client component so getScanReport can hit its client-side
+ * localStorage cache before falling through to the server-side generation
+ * bridge at /api/scan-report. First view: initial render uses the fixture
+ * for instant paint, then swaps in the generated payload when it arrives.
+ * Subsequent views of the same scanId hit the localStorage cache and skip
+ * the API round-trip entirely.
+ */
 export default function PreviewPage({
   params,
 }: {
   params: { scanId: string };
 }) {
+  const router = useRouter();
   const trackSlug = decodeScanId(params.scanId);
-  if (!trackSlug) notFound();
-  const report = getReportById(trackSlug);
-  if (!report) notFound();
+  const fixture = trackSlug ? getReportById(trackSlug) : null;
+  const [report, setReport] = useState<ReportPayload | null>(fixture);
+
+  useEffect(() => {
+    if (!fixture) {
+      router.replace("/scan");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const upgraded = await getScanReport(params.scanId);
+      if (!cancelled && upgraded) setReport(upgraded);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.scanId, fixture, router]);
+
+  if (!trackSlug || !fixture || !report) return null;
   return (
     <ScanPreview report={report} scanId={params.scanId} trackSlug={trackSlug} />
   );

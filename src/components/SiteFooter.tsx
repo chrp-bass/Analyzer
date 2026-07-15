@@ -13,8 +13,8 @@ export function SiteFooter() {
           <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
         </Link>
         <div className="links">
-          <Link href="/methodology">Privacy</Link>
-          <Link href="/methodology">Terms</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
           <Link href="/methodology">Methodology</Link>
         </div>
         <span className="cr">
