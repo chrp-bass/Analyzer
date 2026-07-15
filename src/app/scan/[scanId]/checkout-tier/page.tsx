@@ -35,12 +35,14 @@ export default function CheckoutTier({
   }
 
   return (
-    <StripeCheckoutForm
-      scanId={params.scanId}
-      mode="tier"
-      productSlug={productParam}
-      trackTitle={report.track.title}
-      trackArtist={report.track.artist}
-    />
+    <div className="product-shell">
+      <StripeCheckoutForm
+        scanId={params.scanId}
+        mode="tier"
+        productSlug={productParam}
+        trackTitle={report.track.title}
+        trackArtist={report.track.artist}
+      />
+    </div>
   );
 }

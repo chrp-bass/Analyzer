@@ -15,12 +15,14 @@ export default function CheckoutSingle({
   const report = getReportById(trackSlug);
   if (!report) notFound();
   return (
-    <StripeCheckoutForm
-      scanId={params.scanId}
-      mode="single"
-      productSlug="single"
-      trackTitle={report.track.title}
-      trackArtist={report.track.artist}
-    />
+    <div className="product-shell">
+      <StripeCheckoutForm
+        scanId={params.scanId}
+        mode="single"
+        productSlug="single"
+        trackTitle={report.track.title}
+        trackArtist={report.track.artist}
+      />
+    </div>
   );
 }

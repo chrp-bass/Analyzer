@@ -42,6 +42,8 @@ export default function PreviewPage({
 
   if (!trackSlug || !fixture || !report) return null;
   return (
-    <ScanPreview report={report} scanId={params.scanId} trackSlug={trackSlug} />
+    <div className="product-shell">
+      <ScanPreview report={report} scanId={params.scanId} trackSlug={trackSlug} />
+    </div>
   );
 }
