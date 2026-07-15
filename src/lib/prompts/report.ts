@@ -173,7 +173,7 @@ ${JSON.stringify(trackData, null, 2)}
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-5',
       max_tokens: 1000,
       system: CHRP_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }]
@@ -181,6 +181,7 @@ ${JSON.stringify(trackData, null, 2)}
   })
 
   const data = await response.json()
+  if (data.type === 'error') throw new Error(data.error.message)
   return data.content[0].text
 }
 
@@ -206,7 +207,7 @@ ${chrpReport}
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-5',
       max_tokens: 300,
       system: DR_RHODES_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }]
@@ -214,5 +215,6 @@ ${chrpReport}
   })
 
   const data = await response.json()
+  if (data.type === 'error') throw new Error(data.error.message)
   return data.content[0].text
 }
