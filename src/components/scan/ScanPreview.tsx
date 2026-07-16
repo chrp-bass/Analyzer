@@ -280,21 +280,21 @@ function PaywallCard({ scanId }: { scanId: string }) {
 
   return (
     <div className="w-full max-w-[540px] bg-chrp-white border border-rule shadow-[0_18px_60px_-12px_rgba(15,14,14,0.18)]">
-      <div className="px-5 md:px-7 py-6 md:py-7">
-        <h2 className="font-display font-bold text-[26px] md:text-[34px] leading-[1.05] text-chrp-black">
+      <div className="px-5 md:px-6 py-5">
+        <h2 className="font-display font-bold text-[24px] md:text-[30px] leading-[1.05] text-chrp-black">
           Unlock the interpretation.
         </h2>
-        <p className="mt-2 font-sans text-[12.5px] md:text-[13.5px] leading-snug text-ink-soft">
+        <p className="mt-2 font-sans text-[12.5px] md:text-[13px] leading-snug text-ink-soft">
           Your fingerprint and scores are visible above. The pitch verdict,
           Dr.&nbsp;Rhodes&rsquo; analysis, placement intelligence, throughline,
           and where this music lives &mdash; that&rsquo;s what you&rsquo;re
           unlocking.
         </p>
 
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button
             onClick={goSingle}
-            className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-4 py-3"
+            className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-4 py-2.5"
             style={{
               backgroundColor: "var(--chrp-yellow)",
               color: "var(--chrp-black)",
@@ -304,22 +304,10 @@ function PaywallCard({ scanId }: { scanId: string }) {
           </button>
           <button
             onClick={goCatalog}
-            className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-3"
+            className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-2.5"
           >
             Unlock your catalog &mdash; $149 for 10 songs
           </button>
-        </div>
-
-        <p className="mt-4 font-sans text-[11.5px] leading-[1.5] text-ink-soft">
-          Single scan gives you this song&rsquo;s interpretation. Catalog scan
-          unlocks your creator profile &mdash; signature pattern, emotional
-          consistency, and reliability score across your body of work.
-        </p>
-
-        <div className="mt-5 grid grid-cols-3 gap-2">
-          <ExpressMethod label="Pay" />
-          <ExpressMethod label="G Pay" />
-          <ExpressMethod label="Link" />
         </div>
 
         <label className="mt-4 flex flex-col gap-1">
@@ -331,12 +319,12 @@ function PaywallCard({ scanId }: { scanId: string }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@studio.com"
-            className="font-sans text-[14px] text-chrp-black bg-chrp-white border border-rule px-3 py-2.5 focus:outline-none focus:border-chrp-black"
+            className="font-sans text-[14px] text-chrp-black bg-chrp-white border border-rule px-3 py-2 focus:outline-none focus:border-chrp-black"
           />
         </label>
 
-        <div className="mt-5 hairline" />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[10.5px] font-sans text-ink-soft">
+        <div className="mt-4 hairline" />
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[10.5px] font-sans text-ink-soft">
           <div className="flex items-center gap-3">
             <Link href="/methodology" className="hover:text-chrp-black">
               Methodology
@@ -353,25 +341,7 @@ function PaywallCard({ scanId }: { scanId: string }) {
             Behavioral scoring only.
           </div>
         </div>
-        <p className="mt-3 font-sans text-[10px] text-ink-light leading-snug">
-          Demo checkout &mdash; no card data is captured. CHRP is a decision
-          tool, not a forecast. Reports compare against the CHRP corpus; market
-          conditions can shift.
-        </p>
       </div>
-    </div>
-  );
-}
-
-function ExpressMethod({ label }: { label: string }) {
-  return (
-    <div
-      aria-disabled
-      className="flex items-center justify-center px-3 py-2 border border-rule bg-chrp-white opacity-70 cursor-not-allowed"
-    >
-      <span className="font-sans font-bold text-[11px] tracking-wider uppercase text-ink-soft">
-        {label}
-      </span>
     </div>
   );
 }
