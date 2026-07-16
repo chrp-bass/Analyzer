@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const CTA_FREE = "Scan your first track — free";
-const CTA_FREE_LONG = "Scan your first track — free through August 31";
+const CTA_FREE_LONG = "Scan your first track — free";
 
 export function MarketingLanding() {
   return (
@@ -65,7 +65,7 @@ function Hero() {
               {CTA_FREE}
             </Link>
             <span className="hero-note">
-              Free through August 31 &middot; one 10-second scan
+              First scan free &middot; one 10-second scan
             </span>
           </div>
         </div>
@@ -304,7 +304,7 @@ function ConversationAndWalkaway() {
   );
 }
 
-// ─── Pricing (5 tiers) ──────────────────────────────────────────────────────
+// ─── Pricing (2 tiers) ──────────────────────────────────────────────────────
 function Pricing() {
   return (
     <section className="cream pricing gap-2">
@@ -316,7 +316,7 @@ function Pricing() {
         <div className="tiers">
           <div className="tier">
             <span className="teyebrow">Single scan</span>
-            <div className="tprice">$29</div>
+            <div className="tprice">$19</div>
             <p className="tdesc">
               One track. Know exactly what it is, where it belongs, and how to
               pitch it.
@@ -333,73 +333,24 @@ function Pricing() {
           <div className="tier feat">
             <span className="tbadge">Most chosen</span>
             <span className="teyebrow">Catalog</span>
-            <div className="tprice">
-              <span className="pre">from</span>$149
-            </div>
+            <div className="tprice">$149</div>
             <p className="tdesc">
-              Scan eight tracks and your creator profile unlocks &mdash; the
-              intelligence managers have, without one.
+              Up to ten tracks. Your creator profile unlocks at eight &mdash;
+              the intelligence managers have, without one.
             </p>
             <ul className="tfeat">
-              <li>Per-track catalog rate</li>
+              <li>Up to 10 tracks, 12 months</li>
               <li>Signature &amp; consistency notes</li>
-              <li>Creator profile</li>
+              <li>Creator profile at 8 scans</li>
             </ul>
             <Link href="/scan" className="btn btn-y">
               {CTA_FREE}
             </Link>
           </div>
-          <div className="tier">
-            <span className="teyebrow">Extended catalog</span>
-            <div className="tprice">$299</div>
-            <p className="tdesc">
-              Full discography. Forty tracks. Complete catalog positioning.
-            </p>
-            <ul className="tfeat">
-              <li>Up to 40 tracks</li>
-              <li>Full profile</li>
-              <li>Career-arc view</li>
-            </ul>
-            <Link href="/scan" className="btn btn-ghost">
-              Position my catalog
-            </Link>
-          </div>
-          <div className="tier">
-            <span className="teyebrow">Manager roster</span>
-            <div className="tprice">$499</div>
-            <p className="tdesc">
-              Scan your full roster and see who to lead with this quarter
-              &mdash; against which active briefs.
-            </p>
-            <ul className="tfeat">
-              <li>Multiple artists</li>
-              <li>Ranked pitch priorities</li>
-              <li>Brief matching</li>
-            </ul>
-            <Link href="/scan" className="btn btn-ghost">
-              Scan the roster
-            </Link>
-          </div>
-          <div className="tier">
-            <span className="teyebrow">Annual unlimited</span>
-            <div className="tprice">
-              $999<small>/yr</small>
-            </div>
-            <p className="tdesc">
-              For labels, agencies, and sync-active firms. Unlimited scans,
-              white-label exports.
-            </p>
-            <ul className="tfeat">
-              <li>Unlimited scans</li>
-              <li>White-label exports</li>
-              <li>Priority engine access</li>
-            </ul>
-            <Link href="/contact" className="btn btn-ghost">
-              Talk to us
-            </Link>
-          </div>
         </div>
-        <p className="pnote">Free through August 31. Pricing starts September 1.</p>
+        <p className="pnote">
+          First scan free, then $19 a song or $149 for 10.
+        </p>
       </div>
     </section>
   );

@@ -24,6 +24,7 @@ import { getScanById } from "@/lib/scan-id";
 import {
   getCurrentUser,
   getUserCredits,
+  getUserScans,
   consumeCatalogCredit,
   markScanPaid,
   recordScan,
@@ -46,12 +47,24 @@ export function ScanPreview({
 
   const [status, setStatus] = useState<Status>("checking");
   const [showBanner, setShowBanner] = useState(false);
+  // firstScanCta: user reached this preview via the free-first-scan path
+  // (paid=true AND their user has exactly one scan on record). Anyone who
+  // paid, consumed a catalog credit, or has scanned more than once has
+  // already converted — no CTA for them.
+  const [firstScanCta, setFirstScanCta] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const scan = getScanById(scanId);
       if (scan?.paid) {
+        const user = await getCurrentUser();
+        if (user) {
+          const scans = await getUserScans(user.id);
+          if (!cancelled && scans.length === 1 && !justPaid) {
+            setFirstScanCta(true);
+          }
+        }
         if (!cancelled) {
           if (justPaid) {
             setStatus("unlocking");
@@ -177,7 +190,44 @@ export function ScanPreview({
           </AnimatePresence>
         </div>
       </article>
+
+      {firstScanCta && status === "unlocked" && (
+        <FirstScanCta scanId={scanId} />
+      )}
     </div>
+  );
+}
+
+function FirstScanCta({ scanId }: { scanId: string }) {
+  return (
+    <section className="bg-oat px-6 md:px-10 py-12 md:py-16 border-t border-rule">
+      <div className="max-w-[720px] mx-auto text-center">
+        <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
+          What&rsquo;s next
+        </div>
+        <h2 className="mt-3 font-display font-bold text-[30px] md:text-[42px] leading-[1.05] text-chrp-black display-tight">
+          You&rsquo;ve seen what CHRP sees. Run your next track.
+        </h2>
+        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
+          <Link
+            href="/scan"
+            className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-3.5 text-center"
+          >
+            Scan another track &mdash; $19
+          </Link>
+          <Link
+            href={`/scan/${scanId}/checkout-tier?product=artist_catalog`}
+            className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-6 py-3.5 text-center"
+            style={{
+              backgroundColor: "var(--chrp-yellow)",
+              color: "var(--chrp-black)",
+            }}
+          >
+            Unlock your catalog &mdash; $149 for 10 songs
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }
 
