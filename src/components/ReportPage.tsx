@@ -242,10 +242,10 @@ export function RhodesSection({ text }: { text: string }) {
       </div>
       <div className="hairline mt-1" />
       <div
-        className="mt-2 bg-oat border-l-[3px] py-3 pr-5 pl-5"
+        className="mt-2 bg-oat border-l-[3px] py-5 md:py-6 px-5 md:px-6"
         style={{ borderLeftColor: "var(--chrp-black)" }}
       >
-        <p className="font-display italic text-[15px] md:text-[16px] leading-[1.45] text-chrp-black max-w-[64ch]">
+        <p className="font-display italic text-[15px] md:text-[16px] leading-[1.5] text-chrp-black max-w-[64ch]">
           {text}
         </p>
       </div>
@@ -291,10 +291,10 @@ export function BuiltForSection({
               {String(i + 1).padStart(2, "0")}
             </div>
             <div>
-              <div className="font-display font-bold text-[18px] md:text-[20px] leading-tight">
+              <div className="font-display font-bold text-[18px] md:text-[20px] leading-tight max-w-[62ch]">
                 {p.title}
               </div>
-              <p className="font-sans text-[13px] text-ink-soft leading-[1.45] mt-1 max-w-[62ch]">
+              <p className="font-sans text-[13px] text-ink-soft leading-[1.5] mt-1.5 max-w-[62ch]">
                 {p.body}
               </p>
             </div>
@@ -313,7 +313,7 @@ export function ThroughComp({ report }: { report: ReportPayload }) {
           The throughline
         </div>
         <div className="hairline mt-1" />
-        <p className="font-display italic text-[16px] md:text-[17px] leading-[1.45] mt-2 max-w-[44ch] relative">
+        <p className="font-display italic text-[16px] md:text-[17px] leading-[1.5] mt-2 max-w-[56ch] relative">
           <span
             aria-hidden
             className="font-display font-bold text-[36px] leading-none"
@@ -329,7 +329,7 @@ export function ThroughComp({ report }: { report: ReportPayload }) {
           The comparable
         </div>
         <div className="hairline mt-1" />
-        <p className="font-display text-[16px] md:text-[17px] leading-[1.45] mt-2 max-w-[44ch]">
+        <p className="font-display text-[16px] md:text-[17px] leading-[1.5] mt-2 max-w-[56ch]">
           {report.comparable}
         </p>
       </div>
