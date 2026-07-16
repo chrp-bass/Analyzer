@@ -291,7 +291,7 @@ function PaywallCard({ scanId }: { scanId: string }) {
           unlocking.
         </p>
 
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             onClick={goSingle}
             className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-4 py-3"
@@ -310,19 +310,19 @@ function PaywallCard({ scanId }: { scanId: string }) {
           </button>
         </div>
 
-        <p className="mt-4 font-sans text-[11.5px] leading-[1.5] text-ink-soft">
+        <p className="mt-3 font-sans text-[11.5px] leading-[1.5] text-ink-soft">
           Single scan gives you this song&rsquo;s interpretation. Catalog scan
           unlocks your creator profile &mdash; signature pattern, emotional
           consistency, and reliability score across your body of work.
         </p>
 
-        <div className="mt-5 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           <ExpressMethod label="Pay" />
           <ExpressMethod label="G Pay" />
           <ExpressMethod label="Link" />
         </div>
 
-        <label className="mt-4 flex flex-col gap-1">
+        <label className="mt-3 flex flex-col gap-1">
           <span className="font-sans text-[10.5px] tracking-wider uppercase text-ink-soft">
             Email for your receipt
           </span>
@@ -335,8 +335,8 @@ function PaywallCard({ scanId }: { scanId: string }) {
           />
         </label>
 
-        <div className="mt-5 hairline" />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[10.5px] font-sans text-ink-soft">
+        <div className="mt-4 hairline" />
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3 text-[10.5px] font-sans text-ink-soft">
           <div className="flex items-center gap-3">
             <Link href="/methodology" className="hover:text-chrp-black">
               Methodology
@@ -353,7 +353,7 @@ function PaywallCard({ scanId }: { scanId: string }) {
             Behavioral scoring only.
           </div>
         </div>
-        <p className="mt-3 font-sans text-[10px] text-ink-light leading-snug">
+        <p className="mt-2.5 font-sans text-[10px] text-ink-light leading-snug">
           Demo checkout &mdash; no card data is captured. CHRP is a decision
           tool, not a forecast. Reports compare against the CHRP corpus; market
           conditions can shift.

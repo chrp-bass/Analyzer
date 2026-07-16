@@ -140,9 +140,9 @@ export function StripeCheckoutForm({
             </div>
           )}
 
-          <hr className="border-[#e6e6e6] my-5" />
+          <hr className="border-[#e6e6e6] my-4" />
 
-          <form onSubmit={submit} className="flex flex-col gap-3">
+          <form onSubmit={submit} className="flex flex-col gap-2.5">
             <Field
               label="Email"
               type="email"
