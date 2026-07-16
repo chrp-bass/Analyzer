@@ -7,12 +7,7 @@ import { TIERS } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
-const VALID_PRODUCTS: ProductId[] = [
-  "artist_catalog",
-  "extended_catalog",
-  "manager_roster",
-  "annual_unlimited",
-];
+const VALID_PRODUCTS: ProductId[] = ["artist_catalog"];
 
 export default function CheckoutTier({
   params,
@@ -27,11 +22,14 @@ export default function CheckoutTier({
   if (!report) notFound();
 
   const productParam = (searchParams.product || "artist_catalog") as ProductId;
+  // Legacy tier ids (extended_catalog, manager_roster, annual_unlimited)
+  // arrive from stale bookmarks or in-flight tabs opened pre-migration —
+  // redirect to the current catalog checkout rather than the picker.
   if (!VALID_PRODUCTS.includes(productParam)) {
-    redirect(`/scan/${params.scanId}/tiers`);
+    redirect(`/scan/${params.scanId}/checkout-tier?product=artist_catalog`);
   }
   if (TIERS[productParam].comingSoon) {
-    redirect(`/scan/${params.scanId}/tiers`);
+    redirect(`/scan/${params.scanId}/checkout-tier?product=artist_catalog`);
   }
 
   return (

@@ -33,7 +33,7 @@ import { ProgressCallout } from "@/components/dashboard/ProgressCallout";
 import { useRouter } from "next/navigation";
 
 const UNLOCK_THRESHOLD = 8;
-const CATALOG_COMPLETE_THRESHOLD = 15;
+const CATALOG_COMPLETE_THRESHOLD = 10;
 
 export function Dashboard() {
   const [hydrated, setHydrated] = useState(false);
@@ -278,7 +278,10 @@ function CreditsCard({
   credits: CatalogPurchase;
   scanCount: number;
 }) {
-  const tier = TIERS[credits.tier];
+  // Guard the lookup: a returning user may hold a CatalogPurchase whose
+  // tier id was removed in the two-tier migration. Fall back to the current
+  // catalog tier so the card renders instead of crashing on undefined.
+  const tier = TIERS[credits.tier] ?? TIERS.artist_catalog;
   const limit = credits.trackLimit;
   const used = credits.tracksUsed;
   const remaining = limit === null ? null : Math.max(0, limit - used);
@@ -494,10 +497,10 @@ function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => router.push("/scan?tier=extended_catalog")}
+              onClick={() => router.push("/scan?tier=artist_catalog")}
               className="font-sans font-bold text-[11.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-2.5"
             >
-              Upgrade to Extended Catalog
+              Scan another track
             </button>
             <div className="relative">
               <button

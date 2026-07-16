@@ -1,6 +1,7 @@
 import {
   MODE,
   getOrCreateGuestUser,
+  getUserScans,
   recordScan as accountsRecordScan,
 } from "@/lib/accounts";
 import { encodeScanId, decodeScanId, ScanRecord, getScanById, saveScan } from "@/lib/scan-id";
@@ -23,10 +24,15 @@ export async function initiateScan(
   if (MODE === "demo") {
     const trackSlug = matchInputToReportId(input);
     const scanId = encodeScanId(trackSlug);
+    // Ensure the user exists BEFORE counting their prior scans — a
+    // brand-new visitor gets a User row with zero scans, which is the
+    // "first scan free" trigger below.
     const user = await getOrCreateGuestUser();
-    saveScan(scanId, { trackSlug, paid: false, scannedAt: new Date().toISOString() });
+    const priorScans = user ? await getUserScans(user.id) : [];
+    const isFirstScan = priorScans.length === 0;
+    saveScan(scanId, { trackSlug, paid: isFirstScan, scannedAt: new Date().toISOString() });
     if (user) {
-      await accountsRecordScan(user.id, trackSlug, false, scanId);
+      await accountsRecordScan(user.id, trackSlug, isFirstScan, scanId);
     }
     return { scanId, trackSlug };
   }

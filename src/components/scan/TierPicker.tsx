@@ -5,21 +5,14 @@ import { TIERS } from "@/lib/payments";
 import { ProductId } from "@/lib/accounts";
 import { ReportPayload } from "@/lib/fixtures/tracks";
 
-const ORDER: ProductId[] = [
-  "artist_catalog",
-  "extended_catalog",
-  "manager_roster",
-  "annual_unlimited",
-];
+const ORDER: ProductId[] = ["artist_catalog"];
 
 const MOST_POPULAR: ProductId = "artist_catalog";
 
 const PER_TRACK_MATH: Partial<
   Record<ProductId, { perTrack: string; savingsPct: number }>
 > = {
-  artist_catalog: { perTrack: "$9.93", savingsPct: 66 },
-  extended_catalog: { perTrack: "$7.48", savingsPct: 74 },
-  manager_roster: { perTrack: "$6.65", savingsPct: 77 },
+  artist_catalog: { perTrack: "$14.90", savingsPct: 22 },
 };
 
 function PerTrackMath({ productId }: { productId: ProductId }) {

@@ -6,12 +6,7 @@ export const MODE: "demo" | "production" =
     (process.env.NEXT_PUBLIC_MODE as "demo" | "production")) ||
   "demo";
 
-export type ProductId =
-  | "single"
-  | "artist_catalog"
-  | "extended_catalog"
-  | "manager_roster"
-  | "annual_unlimited";
+export type ProductId = "single" | "artist_catalog";
 
 export interface User {
   id: string;
