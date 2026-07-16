@@ -300,13 +300,13 @@ function PaywallCard({ scanId }: { scanId: string }) {
               color: "var(--chrp-black)",
             }}
           >
-            Unlock this song &mdash; $29
+            Unlock this song &mdash; $19
           </button>
           <button
             onClick={goCatalog}
             className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-3"
           >
-            Unlock your full catalog &mdash; from $149
+            Unlock your catalog &mdash; $149 for 10 songs
           </button>
         </div>
 

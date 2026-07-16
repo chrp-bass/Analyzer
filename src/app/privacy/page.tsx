@@ -17,7 +17,7 @@ export default function PrivacyPage() {
             <h1>What we hold, and what we don&rsquo;t.</h1>
             <p className="sub">
               CHRP&rsquo;s formal privacy policy is in review. This page will be
-              updated before general availability on July 1.
+              updated before general availability.
             </p>
           </div>
         </section>

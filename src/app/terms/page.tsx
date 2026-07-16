@@ -17,7 +17,7 @@ export default function TermsPage() {
             <h1>The short version.</h1>
             <p className="sub">
               CHRP&rsquo;s formal terms of service are in review. This page
-              will be updated before general availability on July 1.
+              will be updated before general availability.
             </p>
           </div>
         </section>
@@ -32,11 +32,10 @@ export default function TermsPage() {
               a placement outcome depends on many things outside the score.
             </p>
             <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 18 }}>
-              During beta (through June 30), scans are free with the promo
-              code. Paid tiers listed at{" "}
-              <Link href="/scan">/scan</Link> take effect July 1. Refund
-              requests within seven days of purchase are honored while beta
-              is active.
+              Your first scan is free. Additional single scans are $19; the
+              catalog tier is $149 for up to ten tracks over twelve months.
+              See <Link href="/scan">/scan</Link> to start. Refund requests
+              within seven days of purchase are honored while beta is active.
             </p>
             <p style={{ fontSize: 16, lineHeight: 1.7 }}>
               Questions?{" "}

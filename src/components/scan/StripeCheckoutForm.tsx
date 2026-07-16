@@ -12,10 +12,9 @@ import { ProductId } from "@/lib/accounts";
 import { sendMagicLink, sendReceipt } from "@/lib/email";
 
 // Beta-mode gate. Defaults to ON; flipped off by setting NEXT_PUBLIC_BETA_MODE
-// to "false" (which is what flips the card form back on for September 1 / Stripe
-// cutover). All card-form code below stays intact and is only suppressed via
-// {!BETA_MODE && ...} so flipping the env var brings it back without a code
-// change.
+// to "false" once real Stripe checkout takes over. All card-form code below
+// stays intact and is only suppressed via {!BETA_MODE && ...} so flipping the
+// env var brings it back without a code change.
 const BETA_MODE = process.env.NEXT_PUBLIC_BETA_MODE !== "false";
 const PROMO_CODE = (
   process.env.NEXT_PUBLIC_PROMO_CODE ?? "EARLYACCESS"
@@ -217,7 +216,7 @@ export function StripeCheckoutForm({
                   Processing…
                 </>
               ) : BETA_MODE ? (
-                <>Unlock &mdash; free through August 31</>
+                <>Unlock with early access</>
               ) : (
                 <>Pay {priceDisplay}</>
               )}
@@ -225,8 +224,8 @@ export function StripeCheckoutForm({
 
             {BETA_MODE ? (
               <div className="font-sans text-[11px] text-ink-light text-center mt-3">
-                Pricing starts at $29 on September 1. No card required during early
-                access.
+                Early access: $19 a song, $149 for 10. No card required while
+                the code is active.
               </div>
             ) : (
               <div className="font-sans text-[11px] text-[#9ca3af] text-center mt-3">
