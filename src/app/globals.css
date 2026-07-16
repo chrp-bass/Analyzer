@@ -584,22 +584,27 @@ em { font-style: italic; }
   color: var(--paper);
 }
 
-/* Pricing — 5-tier row, cream */
+/* Pricing — 2-tier row, cream. Constrain the grid to a centered 960px
+ * band so the pair of wide cards sits balanced under the section head
+ * rather than spanning the whole 1180px wrap. */
 .pricing { background: var(--oat); color: var(--on-light); }
 .pricing .shead { margin-bottom: 42px; }
 .tiers {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
   align-items: stretch;
+  max-width: 960px;
+  margin: 0 auto;
 }
-@media (max-width: 900px) { .tiers { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { .tiers { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  .tiers { grid-template-columns: 1fr; gap: 20px; max-width: 520px; }
+}
 .tier {
   background: var(--paper);
   border: 1px solid var(--line-light);
   border-radius: 14px;
-  padding: 24px 20px;
+  padding: 36px 34px;
   display: flex;
   flex-direction: column;
 }
@@ -608,7 +613,7 @@ em { font-style: italic; }
   box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.3);
   transform: translateY(-8px);
 }
-@media (max-width: 900px) { .tier.feat { transform: none; } }
+@media (max-width: 720px) { .tier.feat { transform: none; } }
 .tbadge {
   align-self: flex-start;
   font-family: var(--s);
