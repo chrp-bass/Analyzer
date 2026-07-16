@@ -201,23 +201,23 @@ export function ScanPreview({
 function FirstScanCta({ scanId }: { scanId: string }) {
   return (
     <section className="bg-oat px-6 md:px-10 py-12 md:py-16 border-t border-rule">
-      <div className="max-w-[720px] mx-auto text-center">
+      <div className="max-w-[860px] mx-auto text-center">
         <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
           What&rsquo;s next
         </div>
         <h2 className="mt-3 font-display font-bold text-[30px] md:text-[42px] leading-[1.05] text-chrp-black display-tight">
           You&rsquo;ve seen what CHRP sees. Run your next track.
         </h2>
-        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
+        <div className="mt-10 flex flex-col md:flex-row gap-4 md:gap-5 w-full">
           <Link
             href="/scan"
-            className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-3.5 text-center"
+            className="flex-1 w-full font-sans font-bold text-[13px] md:text-[14px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-5 md:py-6 text-center"
           >
             Scan another track &mdash; $19
           </Link>
           <Link
             href={`/scan/${scanId}/checkout-tier?product=artist_catalog`}
-            className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-6 py-3.5 text-center"
+            className="flex-1 w-full font-sans font-bold text-[13px] md:text-[14px] tracking-wider uppercase px-6 py-5 md:py-6 text-center"
             style={{
               backgroundColor: "var(--chrp-yellow)",
               color: "var(--chrp-black)",
