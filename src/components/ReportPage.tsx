@@ -30,6 +30,7 @@ export function ReportPage({
     <article className="chrp-report px-6 md:px-10 lg:px-14 py-8 md:py-12 max-w-[920px] mx-auto w-full">
       <HeaderBand id={report.report_meta.id} version={report.report_meta.version} />
       <Hero report={report} />
+      <EpiCoordinateMap report={report} />
       <ScoresGrid report={report} />
       <RhodesSection text={report.rhodes} />
       <SignatureSection text={report.signature} />
@@ -441,3 +442,118 @@ export function Footer({ id, reportId }: { id: string; reportId: string }) {
   );
 }
 
+// ─── Coordinate map ─────────────────────────────────────────────────────────
+// Two-axis view: X = valence (negative → positive), Y = arousal (low → high).
+// Each mode owns a quadrant; the dot's distance from the origin is scaled by
+// the EPI score (higher score = deeper into the quadrant = less drift).
+// ReportPayload doesn't carry raw Spotify valence/energy today, so position is
+// derived from mode + score. When the Spotify data lands, swap ANCHORS for
+// the real (valence, energy) pair.
+
+type CoordMode = ReportPayload["epi"]["mode"];
+
+const MODE_ANCHORS: Record<CoordMode, { x: number; y: number }> = {
+  // Anchors are the "full-commitment" position (EPI 100) for each mode on a
+  // 0–100 grid where (50, 50) is the origin. Ready and Recharge share the
+  // positive-valence half; Flow and Recover the negative side.
+  Ready: { x: 76, y: 78 },
+  Flow: { x: 30, y: 82 },
+  Recharge: { x: 76, y: 26 },
+  Recover: { x: 26, y: 24 },
+};
+
+function coordinateFor(mode: CoordMode, score: number): { x: number; y: number } {
+  const anchor = MODE_ANCHORS[mode];
+  // Score modulates depth into the quadrant. Floor at 0.4 so a low-score
+  // track still reads as sitting in its quadrant, not floating at the origin.
+  const depth = Math.max(0.4, Math.min(1, score / 100));
+  const cx = 50;
+  const cy = 50;
+  return {
+    x: cx + (anchor.x - cx) * depth,
+    y: cy + (anchor.y - cy) * depth,
+  };
+}
+
+export function EpiCoordinateMap({ report }: { report: ReportPayload }) {
+  const mode = report.epi.mode;
+  const score = report.epi.score;
+  const { x, y } = coordinateFor(mode, score);
+  // SVG y-axis grows downward; our arousal grows upward — invert.
+  const dotX = x;
+  const dotY = 100 - y;
+
+  const quadrantLabel = (m: CoordMode, active: boolean) => ({
+    style: { opacity: active ? 1 : 0.55 },
+    fontFamily: "var(--font-lato), sans-serif",
+    fontWeight: 900,
+    fontSize: 3.6,
+    letterSpacing: 0.4,
+    fill: "var(--chrp-black)",
+  });
+
+  return (
+    <section className="mt-10">
+      <div className="flex items-end justify-between flex-wrap gap-1">
+        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+          The coordinate
+        </div>
+        <div className="font-sans text-[11px] text-ink-soft">
+          valence &times; arousal &nbsp;&middot;&nbsp; {mode} mode, EPI {score}
+        </div>
+      </div>
+      <div className="hairline mt-1" />
+
+      <div className="mt-4 flex justify-center">
+        <div className="w-full max-w-[420px]">
+          <div className="text-center font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft mb-2">
+            &uarr; High arousal
+          </div>
+          <div className="relative aspect-square">
+            <svg
+              viewBox="0 0 100 100"
+              className="absolute inset-0 w-full h-full"
+              aria-label={`Coordinate: ${mode} mode, EPI ${score}`}
+            >
+              {/* Quadrant fills — the active mode is fully saturated, the
+                  other three sit faint so the eye lands on the right one. */}
+              <rect x="50" y="0" width="50" height="50" fill="var(--mode-ready-fill)" opacity={mode === "Ready" ? 1 : 0.18} />
+              <rect x="0" y="0" width="50" height="50" fill="var(--mode-flow-fill)" opacity={mode === "Flow" ? 1 : 0.18} />
+              <rect x="50" y="50" width="50" height="50" fill="var(--mode-recharge-fill)" opacity={mode === "Recharge" ? 1 : 0.18} />
+              <rect x="0" y="50" width="50" height="50" fill="var(--mode-recover-fill)" opacity={mode === "Recover" ? 1 : 0.18} />
+
+              {/* Cross axes through the origin */}
+              <line x1="50" y1="0" x2="50" y2="100" stroke="rgba(15,14,14,0.3)" strokeWidth="0.35" />
+              <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(15,14,14,0.3)" strokeWidth="0.35" />
+
+              {/* Outer border */}
+              <rect x="0.25" y="0.25" width="99.5" height="99.5" fill="none" stroke="rgba(15,14,14,0.45)" strokeWidth="0.5" />
+
+              {/* Quadrant labels */}
+              <text x="97" y="7" textAnchor="end" {...quadrantLabel("Ready", mode === "Ready")}>READY</text>
+              <text x="3" y="7" textAnchor="start" {...quadrantLabel("Flow", mode === "Flow")}>FLOW</text>
+              <text x="97" y="97" textAnchor="end" {...quadrantLabel("Recharge", mode === "Recharge")}>RECHARGE</text>
+              <text x="3" y="97" textAnchor="start" {...quadrantLabel("Recover", mode === "Recover")}>RECOVER</text>
+
+              {/* Track dot with a soft pulsing ring so the eye lands here */}
+              <g transform={`translate(${dotX}, ${dotY})`}>
+                <circle r="5" fill="none" stroke="var(--chrp-yellow)" strokeWidth="0.35" opacity="0.6">
+                  <animate attributeName="r" values="5;8;5" dur="2.6s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.6;0;0.6" dur="2.6s" repeatCount="indefinite" />
+                </circle>
+                <circle r="2.4" fill="var(--chrp-yellow)" stroke="var(--chrp-black)" strokeWidth="0.5" />
+              </g>
+            </svg>
+          </div>
+          <div className="text-center font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft mt-2">
+            &darr; Low arousal
+          </div>
+          <div className="mt-3 flex items-center justify-between font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+            <span>&larr; Negative valence</span>
+            <span>Positive valence &rarr;</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
