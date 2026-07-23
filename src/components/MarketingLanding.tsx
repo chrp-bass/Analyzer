@@ -110,7 +110,7 @@ function Hero() {
 // ─── Manifesto ──────────────────────────────────────────────────────────────
 function Manifesto() {
   return (
-    <section className="cream manifesto gap-1">
+    <section className="cream manifesto pad-lg">
       <div className="wrap col">
         <span className="eyebrow">The gap</span>
         <h2
@@ -146,7 +146,7 @@ function Manifesto() {
 // ─── Recognition Moment ─────────────────────────────────────────────────────
 function RecognitionMoment() {
   return (
-    <section className="cream moment gap-2">
+    <section className="cream moment pad-md">
       <div className="wrap">
         <span className="eyebrow">The recognition moment</span>
         <p className="intro">
@@ -307,7 +307,7 @@ function ConversationAndWalkaway() {
 // ─── Pricing (2 tiers) ──────────────────────────────────────────────────────
 function Pricing() {
   return (
-    <section className="cream pricing gap-2">
+    <section className="cream pricing pad-md">
       <div className="wrap">
         <div className="shead">
           <span className="eyebrow">Pricing</span>

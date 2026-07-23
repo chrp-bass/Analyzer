@@ -391,9 +391,11 @@ em { font-style: italic; }
   line-height: 1.22;
   color: var(--on-light);
 }
-.gap-1 { padding: 104px 0; }
-.gap-2 { padding: 88px 0; }
-@media (max-width: 560px) { .gap-1, .gap-2 { padding: 72px 0; } }
+/* Marketing section vertical padding. Named .pad-lg / .pad-md so they
+ * don't collide with Tailwind's .gap-1 / .gap-2 flex/grid utilities. */
+.pad-lg { padding: 104px 0; }
+.pad-md { padding: 88px 0; }
+@media (max-width: 560px) { .pad-lg, .pad-md { padding: 72px 0; } }
 
 .manifesto .col { max-width: 720px; }
 .manifesto .lead + .lead { margin-top: 18px; }
