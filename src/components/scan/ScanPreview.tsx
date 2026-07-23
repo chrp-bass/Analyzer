@@ -19,7 +19,6 @@ import {
   WhereLives,
   CreatorBand,
   Footer,
-  EpiCoordinateMap,
 } from "@/components/ReportPage";
 import { getScanById } from "@/lib/scan-id";
 import {
@@ -160,8 +159,6 @@ export function ScanPreview({
         />
 
         <VisibleTop report={report} />
-
-        <EpiCoordinateMap report={report} />
 
         <ScoresGrid report={report} />
 
