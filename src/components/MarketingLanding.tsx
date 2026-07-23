@@ -31,9 +31,23 @@ function Nav() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
         </Link>
-        <Link href="/scan" className="btn-nav">
-          Scan your song &rarr;
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+          <Link
+            href="/signin"
+            style={{
+              fontFamily: "var(--s)",
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: "0.02em",
+              opacity: 0.85,
+            }}
+          >
+            Sign in
+          </Link>
+          <Link href="/scan" className="btn-nav">
+            Scan your song &rarr;
+          </Link>
+        </div>
       </div>
     </header>
   );
