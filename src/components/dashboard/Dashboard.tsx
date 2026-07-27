@@ -17,6 +17,7 @@ import {
   hasSeenCatalogComplete,
   markCatalogCompleteSeen,
   clearAllUserData,
+  signOut,
 } from "@/lib/accounts";
 import { TIERS } from "@/lib/payments";
 import { sendProfileUnlock } from "@/lib/email";
@@ -213,10 +214,22 @@ export function Dashboard() {
 
         <ScanList scans={scans} />
 
-        <div className="mt-12 flex justify-end">
+        <div className="mt-12 flex flex-wrap justify-end items-center gap-x-6 gap-y-2">
           <button
             onClick={async () => {
-              if (confirm("Reset all demo state? You'll be signed out and your scans cleared.")) {
+              await signOut();
+              // Send them back to the marketing landing; their scans + catalog
+              // stay in localStorage indexed by email so signing back in on
+              // this browser restores everything.
+              window.location.href = "/";
+            }}
+            className="font-sans text-[11px] tracking-wider uppercase text-ink-soft hover:text-chrp-black"
+          >
+            Sign out
+          </button>
+          <button
+            onClick={async () => {
+              if (confirm("Reset all demo state? This wipes your scans, catalog, and account on this browser.")) {
                 await clearAllUserData();
                 refresh();
               }
@@ -264,6 +277,18 @@ function EmptyState() {
         </p>
         <Link href="/scan" className="btn btn-y" style={{ marginTop: 28 }}>
           Scan your first track
+        </Link>
+        <Link
+          href="/signin"
+          style={{
+            marginTop: 18,
+            fontFamily: "var(--s)",
+            fontSize: 12.5,
+            color: "var(--on-light-2)",
+            textDecoration: "underline",
+          }}
+        >
+          Already have an account? Sign in &rarr;
         </Link>
       </section>
       <SiteFooter />

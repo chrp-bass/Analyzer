@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthNavLink } from "@/components/AuthNavLink";
 
 const CTA_FREE = "Scan your first track — free";
 const CTA_FREE_LONG = "Scan your first track — free";
@@ -32,18 +33,7 @@ function Nav() {
           <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <Link
-            href="/signin"
-            style={{
-              fontFamily: "var(--s)",
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-              opacity: 0.85,
-            }}
-          >
-            Sign in
-          </Link>
+          <AuthNavLink />
           <Link href="/scan" className="btn-nav">
             Scan your song &rarr;
           </Link>

@@ -7,7 +7,7 @@ import { trackOptions } from "@/lib/fixtures/tracks";
 import {
   getCurrentUser,
   setUserEmail,
-  createUser,
+  signInByEmail,
   User,
 } from "@/lib/accounts";
 import { sendMagicLink } from "@/lib/email";
@@ -80,11 +80,13 @@ function EmailCaptureStep({
     setError(null);
     setBusy(true);
     try {
-      // Reuse existing user if there's a guest row already; otherwise create.
+      // If there's already a guest session, attach the email to it.
+      // Otherwise restore an existing account if this email matches one
+      // on this browser (signOut path), or create a fresh account.
       const existing = await getCurrentUser();
       const updated = existing
         ? await setUserEmail(trimmed)
-        : await createUser(trimmed);
+        : await signInByEmail(trimmed);
       if (!updated) throw new Error("Failed to create account");
       // Fire the magic link so the user has a return-path on file. In beta
       // this is a console log; in prod it's a real email.

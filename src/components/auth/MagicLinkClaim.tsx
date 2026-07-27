@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { consumeMagicToken } from "@/lib/email";
-import { setUserEmail } from "@/lib/accounts";
+import { signInByEmail } from "@/lib/accounts";
 
 export function MagicLinkClaim({ token }: { token: string }) {
   const router = useRouter();
@@ -26,7 +26,10 @@ export function MagicLinkClaim({ token }: { token: string }) {
         }
         return;
       }
-      await setUserEmail(result.email);
+      // signInByEmail restores the original user id from the email index
+      // if one exists on this browser — so signing back in after a signOut
+      // re-hydrates the same scans + catalog + credits.
+      await signInByEmail(result.email);
       setStatus("ok");
       setTimeout(() => router.push("/dashboard"), 600);
     })();
