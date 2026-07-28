@@ -6,6 +6,7 @@ import { ScanInput } from "@/components/ScanInput";
 import { trackOptions } from "@/lib/fixtures/tracks";
 import {
   getCurrentUser,
+  getUserScans,
   setUserEmail,
   signInByEmail,
   User,
@@ -30,11 +31,19 @@ type Stage = "checking" | "capture" | "scan";
 export function ScanFlow() {
   const [stage, setStage] = useState<Stage>("checking");
   const [user, setUser] = useState<User | null>(null);
+  // priorScanCount is the number of scans already on the current User row
+  // (guest state before they add an email). Surfaced in the capture step
+  // so a returning guest sees "your N prior scans will stay on your account."
+  const [priorScanCount, setPriorScanCount] = useState(0);
 
   useEffect(() => {
     (async () => {
       const u = await getCurrentUser();
       setUser(u);
+      if (u && !u.email) {
+        const scans = await getUserScans(u.id);
+        setPriorScanCount(scans.length);
+      }
       setStage(u?.email ? "scan" : "capture");
     })();
   }, []);
@@ -49,6 +58,7 @@ export function ScanFlow() {
   if (stage === "capture") {
     return (
       <EmailCaptureStep
+        priorScanCount={priorScanCount}
         onDone={(nextUser) => {
           setUser(nextUser);
           setStage("scan");
@@ -62,8 +72,10 @@ export function ScanFlow() {
 
 function EmailCaptureStep({
   onDone,
+  priorScanCount,
 }: {
   onDone: (user: User) => void;
+  priorScanCount: number;
 }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -114,6 +126,31 @@ function EmailCaptureStep({
 
       <section className="page-band">
         <div className="wrap" style={{ maxWidth: 520 }}>
+          {priorScanCount > 0 && (
+            <div
+              style={{
+                padding: "12px 14px",
+                background: "var(--oat-2)",
+                border: "1px solid var(--line-light)",
+                borderRadius: 6,
+                marginBottom: 20,
+                fontFamily: "var(--s)",
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: "var(--on-light-2)",
+              }}
+            >
+              <span
+                style={{ fontWeight: 700, color: "var(--on-light)" }}
+              >
+                {priorScanCount === 1
+                  ? "Your 1 prior scan"
+                  : `Your ${priorScanCount} prior scans`}
+              </span>{" "}
+              will stay on your account when you add an email.
+            </div>
+          )}
+
           <form
             onSubmit={submit}
             style={{ display: "flex", flexDirection: "column", gap: 12 }}

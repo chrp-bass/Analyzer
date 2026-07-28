@@ -134,6 +134,45 @@ export function SignInForm() {
 
   return (
     <div className="wrap" style={{ maxWidth: 520, margin: "0 auto" }}>
+      {/* Top affordance for people who landed here but don't yet have an
+       * account — sits above the heading so they can bail out fast. */}
+      <div
+        style={{
+          padding: "10px 14px",
+          background: "var(--oat-2)",
+          border: "1px solid var(--line-light)",
+          borderRadius: 6,
+          marginBottom: 24,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--s)",
+            fontSize: 12.5,
+            color: "var(--on-light-2)",
+          }}
+        >
+          New to CHRP?
+        </span>
+        <Link
+          href="/scan"
+          style={{
+            fontFamily: "var(--s)",
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: "var(--on-light)",
+            textDecoration: "underline",
+          }}
+        >
+          Start with a free scan &rarr;
+        </Link>
+      </div>
+
       <span className="eyebrow" style={{ display: "block", marginBottom: 12 }}>
         Sign in
       </span>

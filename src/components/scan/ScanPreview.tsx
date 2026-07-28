@@ -133,12 +133,13 @@ export function ScanPreview({
           >
             <div className="font-sans text-[12px] md:text-[13px] leading-snug">
               <span className="font-bold">Magic link sent</span>
-              {welcomeEmail ? ` to ${welcomeEmail}.` : "."} &nbsp;
+              {welcomeEmail ? ` to ${welcomeEmail}` : ""} &mdash; save it to
+              sign in from any browser later. &nbsp;
               <Link
                 href="/dashboard"
                 className="underline hover:no-underline font-bold"
               >
-                Click here to access your dashboard.
+                Go to dashboard &rarr;
               </Link>
             </div>
             <button
