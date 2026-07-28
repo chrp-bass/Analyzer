@@ -44,6 +44,11 @@ export function PolygonRadar({
   const right = { x: v.balance * k, y: 0 };
   const bottom = { x: 0, y: v.motivation * k };
   const left = { x: -v.calm * k, y: 0 };
+  // Vertical midpoint of the polygon shape (halfway between the top and
+  // bottom vertices). Shifts the EPI readout so it sits centered on the
+  // actual polygon rather than on the underlying circle — the readout
+  // tracks the shape's visual weight instead of the geometric grid.
+  const shapeMidY = (top.y + bottom.y) / 2;
 
   return (
     <svg
@@ -82,7 +87,11 @@ export function PolygonRadar({
 
       {showLabels && <AxisLabels />}
       {showCenter && (
-        <CenterReadout epiScore={epiScore} animated={animated} />
+        <CenterReadout
+          epiScore={epiScore}
+          animated={animated}
+          yOffset={shapeMidY}
+        />
       )}
     </svg>
   );
@@ -254,12 +263,18 @@ function AxisLabels() {
 function CenterReadout({
   epiScore,
   animated,
+  yOffset = 0,
 }: {
   epiScore: number;
   animated: boolean;
+  yOffset?: number;
 }) {
+  // Baseline positions (label above center, number below center) form a
+  // balanced two-line readout. yOffset shifts the whole pair to track the
+  // polygon's vertical midpoint so the readout sits on the shape, not on
+  // the origin.
   return (
-    <g>
+    <g transform={`translate(0, ${yOffset})`}>
       <motion.text
         x="0"
         y="-4"
