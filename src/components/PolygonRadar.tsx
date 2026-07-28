@@ -269,15 +269,17 @@ function CenterReadout({
   animated: boolean;
   yOffset?: number;
 }) {
-  // Baseline positions (label above center, number below center) form a
-  // balanced two-line readout. yOffset shifts the whole pair to track the
-  // polygon's vertical midpoint so the readout sits on the shape, not on
-  // the origin.
+  // Both texts get the polygon-shape offset applied directly to their y
+  // attribute — no wrapping group transform. Keeps the shift explicit
+  // per-element so framer-motion's initial/animate states can't compete
+  // with a parent translate.
+  const labelY = -4 + yOffset;
+  const numberY = 26 + yOffset;
   return (
-    <g transform={`translate(0, ${yOffset})`}>
+    <g>
       <motion.text
         x="0"
-        y="-4"
+        y={labelY}
         textAnchor="middle"
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
@@ -292,7 +294,7 @@ function CenterReadout({
       </motion.text>
       <motion.text
         x="0"
-        y="26"
+        y={numberY}
         textAnchor="middle"
         fontFamily="var(--font-cormorant), Georgia, serif"
         fontWeight={700}
