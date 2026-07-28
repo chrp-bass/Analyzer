@@ -275,6 +275,12 @@ function CenterReadout({
   // with a parent translate.
   const labelY = -4 + yOffset;
   const numberY = 26 + yOffset;
+  // Cream halo painted BEHIND each glyph via paint-order:stroke:fill —
+  // so when the polygon's dark outline runs through the readout on
+  // narrow shapes (kite polygons with small Balance/Calm), the digits
+  // stay readable. Halo matches the report's paper color so it blends
+  // into the cream backdrop and only shows where it needs to mask.
+  const halo = "var(--chrp-white)";
   return (
     <g>
       <motion.text
@@ -285,6 +291,10 @@ function CenterReadout({
         fontWeight={700}
         fontSize="6"
         fill={POLYGON_LABEL}
+        stroke={halo}
+        strokeWidth="0.8"
+        strokeLinejoin="round"
+        style={{ paintOrder: "stroke fill" }}
         letterSpacing="0.5"
         initial={animated ? { opacity: 0 } : false}
         animate={animated ? { opacity: 1 } : undefined}
@@ -300,6 +310,10 @@ function CenterReadout({
         fontWeight={700}
         fontSize="38"
         fill={POLYGON_TEXT}
+        stroke={halo}
+        strokeWidth="4"
+        strokeLinejoin="round"
+        style={{ paintOrder: "stroke fill" }}
         initial={animated ? { opacity: 0 } : false}
         animate={animated ? { opacity: 1 } : undefined}
         transition={animated ? { delay: 3.0, duration: 0.5 } : undefined}
