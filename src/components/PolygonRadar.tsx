@@ -46,9 +46,21 @@ export function PolygonRadar({
   const left = { x: -v.calm * k, y: 0 };
   // Vertical midpoint of the polygon shape (halfway between the top and
   // bottom vertices). Shifts the EPI readout so it sits centered on the
-  // actual polygon rather than on the underlying circle — the readout
-  // tracks the shape's visual weight instead of the geometric grid.
+  // actual polygon rather than on the underlying circle.
   const shapeMidY = (top.y + bottom.y) / 2;
+  // Horizontal width of the polygon at a given y — used by the readout
+  // to scale its font so the label + number fit inside the shape without
+  // being cut by the outline on narrow kite polygons.
+  const halfHeightUp = v.focus * k;
+  const halfHeightDown = v.motivation * k;
+  const halfWidth = (v.calm + v.balance) * k / 2;
+  function widthAt(y: number): number {
+    if (y <= 0) {
+      return halfWidth * 2 * Math.max(0, (halfHeightUp + y) / halfHeightUp);
+    }
+    return halfWidth * 2 * Math.max(0, (halfHeightDown - y) / halfHeightDown);
+  }
+  const availableWidth = widthAt(shapeMidY) * 0.86;
 
   return (
     <svg
@@ -91,6 +103,7 @@ export function PolygonRadar({
           epiScore={epiScore}
           animated={animated}
           yOffset={shapeMidY}
+          availableWidth={availableWidth}
         />
       )}
     </svg>
@@ -264,22 +277,38 @@ function CenterReadout({
   epiScore,
   animated,
   yOffset = 0,
+  availableWidth = Infinity,
 }: {
   epiScore: number;
   animated: boolean;
   yOffset?: number;
+  availableWidth?: number;
 }) {
-  // Both texts get the polygon-shape offset applied directly to their y
-  // attribute — no wrapping group transform. Keeps the shift explicit
-  // per-element so framer-motion's initial/animate states can't compete
-  // with a parent translate.
-  const labelY = -4 + yOffset;
-  const numberY = 26 + yOffset;
+  // Font sizing: the readout defaults to 38 for the number and 6 for
+  // the label. If the polygon at yOffset is narrower than those default
+  // widths, scale both fonts together so the pair keeps its proportions.
+  const numberStr = String(epiScore);
+  // Cormorant Bold roughly renders each glyph at ~0.55 * fontSize wide.
+  // Lato Bold uppercase at ~0.60 * fontSize wide.
+  const naturalNumberWidth = numberStr.length * 38 * 0.55;
+  const naturalLabelWidth = "EPI SCORE".length * 6 * 0.60;
+  const naturalMax = Math.max(naturalNumberWidth, naturalLabelWidth);
+  // Never scale UP (would look weird), only down. Clamp to a min of 0.35
+  // so tiny polygons don't reduce the readout to unreadable specks.
+  const scale = Math.max(
+    0.35,
+    Math.min(1, availableWidth / Math.max(1, naturalMax)),
+  );
+  const numberFontSize = 38 * scale;
+  const labelFontSize = Math.max(5, 6 * scale);
+  // Baseline positions scale with font size so the label-above / number-
+  // below stack stays visually balanced at any scale, and both center
+  // vertically on yOffset (the polygon's midpoint).
+  const labelY = yOffset - 4 * scale;
+  const numberY = yOffset + 26 * scale;
   // Cream halo painted BEHIND each glyph via paint-order:stroke:fill —
-  // so when the polygon's dark outline runs through the readout on
-  // narrow shapes (kite polygons with small Balance/Calm), the digits
-  // stay readable. Halo matches the report's paper color so it blends
-  // into the cream backdrop and only shows where it needs to mask.
+  // catches any residual polygon-outline crossings at the glyph edges
+  // where the scaling can't perfectly guarantee zero overlap.
   const halo = "var(--chrp-white)";
   return (
     <g>
@@ -289,10 +318,10 @@ function CenterReadout({
         textAnchor="middle"
         fontFamily="var(--font-lato), sans-serif"
         fontWeight={700}
-        fontSize="6"
+        fontSize={labelFontSize}
         fill={POLYGON_LABEL}
         stroke={halo}
-        strokeWidth="0.8"
+        strokeWidth={0.8 * scale}
         strokeLinejoin="round"
         style={{ paintOrder: "stroke fill" }}
         letterSpacing="0.5"
@@ -308,10 +337,10 @@ function CenterReadout({
         textAnchor="middle"
         fontFamily="var(--font-cormorant), Georgia, serif"
         fontWeight={700}
-        fontSize="38"
+        fontSize={numberFontSize}
         fill={POLYGON_TEXT}
         stroke={halo}
-        strokeWidth="4"
+        strokeWidth={4 * scale}
         strokeLinejoin="round"
         style={{ paintOrder: "stroke fill" }}
         initial={animated ? { opacity: 0 } : false}
