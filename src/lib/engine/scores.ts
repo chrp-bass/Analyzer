@@ -104,39 +104,28 @@ function requireFeatures(audio: unknown): AudioFeatures {
   return out;
 }
 
-// ─── calculateScores stub (NEEDS Python port) ─────────────────────────────
-//
-// The Python scores.py contains:
-//   1. Normalization for tempo (BPM), loudness (dB), and timeSignature so
-//      each lands in 0–1.
-//   2. Per-metric weight tables — a 10-way weighted sum over the audio
-//      features that produces the raw 0–1 score before transformScore
-//      applies the display curve.
-//
-// Once both are ported, populate WEIGHTS + NORMALIZE and flip
-// WEIGHTS_READY to true.
-
-const WEIGHTS_READY = false;
-
-const WEIGHTS: Record<Metric, Partial<Record<AudioFeatureKey, number>>> = {
-  focus:      { /* TODO: paste from Python */ },
-  calm:       { /* TODO */ },
-  motivation: { /* TODO */ },
-  balance:    { /* TODO */ },
-};
+// ─── Feature normalization (three non-[0,1] features) ─────────────────────
+// Each maps its natural range into 0-1 and clamps out-of-range values so
+// downstream weighted sums stay bounded.
 
 function normalizeTempo(bpm: number): number {
-  void bpm;
-  throw new Error("normalizeTempo: not ported from Python yet");
+  return clamp((bpm - 60) / 120);
 }
 function normalizeLoudness(db: number): number {
-  void db;
-  throw new Error("normalizeLoudness: not ported from Python yet");
+  return clamp((db + 60) / 60);
 }
 function normalizeTimeSignature(ts: number): number {
-  void ts;
-  throw new Error("normalizeTimeSignature: not ported from Python yet");
+  return clamp((ts - 3) / 4);
 }
+
+// ─── calculateScores ──────────────────────────────────────────────────────
+//
+// Turn the 10 Soundcharts audio features into the four CHRP scores.
+// Each formula's coefficients sum to 1.0 so the raw score lands in 0-1
+// before transformScore applies the per-metric display curve.
+//
+// mu(x) = 1 - |2x - 1| — rewards the middle: 1 at 0.5, 0 at extremes.
+// (1 - x) inverts a 0-1 feature so "less of x" contributes positively.
 
 /**
  * Compute the four CHRP scores from a Soundcharts audio-features object.
@@ -153,12 +142,6 @@ export function calculateScores(audio: unknown): {
 } {
   const f = requireFeatures(audio);
 
-  if (!WEIGHTS_READY) {
-    throw new Error(
-      "calculateScores: Python weight tables + normalization not yet ported. See TODO in src/lib/engine/scores.ts.",
-    );
-  }
-
   // Normalize the three non-[0,1] features so every dimension lands on the
   // same scale before the weighted sums.
   const norm: AudioFeatures = {
@@ -168,24 +151,44 @@ export function calculateScores(audio: unknown): {
     timeSignature: normalizeTimeSignature(f.timeSignature),
   };
 
-  const weightedSum = (metric: Metric): number => {
-    const table = WEIGHTS[metric];
-    let sum = 0;
-    for (const [k, w] of Object.entries(table) as Array<
-      [AudioFeatureKey, number]
-    >) {
-      sum += (norm[k] ?? 0) * w;
-    }
-    return sum;
-  };
+  const rawFocus =
+      0.30 * norm.instrumentalness
+    + 0.20 * norm.danceability
+    + 0.15 * mu(norm.energy)
+    + 0.10 * mu(norm.tempo)
+    + 0.10 * mu(norm.loudness)
+    + 0.10 * mu(norm.timeSignature)
+    + 0.05 * (1 - norm.speechiness);
+
+  const rawCalm =
+      0.30 * (1 - norm.energy)
+    + 0.25 * norm.valence
+    + 0.15 * norm.acousticness
+    + 0.10 * (1 - norm.loudness)
+    + 0.10 * (1 - norm.speechiness)
+    + 0.10 * (1 - norm.liveness);
+
+  const rawMotivation =
+      0.35 * norm.energy
+    + 0.20 * norm.tempo
+    + 0.20 * norm.loudness
+    + 0.15 * norm.danceability
+    + 0.10 * (1 - norm.acousticness);
+
+  const rawBalance =
+      0.30 * mu(norm.energy)
+    + 0.30 * mu(norm.valence)
+    + 0.15 * mu(norm.tempo)
+    + 0.15 * mu(norm.loudness)
+    + 0.10 * norm.danceability;
 
   const round1 = (n: number) => Math.round(n * 10) / 10;
 
   return {
-    focus:      round1(transformScore("focus",      weightedSum("focus"))),
-    calm:       round1(transformScore("calm",       weightedSum("calm"))),
-    motivation: round1(transformScore("motivation", weightedSum("motivation"))),
-    balance:    round1(transformScore("balance",    weightedSum("balance"))),
+    focus:      round1(transformScore("focus",      rawFocus)),
+    calm:       round1(transformScore("calm",       rawCalm)),
+    motivation: round1(transformScore("motivation", rawMotivation)),
+    balance:    round1(transformScore("balance",    rawBalance)),
   };
 }
 
