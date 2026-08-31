@@ -41,14 +41,14 @@ export function HeroScanField() {
     <form className="si-search" onSubmit={submit}>
       <div className="si-search-row">
         <label htmlFor="hero-scan" className="sr-only">
-          Search a song, or paste a link
+          Search a song or artist
         </label>
         <input
           id="hero-scan"
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Search a song, or paste a link"
+          placeholder="Search a song or artist"
           autoComplete="off"
         />
         <button type="submit" className="si-search-go" disabled={busy}>

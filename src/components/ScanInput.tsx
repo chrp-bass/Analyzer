@@ -6,6 +6,7 @@ import {
   searchSongs,
   beginScanForSong,
   initiateScan,
+  fixtureFallbackAllowed,
   ScanError,
   type SongSearchResult,
 } from "@/lib/data-source";
@@ -19,9 +20,9 @@ import { TRACK_KEYWORD_MAP } from "@/lib/fixtures/tracks";
  * back, because that is what the engine can score and what becomes the
  * song's durable identity.
  *
- * If the catalogue has nothing but the query names one of the six bundled
- * demo tracks, the scan falls back to that fixture so the sample flow keeps
- * working.
+ * When the catalogue has nothing, the search fails honestly. In development
+ * a query naming one of the six bundled demo tracks still routes to that
+ * fixture; in production nothing does.
  */
 
 /** True when the query names one of the bundled demo tracks. */
@@ -56,8 +57,18 @@ export function ScanInput() {
           return;
         }
 
-        // Nothing live. If they typed a sample track name, honour it.
-        if (matchesSampleTrack(query)) {
+        // Nothing live.
+        //
+        // In DEVELOPMENT a query naming one of the bundled demo tracks still
+        // routes to that fixture, so the flow stays exercisable without a
+        // live catalogue.
+        //
+        // In PRODUCTION there is no fallback. A real search that finds
+        // nothing fails honestly and says so. Substituting fixture
+        // intelligence here would hand someone a complete, believable report
+        // for a song that was never analysed — the exact failure this path
+        // exists to prevent.
+        if (fixtureFallbackAllowed() && matchesSampleTrack(query)) {
           const { scanId } = await initiateScan(query);
           router.push(`/scan/${scanId}/processing`);
           return;

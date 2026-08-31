@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ScanInput } from "@/components/ScanInput";
 import { trackOptions } from "@/lib/fixtures/tracks";
 import { getCurrentUser, User } from "@/lib/accounts";
+import { fixtureFallbackAllowed } from "@/lib/data-source";
 
 /**
  * Scan entry.
@@ -57,7 +58,7 @@ function ScanStep({ user }: { user: User | null }) {
               </>
             ) : null}
           </span>
-          <h1>Search a song, or paste a link.</h1>
+          <h1>Search a song or artist.</h1>
           <p className="sub">
             We&rsquo;ll resolve the track, read its emotional signature, and
             place it on the CHRP grid in about ten seconds.
@@ -80,6 +81,7 @@ function ScanStep({ user }: { user: User | null }) {
         <div className="wrap" style={{ maxWidth: 680 }}>
           <ScanInput />
 
+          {fixtureFallbackAllowed() && (
           <div style={{ marginTop: 64 }}>
             <span
               className="eyebrow"
@@ -130,11 +132,10 @@ function ScanStep({ user }: { user: User | null }) {
                 lineHeight: 1.55,
               }}
             >
-              Type any of the names above in the field, paste a Spotify URL, or
-              paste any text &mdash; the demo will route to one of the six
-              sample tracks.
+              Type any of the names above to run it.
             </p>
           </div>
+          )}
 
           {!user?.email && (
             <p

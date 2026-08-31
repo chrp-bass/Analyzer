@@ -178,6 +178,17 @@ export async function getVerdictRationale(
   return verdictRationale(payload);
 }
 
+/**
+ * Fixtures are a development affordance, never a production fallback.
+ *
+ * A real user who searched for a real song must never be handed demo
+ * intelligence dressed up as their own result. In production a search that
+ * finds nothing fails honestly instead.
+ */
+export function fixtureFallbackAllowed(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 // ─── Starting a scan ───────────────────────────────────────────────────────
 
 /**
