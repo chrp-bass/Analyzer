@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { initiateScan } from "@/lib/data-source";
 
 /**
  * Hero scan field — the front door.
@@ -11,6 +10,13 @@ import { initiateScan } from "@/lib/data-source";
  * this path must never ask for an account or an email. A first-time visitor
  * types a song here and goes straight to the read. Identity is offered later,
  * at the point where saving the reveal is worth something to them.
+ *
+ * This field carries the query to /scan and the real search runs there.
+ * It previously called initiateScan() directly, which resolves a query to one
+ * of the six bundled demo tracks — falling back to a RANDOM slug when nothing
+ * matched. So a real song typed here ("Thunderstruck") silently became a
+ * fixture scan. The hero must never mint a scan id itself; only a song the
+ * person actually picked from live search results may do that.
  */
 export function HeroScanField() {
   const router = useRouter();
@@ -21,16 +27,14 @@ export function HeroScanField() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+    const query = value.trim();
+    if (!query) {
+      setError("Type a song or artist to scan.");
+      return;
+    }
     setError(null);
     setBusy(true);
-    try {
-      const { scanId } = await initiateScan(value);
-      router.push(`/scan/${scanId}/processing`);
-    } catch (err) {
-      console.error(err);
-      setError("Something went wrong. Try again.");
-      setBusy(false);
-    }
+    router.push(`/scan?q=${encodeURIComponent(query)}`);
   }
 
   return (

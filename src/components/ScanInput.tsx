@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   searchSongs,
   beginScanForSong,
@@ -33,46 +33,65 @@ function matchesSampleTrack(input: string): boolean {
 
 export function ScanInput() {
   const router = useRouter();
-  const [value, setValue] = useState("");
+  const search = useSearchParams();
+  const handedOff = search.get("q") ?? "";
+
+  const [value, setValue] = useState(handedOff);
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState<string | null>(null);
   const [results, setResults] = useState<SongSearchResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const runSearch = useCallback(
+    async (query: string) => {
+      setError(null);
+      setResults(null);
+      setBusy(true);
+
+      try {
+        const songs = await searchSongs(query);
+        if (songs.length > 0) {
+          setResults(songs);
+          setBusy(false);
+          return;
+        }
+
+        // Nothing live. If they typed a sample track name, honour it.
+        if (matchesSampleTrack(query)) {
+          const { scanId } = await initiateScan(query);
+          router.push(`/scan/${scanId}/processing`);
+          return;
+        }
+
+        setError(
+          "This song isn't available for analysis yet. Try a different version or another track.",
+        );
+        setBusy(false);
+      } catch (err) {
+        setError(
+          err instanceof ScanError
+            ? err.userMessage
+            : "Something went wrong. Please try again.",
+        );
+        setBusy(false);
+      }
+    },
+    [router],
+  );
+
+  // A query handed over from the landing-page hero searches straight away, so
+  // the person types once and lands on their results.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current || !handedOff.trim()) return;
+    autoRan.current = true;
+    runSearch(handedOff);
+  }, [handedOff, runSearch]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setError(null);
-    setResults(null);
-    setBusy(true);
-
-    try {
-      const songs = await searchSongs(value);
-      if (songs.length > 0) {
-        setResults(songs);
-        setBusy(false);
-        return;
-      }
-
-      // Nothing live. If they typed a sample track name, honour it.
-      if (matchesSampleTrack(value)) {
-        const { scanId } = await initiateScan(value);
-        router.push(`/scan/${scanId}/processing`);
-        return;
-      }
-
-      setError(
-        "This song isn't available for analysis yet. Try a different version or another track.",
-      );
-      setBusy(false);
-    } catch (err) {
-      setError(
-        err instanceof ScanError
-          ? err.userMessage
-          : "Something went wrong. Please try again.",
-      );
-      setBusy(false);
-    }
+    await runSearch(value);
   }
 
   async function choose(song: SongSearchResult) {
