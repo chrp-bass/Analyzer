@@ -2,60 +2,210 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { initiateScan } from "@/lib/data-source";
+import {
+  searchSongs,
+  beginScanForSong,
+  initiateScan,
+  ScanError,
+  type SongSearchResult,
+} from "@/lib/data-source";
+import { TRACK_KEYWORD_MAP } from "@/lib/fixtures/tracks";
+
+/**
+ * Scan entry.
+ *
+ * A query goes to the live catalogue and the person picks their own song —
+ * we never guess which track they meant. Only songs carrying an ISRC come
+ * back, because that is what the engine can score and what becomes the
+ * song's durable identity.
+ *
+ * If the catalogue has nothing but the query names one of the six bundled
+ * demo tracks, the scan falls back to that fixture so the sample flow keeps
+ * working.
+ */
+
+/** True when the query names one of the bundled demo tracks. */
+function matchesSampleTrack(input: string): boolean {
+  const lower = input.toLowerCase().trim();
+  if (!lower) return false;
+  return Object.keys(TRACK_KEYWORD_MAP).some((k) => lower.includes(k));
+}
 
 export function ScanInput() {
   const router = useRouter();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const [starting, setStarting] = useState<string | null>(null);
+  const [results, setResults] = useState<SongSearchResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
     setError(null);
+    setResults(null);
     setBusy(true);
+
     try {
-      const { scanId } = await initiateScan(value);
-      router.push(`/scan/${scanId}/processing`);
+      const songs = await searchSongs(value);
+      if (songs.length > 0) {
+        setResults(songs);
+        setBusy(false);
+        return;
+      }
+
+      // Nothing live. If they typed a sample track name, honour it.
+      if (matchesSampleTrack(value)) {
+        const { scanId } = await initiateScan(value);
+        router.push(`/scan/${scanId}/processing`);
+        return;
+      }
+
+      setError(
+        "This song isn't available for analysis yet. Try a different version or another track.",
+      );
+      setBusy(false);
     } catch (err) {
-      console.error(err);
-      setError("Something went wrong. Try again.");
+      setError(
+        err instanceof ScanError
+          ? err.userMessage
+          : "Something went wrong. Please try again.",
+      );
       setBusy(false);
     }
   }
 
+  async function choose(song: SongSearchResult) {
+    if (starting) return;
+    setStarting(song.isrc);
+    setError(null);
+    try {
+      const { scanId } = await beginScanForSong(song);
+      router.push(`/scan/${scanId}/processing`);
+    } catch (err) {
+      setError(
+        err instanceof ScanError
+          ? err.userMessage
+          : "Something went wrong. Please try again.",
+      );
+      setStarting(null);
+    }
+  }
+
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <label
-        htmlFor="scan-input"
-        className="eyebrow"
-        style={{ display: "block", marginBottom: 4 }}
+    <div>
+      <form
+        onSubmit={submit}
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
       >
-        Spotify URL or track name
-      </label>
-      <input
-        id="scan-input"
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="https://open.spotify.com/track/..."
-        style={{ width: "100%", fontSize: 16, padding: "14px 16px" }}
-        autoFocus
-      />
-      {error && (
-        <div style={{ fontFamily: "var(--s)", fontSize: 13, color: "#C12C79" }}>
-          {error}
+        <label
+          htmlFor="scan-input"
+          className="eyebrow"
+          style={{ display: "block", marginBottom: 4 }}
+        >
+          Song title or artist
+        </label>
+        <input
+          id="scan-input"
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Search a song or artist…"
+          style={{ width: "100%", fontSize: 16, padding: "14px 16px" }}
+          autoFocus
+        />
+        {error && (
+          <div style={{ fontFamily: "var(--s)", fontSize: 13, color: "#C12C79" }}>
+            {error}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={busy}
+          className="btn btn-y"
+          style={{ marginTop: 8, alignSelf: "flex-start", opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? "Searching…" : "Find my song"}
+        </button>
+      </form>
+
+      {results && results.length > 0 && (
+        <div style={{ marginTop: 34 }}>
+          <span
+            className="eyebrow"
+            style={{ display: "block", marginBottom: 14 }}
+          >
+            Which one is yours?
+          </span>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {results.map((song) => {
+              const isStarting = starting === song.isrc;
+              return (
+                <li key={song.isrc}>
+                  <button
+                    type="button"
+                    onClick={() => choose(song)}
+                    disabled={starting !== null}
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      alignItems: "baseline",
+                      gap: 16,
+                      padding: "14px 0",
+                      borderBottom: "1px solid var(--line-light)",
+                      background: "none",
+                      border: "none",
+                      borderBottomWidth: 1,
+                      borderBottomStyle: "solid",
+                      borderBottomColor: "var(--line-light)",
+                      textAlign: "left",
+                      cursor: starting ? "default" : "pointer",
+                      opacity: starting && !isStarting ? 0.45 : 1,
+                    }}
+                  >
+                    <span>
+                      <span
+                        style={{
+                          display: "block",
+                          fontFamily: "var(--d)",
+                          fontWeight: 300,
+                          fontSize: 22,
+                          color: "var(--on-light)",
+                        }}
+                      >
+                        {song.songName ?? "Untitled"}
+                      </span>
+                      <span
+                        style={{
+                          display: "block",
+                          marginTop: 2,
+                          fontFamily: "var(--s)",
+                          fontSize: 12.5,
+                          color: "var(--on-light-2)",
+                        }}
+                      >
+                        {song.artistName ?? "Unknown artist"}
+                        {song.albumName ? ` · ${song.albumName}` : ""}
+                      </span>
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--s)",
+                        fontSize: 12,
+                        color: "var(--on-light-2)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {isStarting ? "Starting…" : "Analyze →"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
-      <button
-        type="submit"
-        disabled={busy}
-        className="btn btn-y"
-        style={{ marginTop: 8, alignSelf: "flex-start", opacity: busy ? 0.6 : 1 }}
-      >
-        {busy ? "Resolving…" : "Analyze"}
-      </button>
-    </form>
+    </div>
   );
 }

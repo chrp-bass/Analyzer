@@ -1,4 +1,4 @@
-import { getScanById, updateScan } from "@/lib/scan-id";
+import { getScanById, updateScan, isrcFromKey } from "@/lib/scan-id";
 import { TRACK_SLUGS } from "@/lib/fixtures/tracks";
 
 export const MODE: "demo" | "production" =
@@ -179,6 +179,10 @@ function migrateScans(raw: ScanRecordOnAccount[]): {
   let changed = false;
   const scans = raw.map((s) => {
     if (TRACK_SLUGS.includes(s.trackSlug)) return s;
+    // A real song is identified by its ISRC, not a fixture slug. Remapping
+    // one would silently point the record at a different song, so real keys
+    // are left exactly as they are — only pre-rewrite fixture slugs migrate.
+    if (isrcFromKey(s.trackSlug)) return s;
     changed = true;
     return { ...s, trackSlug: migrateUnknownSlug(s.id) };
   });
