@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ReportPayload, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { FreeReport, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { postStageComplete } from "@/lib/post-message";
@@ -20,7 +20,7 @@ export function RevealStage({
   trackSlug,
   embed,
 }: {
-  report: ReportPayload;
+  report: FreeReport;
   trackSlug: string;
   embed: boolean;
 }) {

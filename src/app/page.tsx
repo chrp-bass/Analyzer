@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getReportById } from "@/lib/fixtures/tracks";
+import { getFreeReportById } from "@/lib/fixtures/tracks";
 import { getCreatorProfile } from "@/lib/fixtures/profile";
 import { parseParams } from "@/lib/url-params";
 import { RevealStage } from "@/components/stages/RevealStage";
@@ -8,6 +8,7 @@ import { CreatorProfileStage } from "@/components/stages/CreatorProfileStage";
 import { ReportPage } from "@/components/ReportPage";
 import { EmbedListener } from "@/components/EmbedListener";
 import { MarketingLanding } from "@/components/MarketingLanding";
+import { getFullReport } from "@/lib/fixtures/report.server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default function Root({
   }
 
   // parseParams already validates the slug, so this lookup always resolves.
-  const report = getReportById(params.track)!;
+  const report = getFreeReportById(params.track)!;
   const embedClass = params.embed ? "chrp-embed" : "";
 
   let body: React.ReactNode;
@@ -68,9 +69,17 @@ export default function Root({
       break;
     }
     case "unlocked":
-    default:
-      body = <ReportPage report={report} id={params.track} />;
+    default: {
+      // The "unlocked" stage renders the PAID report. It is a development and
+      // embed-preview affordance, not a public product surface: serving it
+      // from an unauthenticated query parameter would hand the paid product
+      // to anyone who guessed the URL. In production it is refused and the
+      // visitor gets the marketing landing instead.
+      const assembled = getFullReport(params.track);
+      if (!assembled) return <MarketingLanding />;
+      body = <ReportPage report={assembled.report} id={params.track} />;
       break;
+    }
   }
 
   return (

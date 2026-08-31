@@ -11,7 +11,7 @@ import {
   User,
 } from "@/lib/accounts";
 import { getCreatorProfile } from "@/lib/fixtures/profile";
-import { getReportById } from "@/lib/fixtures/tracks";
+import { getFreeReportById } from "@/lib/fixtures/tracks";
 import { CreatorProfileStage } from "@/components/stages/CreatorProfileStage";
 
 const THRESHOLD = 8;
@@ -89,7 +89,7 @@ export function DashboardProfile() {
 
   const dominantTrack = scans[0].trackSlug;
   const profile = getCreatorProfile(dominantTrack);
-  const report = getReportById(dominantTrack);
+  const report = getFreeReportById(dominantTrack);
   if (!profile || !report) return null;
 
   return (

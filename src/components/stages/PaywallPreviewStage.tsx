@@ -1,29 +1,24 @@
 "use client";
 
-import { ReportPayload, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { FreeReport, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
-import { ReportPage } from "@/components/ReportPage";
 
 export function PaywallPreviewStage({
   report,
-  trackSlug,
 }: {
-  report: ReportPayload;
-  trackSlug: string;
+  report: FreeReport;
+  trackSlug?: string;
 }) {
   const vertices = polygonFromChrpScores(report.chrp_scores);
   const chip = MODE_COLORS[report.epi.mode];
 
   return (
     <div className="chrp-report relative min-h-screen overflow-hidden">
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{ filter: "blur(8px)", opacity: 0.35 }}
-      >
-        <ReportPage report={report} id={trackSlug} />
-      </div>
+      {/* The blurred full report that used to sit here is gone. Rendering paid
+          intelligence and obscuring it with CSS is not a boundary — the text
+          is still in the page. The locked design states the boundary as a
+          list instead; see the reveal's Boundary component. */}
 
       <div className="relative min-h-screen flex flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-lg flex flex-col items-center text-center">

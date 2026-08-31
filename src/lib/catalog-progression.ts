@@ -1,4 +1,4 @@
-import { Mode, getReportById, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { Mode, getFreeReportById, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { ScanRecordOnAccount } from "@/lib/accounts";
 
 const CORPUS_NORM = { focus: 64, balance: 67, motivation: 71, calm: 58 };
@@ -38,7 +38,7 @@ function modeCountsFor(scans: ScanRecordOnAccount[]): Record<Mode, number> {
     Flow: 0,
   };
   for (const s of scans) {
-    const r = getReportById(s.trackSlug);
+    const r = getFreeReportById(s.trackSlug);
     if (r) counts[r.epi.mode] += 1;
   }
   return counts;
@@ -51,7 +51,7 @@ function averageScoresFor(
   const sum = { focus: 0, balance: 0, motivation: 0, calm: 0 };
   let n = 0;
   for (const s of scans) {
-    const r = getReportById(s.trackSlug);
+    const r = getFreeReportById(s.trackSlug);
     if (!r) continue;
     for (const cs of r.chrp_scores) {
       const k = cs.name.toLowerCase() as keyof typeof sum;
@@ -92,7 +92,7 @@ function computeSignatureDescriptor(
   if (averages.focus > 80) return "sustained attention";
   // Variance check across the four dimensions, across scans
   const vals = scans
-    .map((s) => getReportById(s.trackSlug))
+    .map((s) => getFreeReportById(s.trackSlug))
     .filter(Boolean)
     .flatMap((r) => r!.chrp_scores.map((c) => c.score));
   if (vals.length >= 4) {
@@ -144,7 +144,7 @@ function polygonDistance(
 }
 
 function getPolygonFor(scan: ScanRecordOnAccount) {
-  const r = getReportById(scan.trackSlug);
+  const r = getFreeReportById(scan.trackSlug);
   if (!r) return null;
   const out = { focus: 0, balance: 0, motivation: 0, calm: 0 };
   for (const cs of r.chrp_scores) {
@@ -175,8 +175,8 @@ function crossTrackObservation(scans: ScanRecordOnAccount[]): string {
   // Distance < 30 across four 0-100 dimensions counts as "tight"
   if (closestPair && closestDist < 30) {
     const [i, j] = closestPair;
-    const a = getReportById(scans[i].trackSlug)!.track.title;
-    const b = getReportById(scans[j].trackSlug)!.track.title;
+    const a = getFreeReportById(scans[i].trackSlug)!.track.title;
+    const b = getFreeReportById(scans[j].trackSlug)!.track.title;
     return `${a} and ${b} share an unusually tight signature — your strongest cross-pitchable pair. These two work as a package for supervisors who need consistency across two cues in the same scene or campaign.`;
   }
   return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this when you describe the work: the range is deliberate, not unfocused.";

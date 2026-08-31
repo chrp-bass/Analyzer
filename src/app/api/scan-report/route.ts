@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { decodeScanId } from "@/lib/scan-id";
-import { getReportById } from "@/lib/fixtures/tracks";
+import { getFullReport } from "@/lib/fixtures/report.server";
 import { payloadToTrackData } from "@/lib/data-source";
 import {
   generateReport,
@@ -34,10 +34,11 @@ export async function POST(req: Request) {
   if (!slug) {
     return NextResponse.json({ error: "invalid scanId" }, { status: 404 });
   }
-  const fixture = getReportById(slug);
-  if (!fixture) {
+  const assembled = getFullReport(slug);
+  if (!assembled) {
     return NextResponse.json({ error: "no fixture" }, { status: 404 });
   }
+  const fixture = assembled.report;
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 503 });
   }

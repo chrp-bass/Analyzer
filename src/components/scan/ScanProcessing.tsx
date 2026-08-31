@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ReportPayload, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { FreeReport, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 
@@ -18,7 +18,7 @@ export function ScanProcessing({
   report,
   scanId,
 }: {
-  report: ReportPayload;
+  report: FreeReport;
   scanId: string;
   trackSlug: string;
 }) {

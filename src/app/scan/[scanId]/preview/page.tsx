@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { decodeScanId } from "@/lib/scan-id";
-import { getReportById, type ReportPayload } from "@/lib/fixtures/tracks";
+import { getFreeReportById, type FreeReport } from "@/lib/fixtures/tracks";
 import { getScanReport } from "@/lib/data-source";
 import { ScanPreview } from "@/components/scan/ScanPreview";
 
@@ -22,8 +22,8 @@ export default function PreviewPage({
 }) {
   const router = useRouter();
   const trackSlug = decodeScanId(params.scanId);
-  const fixture = trackSlug ? getReportById(trackSlug) : null;
-  const [report, setReport] = useState<ReportPayload | null>(fixture);
+  const fixture = trackSlug ? getFreeReportById(trackSlug) : null;
+  const [report, setReport] = useState<FreeReport | null>(fixture);
 
   useEffect(() => {
     if (!fixture) {

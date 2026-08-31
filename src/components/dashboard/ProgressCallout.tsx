@@ -1,7 +1,7 @@
 "use client";
 
 import { ScanRecordOnAccount } from "@/lib/accounts";
-import { getReportById, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { getFreeReportById, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { getCatalogIntelligence } from "@/lib/catalog-progression";
@@ -176,7 +176,7 @@ export function PolygonCluster({ scans }: { scans: ScanRecordOnAccount[] }) {
   return (
     <div className="relative w-[120px] h-[64px] flex-shrink-0">
       {scans.map((s, i) => {
-        const r = getReportById(s.trackSlug);
+        const r = getFreeReportById(s.trackSlug);
         if (!r) return null;
         return (
           <div

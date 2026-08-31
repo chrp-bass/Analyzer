@@ -22,8 +22,8 @@ import {
 import { TIERS } from "@/lib/payments";
 import { sendProfileUnlock } from "@/lib/email";
 import {
-  getReportById,
-  ReportPayload,
+  getFreeReportById,
+  FreeReport,
   MODE_COLORS,
 } from "@/lib/fixtures/tracks";
 import { getCreatorProfile } from "@/lib/fixtures/profile";
@@ -102,7 +102,7 @@ export function Dashboard() {
   const catalogComplete = scans.length >= CATALOG_COMPLETE_THRESHOLD;
   const dominantTrack = scans[0]?.trackSlug ?? "copper-static";
   const profile = getCreatorProfile(dominantTrack);
-  const dominantReport = getReportById(dominantTrack);
+  const dominantReport = getFreeReportById(dominantTrack);
 
   return (
     <div className="product-shell">
@@ -353,7 +353,7 @@ function ProgressMeter({
       <div className="mt-4 flex gap-2 md:gap-3">
         {Array.from({ length: threshold }).map((_, i) => {
           const scan = scans[i];
-          const report = scan ? getReportById(scan.trackSlug) : null;
+          const report = scan ? getFreeReportById(scan.trackSlug) : null;
           const highlight = oneAway && i === threshold - 1;
           return (
             <ProgressCell
@@ -379,7 +379,7 @@ function ProgressCell({
   index,
   highlight = false,
 }: {
-  report: ReportPayload | null;
+  report: FreeReport | null;
   index: number;
   highlight?: boolean;
 }) {
@@ -443,7 +443,7 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
       ) : (
         <div className="mt-3 flex flex-col">
           {scans.map((s) => {
-            const r = getReportById(s.trackSlug);
+            const r = getFreeReportById(s.trackSlug);
             if (!r) return null;
             const chip = MODE_COLORS[r.epi.mode];
             return (

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { getReportById } from "@/lib/fixtures/tracks";
-import { decodeScanId } from "@/lib/scan-id";
 import { ReportPDF } from "@/components/ReportPDF";
+import { assertReportAccess } from "@/lib/commerce/entitlements";
+import { getFullReport } from "@/lib/fixtures/report.server";
 import path from "path";
 import { promises as fs } from "fs";
 
@@ -26,16 +26,43 @@ async function loadFonts() {
   return fonts;
 }
 
+/**
+ * GET /api/report/[id]/pdf — the paid report as a PDF.
+ *
+ * Gated identically to the JSON route. This endpoint previously returned a
+ * complete paid PDF to any anonymous caller; it now requires a verified
+ * entitlement covering the requested scan.
+ */
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } },
 ) {
-  // Accept either a raw track slug (legacy) or a scan id (current).
-  const slug = getReportById(params.id) ? params.id : decodeScanId(params.id);
-  const report = slug ? getReportById(slug) : null;
-  if (!report || !slug) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  const access = await assertReportAccess(params.id);
+  if (!access.ok) {
+    if (access.reason === "not_configured") {
+      return NextResponse.json(
+        { error: "entitlement_unavailable" },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+
+  const assembled = getFullReport(access.trackSlug);
+  if (!assembled) {
+    return NextResponse.json(
+      {
+        error: "report_unavailable",
+        entitled: true,
+        detail:
+          "report generation unavailable; your purchase is safe and access is retained",
+      },
+      { status: 503 },
+    );
+  }
+  const report = assembled.report;
+  const slug = access.trackSlug;
+
   const fonts = await loadFonts();
   const buffer = await renderToBuffer(
     ReportPDF({ report, fonts }) as React.ReactElement,
@@ -46,7 +73,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store",
     },
   });
 }

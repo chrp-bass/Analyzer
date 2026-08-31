@@ -5,9 +5,10 @@ import {
 } from "@/lib/accounts";
 import { encodeScanId, decodeScanId, ScanRecord, getScanById, saveScan } from "@/lib/scan-id";
 import {
-  getReportById,
+  getFreeReportById,
   matchInputToReportId,
-  ReportPayload,
+  type FreeReport,
+  type ReportPayload,
 } from "@/lib/fixtures/tracks";
 import {
   getCreatorProfile as getCreatorProfileFixture,
@@ -99,87 +100,69 @@ export function payloadToTrackData(rl: ReportPayload): TrackData {
   };
 }
 
-const CACHE_KEY = (scanId: string) => `chrp_generated_${scanId}`;
-
 /**
- * getScanReport: fixture-backed report loader with optional live generation.
+ * Free reveal loader.
  *
- * Contract (per design brief):
- *   - Always resolves to a renderable ReportPayload (or null for bad scanId).
- *   - Fixture is the fallback; a generation failure NEVER breaks the render.
- *   - First view of a scan hits the /api/scan-report route which server-side
- *     calls generateReport + generateChrpReading with the ANTHROPIC_API_KEY.
- *   - The merged payload is cached in localStorage under chrp_generated_<scanId>.
- *     Subsequent views of the same scanId serve the cached payload — no API call.
- *   - Only successful generations are cached, so a transient failure doesn't
- *     lock in fixture content permanently for that scanId.
- *   - Server-side calls (SSR, RSC) always return the fixture; generation is
- *     client-side so the localStorage cache is available.
+ * Returns ONLY free-tier data. There is deliberately no client-side path to
+ * paid intelligence here: the paid report is fetched from the entitlement-
+ * gated /api/report/[scanId] route, which the browser cannot talk its way
+ * past.
  */
-export async function getScanReport(scanId: string): Promise<ReportPayload | null> {
+export async function getScanReport(scanId: string): Promise<FreeReport | null> {
   if (MODE === "demo") {
     const trackSlug = decodeScanId(scanId);
     if (!trackSlug) return null;
-    const fixture = getReportById(trackSlug);
-    if (!fixture) return null;
-
-    // Server context: no window, no localStorage, no generation from here.
-    // The client-side call will handle the generation + cache after hydration.
-    if (typeof window === "undefined") return fixture;
-
-    // 1. Serve from localStorage cache if a prior generation succeeded.
-    try {
-      const cached = window.localStorage.getItem(CACHE_KEY(scanId));
-      if (cached) {
-        const parsed = JSON.parse(cached) as ReportPayload;
-        if (parsed && typeof parsed === "object") return parsed;
-      }
-    } catch {
-      /* corrupt cache entry — fall through to regenerate */
-    }
-
-    // 2. No cache — request generation from the server-side API route.
-    try {
-      const res = await fetch("/api/scan-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scanId }),
-      });
-      if (!res.ok) return fixture;
-      const body = (await res.json()) as {
-        sections?: {
-          signature: string;
-          placements: { title: string; body: string }[];
-          throughline: string;
-          comparable: string;
-        };
-        rhodes?: string;
-        error?: string;
-      };
-      if (!body.sections || typeof body.rhodes !== "string") return fixture;
-      const merged: ReportPayload = {
-        ...fixture,
-        signature: body.sections.signature,
-        placements: body.sections.placements,
-        throughline: body.sections.throughline,
-        comparable: body.sections.comparable,
-        rhodes: body.rhodes,
-      };
-      // 3. Cache the successful generation. Failure to write (quota, disabled
-      //    storage) is not fatal — the merged payload is still returned.
-      try {
-        window.localStorage.setItem(CACHE_KEY(scanId), JSON.stringify(merged));
-      } catch {
-        /* cache write failed — still return merged */
-      }
-      return merged;
-    } catch (err) {
-      console.error("[getScanReport] generation failed, using fixture:", err);
-      return fixture;
-    }
+    return getFreeReportById(trackSlug);
   }
   throw new Error("Production CHRP engine not yet connected");
-  // Production: fetch(`${process.env.CHRP_ENGINE_URL}/api/scan/${scanId}`)
+}
+
+export interface EntitledReport {
+  report: ReportPayload;
+  source: "generated" | "fixture";
+}
+
+export type ReportFetchResult =
+  | { status: "ok"; data: EntitledReport }
+  | { status: "forbidden" }
+  | { status: "unavailable"; entitled: boolean; detail?: string };
+
+/**
+ * Fetch the paid report for a scan.
+ *
+ * The server decides. A 403 means no entitlement; a 503 with entitled:true
+ * means the purchase stands but no report can honestly be produced right
+ * now — the caller must say so rather than showing anything fabricated.
+ */
+export async function fetchEntitledReport(
+  scanId: string,
+): Promise<ReportFetchResult> {
+  try {
+    const res = await fetch(`/api/report/${encodeURIComponent(scanId)}`, {
+      cache: "no-store",
+    });
+    if (res.status === 403) return { status: "forbidden" };
+    if (!res.ok) {
+      let entitled = false;
+      let detail: string | undefined;
+      try {
+        const body = await res.json();
+        entitled = Boolean(body?.entitled);
+        detail = body?.detail;
+      } catch {
+        /* non-JSON error body */
+      }
+      return { status: "unavailable", entitled, detail };
+    }
+    const body = (await res.json()) as {
+      report: ReportPayload;
+      source: "generated" | "fixture";
+    };
+    return { status: "ok", data: { report: body.report, source: body.source } };
+  } catch (err) {
+    console.error("[fetchEntitledReport] request failed:", err);
+    return { status: "unavailable", entitled: false };
+  }
 }
 
 export async function getScanRecord(scanId: string): Promise<ScanRecord | null> {

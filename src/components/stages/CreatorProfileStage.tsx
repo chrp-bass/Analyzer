@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mode, MODE_COLORS, ReportPayload } from "@/lib/fixtures/tracks";
+import { Mode, MODE_COLORS, FreeReport } from "@/lib/fixtures/tracks";
 import { CreatorProfilePayload, PitchPriority } from "@/lib/fixtures/profile";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { ScanRecordOnAccount } from "@/lib/accounts";
@@ -64,7 +64,7 @@ export function CreatorProfileStage({
   userScans,
   playReveal = false,
 }: {
-  report: ReportPayload;
+  report: FreeReport;
   profile: CreatorProfilePayload;
   scans: number;
   artistOverride: string | null;

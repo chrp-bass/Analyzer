@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { decodeScanId } from "@/lib/scan-id";
-import { getReportById } from "@/lib/fixtures/tracks";
+import { getFreeReportById } from "@/lib/fixtures/tracks";
 import { StripeCheckoutForm } from "@/components/scan/StripeCheckoutForm";
 import { ProductId } from "@/lib/accounts";
 import { TIERS } from "@/lib/payments";
@@ -18,7 +18,7 @@ export default function CheckoutTier({
 }) {
   const trackSlug = decodeScanId(params.scanId);
   if (!trackSlug) notFound();
-  const report = getReportById(trackSlug);
+  const report = getFreeReportById(trackSlug);
   if (!report) notFound();
 
   const productParam = (searchParams.product || "artist_catalog") as ProductId;

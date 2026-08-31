@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { TIERS } from "@/lib/payments";
 import { ProductId } from "@/lib/accounts";
-import { ReportPayload } from "@/lib/fixtures/tracks";
+import { FreeReport } from "@/lib/fixtures/tracks";
 
 const ORDER: ProductId[] = ["artist_catalog"];
 
@@ -34,7 +34,7 @@ export function TierPicker({
   report,
 }: {
   scanId: string;
-  report: ReportPayload;
+  report: FreeReport;
 }) {
   const router = useRouter();
   return (

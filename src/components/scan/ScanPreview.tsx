@@ -1,26 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ReportPayload } from "@/lib/fixtures/tracks";
+import type { FreeReport, ReportPayload } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
-import { getScanById } from "@/lib/scan-id";
-import {
-  getCurrentUser,
-  getUserCredits,
-  consumeCatalogCredit,
-  markScanPaid,
-  recordScan,
-  setUserEmail,
-  signInByEmail,
-} from "@/lib/accounts";
+import { fetchEntitledReport } from "@/lib/data-source";
+import { getCurrentUser, setUserEmail, signInByEmail } from "@/lib/accounts";
 import { sendMagicLink } from "@/lib/email";
+import { startCheckout } from "@/lib/payments";
+import { ensureIdentity, linkEmail } from "@/lib/identity";
 
-type Status = "checking" | "reveal" | "unlocking" | "unlocked";
+type Status = "checking" | "reveal" | "unlocked" | "unavailable";
 
 /** Canonical EPI axis order. The payload stores them unordered. */
 const AXIS_ORDER = ["Focus", "Calm", "Motivation", "Balance"] as const;
@@ -57,79 +51,69 @@ const FREE_ITEMS = [
   "One emotional-signature statement",
 ];
 
+
 /**
- * The free reveal's one-line signature statement.
- *
- * The full signature is paid ("Emotional signature, in full"). The free tier
- * gets one concise statement, so this takes the first sentence of the real
- * generated signature rather than inventing a second string. No new
- * intelligence is created here — it is the same output, truncated honestly.
+ * Begin a real purchase. Identity is established first so the webhook has
+ * someone to grant to; the offer key is all the client sends — the price is
+ * resolved server-side from Stripe.
  */
-function firstStatement(signature: string): string {
-  const m = signature.match(/^[^.!?]*[.!?]/);
-  return (m ? m[0] : signature).trim();
+async function beginPurchase(
+  offer: "song_intelligence" | "creator_intelligence",
+  scanId: string,
+  onError: (msg: string) => void,
+) {
+  try {
+    await ensureIdentity();
+    const { url } = await startCheckout(offer, scanId);
+    window.location.assign(url);
+  } catch (err) {
+    console.error("[checkout] could not start:", err);
+    onError(
+      "Checkout is unavailable right now. Nothing has been charged — please try again shortly.",
+    );
+  }
 }
 
 export function ScanPreview({
   report,
   scanId,
-  trackSlug,
 }: {
-  report: ReportPayload;
+  /** Free-tier data only. The paid report is fetched, never bundled. */
+  report: FreeReport;
   scanId: string;
-  trackSlug: string;
+  trackSlug?: string;
 }) {
   const search = useSearchParams();
-  const justPaid = search.get("welcome") === "1";
   const welcomeEmail = search.get("email");
 
   const [status, setStatus] = useState<Status>("checking");
-  const [showBanner, setShowBanner] = useState(false);
+  const [paid, setPaid] = useState<ReportPayload | null>(null);
+  const [showBanner, setShowBanner] = useState(search.get("welcome") === "1");
+  const [unavailableNote, setUnavailableNote] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const scan = getScanById(scanId);
-      if (scan?.paid) {
-        if (!cancelled) {
-          if (justPaid) {
-            setStatus("unlocking");
-            setShowBanner(true);
-            setTimeout(() => {
-              if (!cancelled) setStatus("unlocked");
-            }, 80);
-          } else {
-            setStatus("unlocked");
-          }
-        }
-        return;
+      // The SERVER decides. There is no client-readable entitlement flag to
+      // consult and nothing in localStorage that can change this answer.
+      const result = await fetchEntitledReport(scanId);
+      if (cancelled) return;
+      if (result.status === "ok") {
+        setPaid(result.data.report);
+        setStatus("unlocked");
+      } else if (result.status === "unavailable" && result.entitled) {
+        // Paid, but the report cannot honestly be produced right now. Say so
+        // — the purchase stands and nothing is fabricated to fill the gap.
+        setUnavailableNote(result.detail ?? null);
+        setStatus("unavailable");
+      } else {
+        setStatus("reveal");
       }
-      const user = await getCurrentUser();
-      if (user) {
-        const credits = await getUserCredits(user.id);
-        if (
-          credits &&
-          (credits.trackLimit === null ||
-            credits.tracksUsed < credits.trackLimit)
-        ) {
-          await consumeCatalogCredit(user.id);
-          await markScanPaid(user.id, scanId);
-          await recordScan(user.id, trackSlug, true, scanId);
-          if (!cancelled) {
-            setStatus("unlocking");
-            setTimeout(() => {
-              if (!cancelled) setStatus("unlocked");
-            }, 80);
-          }
-          return;
-        }
-      }
-      if (!cancelled) setStatus("reveal");
     })();
     return () => {
       cancelled = true;
     };
-  }, [scanId, trackSlug, justPaid]);
+  }, [scanId]);
 
   // Nothing renders until entitlement is known. The reveal and the report are
   // separate screens: paid sections are never mounted-then-hidden, so no paid
@@ -143,6 +127,10 @@ export function ScanPreview({
         <Boundary scanId={scanId} />
       </>
     );
+  }
+
+  if (status === "unavailable" || !paid) {
+    return <ReportUnavailable note={unavailableNote} />;
   }
 
   return (
@@ -182,7 +170,7 @@ export function ScanPreview({
         )}
       </AnimatePresence>
 
-      <ReportBody report={report} id={scanId} />
+      <ReportBody report={paid} id={scanId} />
       <CatalogClose scanId={scanId} />
     </div>
   );
@@ -198,7 +186,7 @@ function FreeReveal({
   report,
   scanId,
 }: {
-  report: ReportPayload;
+  report: FreeReport;
   scanId: string;
 }) {
   const byName = new Map(report.chrp_scores.map((r) => [r.name, r]));
@@ -261,7 +249,7 @@ function FreeReveal({
               ))}
             </div>
 
-            <p className="rv-signature">{firstStatement(report.signature)}</p>
+            <p className="rv-signature">{report.free_statement}</p>
 
             <RevealActions scanId={scanId} />
           </div>
@@ -282,7 +270,7 @@ function FreeReveal({
  * no account setup step.
  */
 function RevealActions({ scanId }: { scanId: string }) {
-  const router = useRouter();
+  const [buying, setBuying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -300,10 +288,16 @@ function RevealActions({ scanId }: { scanId: string }) {
     setError(null);
     setBusy(true);
     try {
-      const existing = await getCurrentUser();
-      if (existing) await setUserEmail(trimmed);
-      else await signInByEmail(trimmed);
-      await sendMagicLink(trimmed);
+      // Supabase Auth issues the real magic link and binds it to the same
+      // identity that owns any entitlements. The legacy local write is kept
+      // as a development fallback when Supabase is not configured.
+      const linked = await linkEmail(trimmed);
+      if (!linked) {
+        const existing = await getCurrentUser();
+        if (existing) await setUserEmail(trimmed);
+        else await signInByEmail(trimmed);
+        await sendMagicLink(trimmed);
+      }
       setSent(true);
     } catch (err) {
       console.error(err);
@@ -319,9 +313,16 @@ function RevealActions({ scanId }: { scanId: string }) {
         <button
           type="button"
           className="rv-cta"
-          onClick={() => router.push(`/scan/${scanId}/checkout`)}
+          disabled={buying}
+          onClick={() => {
+            setBuying(true);
+            beginPurchase("song_intelligence", scanId, (m) => {
+              setError(m);
+              setBuying(false);
+            });
+          }}
         >
-          Unlock the full Song Intelligence
+          {buying ? "Opening checkout…" : "Unlock the full Song Intelligence"}
         </button>
         {!saving && !sent && (
           <button
@@ -381,7 +382,8 @@ function RevealActions({ scanId }: { scanId: string }) {
  * what you do not. Paid section contents are not present in this tree.
  */
 function Boundary({ scanId }: { scanId: string }) {
-  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   return (
     <section className="rv-boundary">
       <div className="rv-inner">
@@ -419,17 +421,36 @@ function Boundary({ scanId }: { scanId: string }) {
             <button
               type="button"
               className="rv-buy"
-              onClick={() => router.push(`/scan/${scanId}/checkout`)}
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                beginPurchase("song_intelligence", scanId, (m) => {
+                  setErr(m);
+                  setBusy(false);
+                });
+              }}
             >
-              Unlock this song
+              {busy ? "Opening checkout…" : "Unlock this song"}
             </button>
             <button
               type="button"
               className="rv-buy-alt"
-              onClick={() => router.push(`/scan/${scanId}/tiers`)}
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                beginPurchase("creator_intelligence", scanId, (m) => {
+                  setErr(m);
+                  setBusy(false);
+                });
+              }}
             >
               Understand your catalog &middot; $149
             </button>
+            {err && (
+              <p className="rv-terms" style={{ color: "#8A2B4F" }} role="alert">
+                {err}
+              </p>
+            )}
             <p className="rv-terms">
               Report access runs 60 days on a single song, 12 months on a
               catalog.
@@ -477,6 +498,39 @@ function CatalogClose({ scanId }: { scanId: string }) {
             }}
           >
             Understand your catalog &mdash; $149
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Entitled, but no report can honestly be produced ────────────────────────
+/**
+ * Production-safe failure. If generation is unavailable after a legitimate
+ * payment we say so plainly: the entitlement is preserved server-side, the
+ * page is recoverable by reloading, and nothing is fabricated to fill the
+ * space. A fixture must never be passed off as freshly generated output.
+ */
+function ReportUnavailable({ note }: { note: string | null }) {
+  return (
+    <section className="rv">
+      <div className="rv-inner" style={{ maxWidth: 620 }}>
+        <p className="rv-kicker">Your purchase is safe</p>
+        <h2 style={{ margin: 0 }} className="rv-title">
+          Your report is still being prepared.
+        </h2>
+        <p className="rv-keep" style={{ maxWidth: "52ch", marginTop: 16 }}>
+          {note ??
+            "We could not generate your Song Intelligence just now. Your access is recorded and nothing has been lost."}
+        </p>
+        <p className="rv-note" style={{ marginTop: 14 }}>
+          Reload this page in a moment. If it keeps happening, contact us and
+          quote this scan — your entitlement is on file.
+        </p>
+        <div className="rv-actions">
+          <Link href="/dashboard" className="rv-save">
+            Go to my songs
           </Link>
         </div>
       </div>

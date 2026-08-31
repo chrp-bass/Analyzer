@@ -9,6 +9,51 @@ import {
   getOrCreateGuestUser,
 } from "@/lib/accounts";
 
+/**
+ * PAYMENT — production vs demo.
+ *
+ * Real money moves through POST /api/checkout -> Stripe Checkout -> the
+ * signed webhook at /api/stripe/webhook, which is the ONLY path that grants
+ * an entitlement. Nothing in this module can unlock paid content: entitlement
+ * lives in Postgres and is read server-side.
+ *
+ * The demo helpers below are development scaffolding. They are hard-disabled
+ * in production (see assertDemoAllowed) so a stray call cannot mint access,
+ * and the EARLYACCESS promo cannot produce a real entitlement.
+ */
+
+/** Demo helpers are refused outside development. */
+function assertDemoAllowed(fn: string): void {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      `${fn} is a development helper and is disabled in production. ` +
+        "Real purchases go through /api/checkout and the Stripe webhook.",
+    );
+  }
+}
+
+/**
+ * Start a real Stripe Checkout Session. The browser sends an offer key and a
+ * scan id; the server resolves the price. Returns the Stripe-hosted URL.
+ */
+export async function startCheckout(
+  offer: "song_intelligence" | "creator_intelligence",
+  scanId?: string,
+): Promise<{ url: string }> {
+  const res = await fetch("/api/checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ offer, scanId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error ?? "checkout unavailable");
+  }
+  const body = (await res.json()) as { url?: string };
+  if (!body.url) throw new Error("checkout unavailable");
+  return { url: body.url };
+}
+
 export interface TierConfig {
   id: ProductId;
   label: string;
@@ -63,6 +108,7 @@ export async function createCheckoutSession(
   productId: ProductId,
   scanId: string,
 ): Promise<CheckoutSession> {
+  assertDemoAllowed("createCheckoutSession");
   if (MODE === "demo") {
     const sessionId = `demo_${Date.now().toString(36)}${Math.random()
       .toString(36)
@@ -90,6 +136,7 @@ export async function simulatePaymentSuccess(
   sessionId: string,
   email: string,
 ): Promise<{ productId: ProductId; scanId: string }> {
+  assertDemoAllowed("simulatePaymentSuccess");
   if (MODE === "demo") {
     const s = ls();
     const raw = s?.getItem(SESSION_KEY(sessionId));
