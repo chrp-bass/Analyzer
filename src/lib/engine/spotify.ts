@@ -89,25 +89,25 @@ export class SpotifyClient {
     query: string,
     limit: number,
   ): Promise<Array<Record<string, unknown>>> {
-    const token = await this.getToken();
     const url = new URL(SEARCH_URL);
     url.searchParams.set("q", query);
     url.searchParams.set("type", "track");
     url.searchParams.set("market", this.market);
     url.searchParams.set("limit", String(limit));
-    let res: Response;
-    try {
-      res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch (err) {
-      throw new Error(
-        `Spotify search request failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+
+    let res = await this.searchOnce(url, await this.getToken());
+
+    // A cached token can stop working before the expiry we computed —
+    // Spotify invalidates outstanding tokens on credential rotation, and a
+    // long-lived serverless instance holds its token across those events.
+    // Without this the FIRST search after such an invalidation returns 502
+    // and the person is told "something went wrong" for a perfectly good
+    // song. Drop the token, mint a fresh one, retry exactly once.
+    if (res.status === 401) {
+      this.token = null;
+      res = await this.searchOnce(url, await this.getToken());
     }
+
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(
@@ -118,6 +118,22 @@ export class SpotifyClient {
       tracks?: { items?: Array<Record<string, unknown>> };
     };
     return data.tracks?.items ?? [];
+  }
+
+  /** One search attempt with a given token. Network failures still throw. */
+  private async searchOnce(url: URL, token: string): Promise<Response> {
+    try {
+      return await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (err) {
+      throw new Error(
+        `Spotify search request failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 }
 
