@@ -4,7 +4,7 @@
  *
  * Runner for src/lib/prompts/report.ts. Takes a track slug from the fixture
  * (defaults to "redline"), maps it into the TrackData shape the prompts
- * expect, and prints the generated CHRP report + Dr. Rhodes reading.
+ * expect, and prints the generated CHRP report + the CHRP reading.
  *
  * Usage:
  *   npx tsx scripts/test-report.mts               # runs redline
@@ -42,7 +42,7 @@ loadDotEnvLocal();
 // ── imports after env is loaded ─────────────────────────────────────────────
 import {
   generateReport,
-  generateRhodesReading,
+  generateChrpReading,
   type TrackData,
 } from "../src/lib/prompts/report.ts";
 import { reports } from "../src/lib/fixtures/tracks.ts";
@@ -121,8 +121,8 @@ async function main() {
   console.log("\n═══ CHRP REPORT (structured sections) ═══\n");
   console.log(sectionsJson);
 
-  console.log("\n▸ Calling generateRhodesReading()…");
-  const rhodes = await generateRhodesReading(data, sectionsJson);
+  console.log("\n▸ Calling generateChrpReading()…");
+  const rhodes = await generateChrpReading(data, sectionsJson);
   console.log("\n═══ DR. RHODES READING ═══\n");
   console.log(rhodes);
 }

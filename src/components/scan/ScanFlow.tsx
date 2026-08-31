@@ -4,226 +4,43 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ScanInput } from "@/components/ScanInput";
 import { trackOptions } from "@/lib/fixtures/tracks";
-import {
-  getCurrentUser,
-  getUserScans,
-  setUserEmail,
-  signInByEmail,
-  User,
-} from "@/lib/accounts";
-import { sendMagicLink } from "@/lib/email";
-
-// Beta demo affordance: since sendMagicLink logs to console instead of
-// sending real email, the confirmation surfaces a direct "sign in now"
-// link for the current session.
-const BETA_MODE = process.env.NEXT_PUBLIC_BETA_MODE !== "false";
-
-type Stage = "checking" | "capture" | "scan";
+import { getCurrentUser, User } from "@/lib/accounts";
 
 /**
- * Two-step scan gate.
- *   1. Capture — user with no email (fresh visitor or pre-migration guest)
- *      is asked to enter one before scanning. Email is saved on the User
- *      row and a magic link is sent so they can sign back in later.
- *   2. Scan — the existing ScanInput + sample-tracks list.
- * A signed-in visitor lands on the scan step directly.
+ * Scan entry.
+ *
+ * Authentication is NOT the front door. Per the locked identity rule
+ * (VALUE → IDENTITY → MEMORY → PROGRESSION), a first-time creator searches,
+ * scans and reaches the free reveal with no account and no email. The
+ * account infrastructure is untouched and still used — identity is offered
+ * later, at the reveal, where saving the result is worth something. Returning
+ * users come back through "My songs" / /signin.
+ *
+ * This component previously gated scanning behind an email capture step.
+ * That gate is removed; the magic-link and account plumbing in @/lib/accounts
+ * and @/lib/email is deliberately left in place for save/return.
  */
 export function ScanFlow() {
-  const [stage, setStage] = useState<Stage>("checking");
   const [user, setUser] = useState<User | null>(null);
-  // priorScanCount is the number of scans already on the current User row
-  // (guest state before they add an email). Surfaced in the capture step
-  // so a returning guest sees "your N prior scans will stay on your account."
-  const [priorScanCount, setPriorScanCount] = useState(0);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const u = await getCurrentUser();
+      if (cancelled) return;
       setUser(u);
-      if (u && !u.email) {
-        const scans = await getUserScans(u.id);
-        setPriorScanCount(scans.length);
-      }
-      setStage(u?.email ? "scan" : "capture");
+      setReady(true);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (stage === "checking") {
-    // Same shell as the scan step so the layout doesn't jump on hydration.
-    return (
-      <div style={{ minHeight: 400 }} aria-hidden />
-    );
-  }
-
-  if (stage === "capture") {
-    return (
-      <EmailCaptureStep
-        priorScanCount={priorScanCount}
-        onDone={(nextUser) => {
-          setUser(nextUser);
-          setStage("scan");
-        }}
-      />
-    );
-  }
-
-  return <ScanStep user={user} />;
-}
-
-function EmailCaptureStep({
-  onDone,
-  priorScanCount,
-}: {
-  onDone: (user: User) => void;
-  priorScanCount: number;
-}) {
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    const trimmed = email.trim();
-    if (!trimmed.includes("@") || trimmed.length < 5) {
-      setError("Enter a valid email address.");
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      // If there's already a guest session, attach the email to it.
-      // Otherwise restore an existing account if this email matches one
-      // on this browser (signOut path), or create a fresh account.
-      const existing = await getCurrentUser();
-      const updated = existing
-        ? await setUserEmail(trimmed)
-        : await signInByEmail(trimmed);
-      if (!updated) throw new Error("Failed to create account");
-      // Fire the magic link so the user has a return-path on file. In beta
-      // this is a console log; in prod it's a real email.
-      await sendMagicLink(trimmed);
-      onDone(updated);
-    } catch (err) {
-      console.error(err);
-      setError("Something went wrong. Try again.");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <>
-      <section className="page-hero">
-        <div className="wrap">
-          <span className="eyebrow">Step 1 of 3 &middot; Create your account</span>
-          <h1>Start with your email.</h1>
-          <p className="sub">
-            Your scans live on your account. Sign back in anytime to see this
-            song and every track you scan after it.
-          </p>
-        </div>
-      </section>
-
-      <section className="page-band">
-        <div className="wrap" style={{ maxWidth: 520 }}>
-          {priorScanCount > 0 && (
-            <div
-              style={{
-                padding: "12px 14px",
-                background: "var(--oat-2)",
-                border: "1px solid var(--line-light)",
-                borderRadius: 6,
-                marginBottom: 20,
-                fontFamily: "var(--s)",
-                fontSize: 13,
-                lineHeight: 1.55,
-                color: "var(--on-light-2)",
-              }}
-            >
-              <span
-                style={{ fontWeight: 700, color: "var(--on-light)" }}
-              >
-                {priorScanCount === 1
-                  ? "Your 1 prior scan"
-                  : `Your ${priorScanCount} prior scans`}
-              </span>{" "}
-              will stay on your account when you add an email.
-            </div>
-          )}
-
-          <form
-            onSubmit={submit}
-            style={{ display: "flex", flexDirection: "column", gap: 12 }}
-          >
-            <label
-              htmlFor="account-email"
-              className="eyebrow"
-              style={{ display: "block", marginBottom: 4 }}
-            >
-              Email
-            </label>
-            <input
-              id="account-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@studio.com"
-              style={{ width: "100%", fontSize: 16, padding: "14px 16px" }}
-              autoComplete="email"
-              autoFocus
-            />
-            {error && (
-              <div
-                style={{ fontFamily: "var(--s)", fontSize: 13, color: "#C12C79" }}
-              >
-                {error}
-              </div>
-            )}
-            <button
-              type="submit"
-              disabled={busy}
-              className="btn btn-y"
-              style={{
-                marginTop: 8,
-                alignSelf: "flex-start",
-                opacity: busy ? 0.6 : 1,
-              }}
-            >
-              {busy ? "Setting up…" : "Continue to scan"}
-            </button>
-          </form>
-
-          <p
-            style={{
-              fontFamily: "var(--s)",
-              fontSize: 12.5,
-              lineHeight: 1.55,
-              color: "var(--on-light-2)",
-              marginTop: 28,
-            }}
-          >
-            {BETA_MODE
-              ? "During beta, sessions live in the browser you sign up on. A magic-link email is queued so you can sign back in on this device."
-              : "We'll email you a magic link so you can sign back in from any device."}
-          </p>
-
-          <div style={{ marginTop: 20 }}>
-            <Link
-              href="/signin"
-              style={{
-                fontFamily: "var(--s)",
-                fontSize: 12,
-                color: "var(--on-light-2)",
-                textDecoration: "underline",
-              }}
-            >
-              Already have an account? Sign in &rarr;
-            </Link>
-          </div>
-        </div>
-      </section>
-    </>
-  );
+  // The scan field renders immediately either way — the user read is only
+  // used to decide whether to show the quiet "signed in as" line, so it must
+  // never delay the front door.
+  return <ScanStep user={ready ? user : null} />;
 }
 
 function ScanStep({ user }: { user: User | null }) {
@@ -232,7 +49,7 @@ function ScanStep({ user }: { user: User | null }) {
       <section className="page-hero">
         <div className="wrap">
           <span className="eyebrow">
-            Step 2 of 3
+            The first scan
             {user?.email ? (
               <>
                 &nbsp;&middot;&nbsp;
@@ -240,10 +57,21 @@ function ScanStep({ user }: { user: User | null }) {
               </>
             ) : null}
           </span>
-          <h1>Paste a Spotify link.</h1>
+          <h1>Search a song, or paste a link.</h1>
           <p className="sub">
-            We&rsquo;ll resolve the track, read its emotional fingerprint, and
+            We&rsquo;ll resolve the track, read its emotional signature, and
             place it on the CHRP grid in about ten seconds.
+          </p>
+          <p
+            style={{
+              marginTop: 14,
+              fontFamily: "var(--s)",
+              fontWeight: 700,
+              fontSize: 13,
+              color: "var(--on-light-2)",
+            }}
+          >
+            No credit card. No account.
           </p>
         </div>
       </section>
@@ -307,6 +135,27 @@ function ScanStep({ user }: { user: User | null }) {
               sample tracks.
             </p>
           </div>
+
+          {!user?.email && (
+            <p
+              style={{
+                marginTop: 40,
+                fontFamily: "var(--s)",
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                color: "var(--on-light-2)",
+              }}
+            >
+              Scanned before?{" "}
+              <Link
+                href="/signin"
+                style={{ textDecoration: "underline", color: "inherit" }}
+              >
+                Find your songs
+              </Link>
+              .
+            </p>
+          )}
         </div>
       </section>
     </>

@@ -62,10 +62,10 @@ export default function MethodologyPage() {
             <ul>
               <li>Mode &amp; EPI Score &mdash; exactly what kind of track you made.</li>
               <li>Pitch-readiness verdict &mdash; Pitch now, Develop, or Hold, with the reasoning.</li>
-              <li>Dr. Rhodes&rsquo; analysis &mdash; where it lives commercially and what to avoid.</li>
-              <li>Three placements written in the language supervisors use.</li>
+              <li>The CHRP reading &mdash; the interpretation of that position, in CHRP&rsquo;s voice.</li>
+              <li>What it&rsquo;s built for &mdash; three moments the song naturally supports.</li>
               <li>A throughline you can paste into any pitch email today.</li>
-              <li>Live market signal on where active brief demand sits right now.</li>
+              <li>Comparable context &mdash; the emotional territory the song sits in.</li>
             </ul>
 
             <div style={{ marginTop: 48, display: "flex", gap: 16, flexWrap: "wrap" }}>

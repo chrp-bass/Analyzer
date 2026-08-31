@@ -42,11 +42,6 @@ const MODE_CHIP: Record<Mode, { bg: string; text: string }> = {
   Flow: { bg: FRENCH_BLUE, text: PAPER },
 };
 
-const RANK_COLOR: Record<string, string> = {
-  high: KELLY,
-  mid: INK_SOFT,
-  low: PLUM,
-};
 
 let fontsRegistered = false;
 export function registerFonts(fonts: Record<string, Buffer>) {
@@ -505,10 +500,9 @@ function ScoreRowView({
       </View>
       <Text style={styles.scoreNum}>{row.score}</Text>
       <View style={styles.scoreRankBox}>
-        <Text style={[styles.scoreRank, { color: RANK_COLOR[row.rank_class] }]}>
-          {row.rank}
-          <Text style={styles.scoreAnchor}>  {row.anchor}</Text>
-        </Text>
+        {/* row.rank is an unsupported percentile claim and is not rendered.
+            The anchor is descriptive, so it stays. */}
+        <Text style={styles.scoreAnchor}>{row.anchor}</Text>
       </View>
     </View>
   );
@@ -525,11 +519,10 @@ export function ReportPDF({
 
   const chip = MODE_CHIP[report.epi.mode];
   const conf = report.verdict.confidence;
-  const lives = report.where_this_music_lives;
 
   return (
     <Document
-      title={`CHRP Emotional Intelligence Report — ${report.track.title}`}
+      title={`CHRP Song Intelligence Report — ${report.track.title}`}
       author="CHRP"
     >
       <Page size="LETTER" style={styles.page}>
@@ -537,7 +530,7 @@ export function ReportPDF({
         <View style={styles.headerBand}>
           <Text style={styles.wordmark}>CHRP</Text>
           <Text style={styles.headerRight}>
-            {`Emotional intelligence report  //  No. ${report.report_meta.id}  //  ${report.report_meta.version}`}
+            {`Song Intelligence report  //  No. ${report.report_meta.id}  //  ${report.report_meta.version}`}
           </Text>
         </View>
         <View style={styles.rule} />
@@ -577,18 +570,38 @@ export function ReportPDF({
                 {report.epi.mode} mode
               </Text>
             </View>
-            <Text style={styles.rankUnder}>
-              <Text style={styles.rankUnderHi}>{report.epi.rank_in_mode}</Text>{" "}
-              of catalog in {report.epi.mode} mode
-            </Text>
           </View>
         </View>
 
-        {/* 3. Two columns */}
+        {/* 01 — Emotional signature. What the song is doing. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>01 &middot; Emotional signature</Text>
+          <View style={styles.rule} />
+          <Text style={styles.signature}>{report.signature}</Text>
+        </View>
+
+        {/* The CHRP reading — the interpretation, after the position.
+            CHRP is the voice; the named-analyst treatment is retired. */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeader}>The CHRP reading</Text>
+            <Text style={styles.sectionMeta}>interpretation</Text>
+          </View>
+          <View style={styles.rule} />
+          <View style={styles.rhodesBlock}>
+            <Text style={styles.rhodesText}>{report.rhodes}</Text>
+          </View>
+        </View>
+
+        {/* 02 — EPI profile. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>02 &middot; EPI profile</Text>
+          <View style={styles.rule} />
+        </View>
         <View style={styles.twoCol}>
           <View style={styles.col}>
             <View style={styles.colHeaderRow}>
-              <Text style={styles.colHeader}>CHRP Scores</Text>
+              <Text style={styles.colHeader}>The four dimensions</Text>
               <Text style={styles.colCaption}>the song&rsquo;s signature</Text>
             </View>
             <View style={styles.rule} />
@@ -610,30 +623,9 @@ export function ReportPDF({
           </View>
         </View>
 
-        {/* 4. Rhodes */}
+        {/* 03 — What it's built for. */}
         <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>Dr. Rhodes&rsquo; analysis</Text>
-            <Text style={styles.sectionMeta}>
-              chief scientist, emotional frequency
-            </Text>
-          </View>
-          <View style={styles.rule} />
-          <View style={styles.rhodesBlock}>
-            <Text style={styles.rhodesText}>{report.rhodes}</Text>
-          </View>
-        </View>
-
-        {/* 5. Signature */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>The signature</Text>
-          <View style={styles.rule} />
-          <Text style={styles.signature}>{report.signature}</Text>
-        </View>
-
-        {/* 6. What it's built for */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>What it&rsquo;s built for</Text>
+          <Text style={styles.sectionHeader}>03 &middot; What it&rsquo;s built for</Text>
           <View style={styles.rule} />
           {report.placements.map((p, i) => (
             <View key={i} style={styles.placement} wrap={false}>
@@ -648,59 +640,28 @@ export function ReportPDF({
           ))}
         </View>
 
-        {/* 7. Throughline + Comparable */}
+        {/* 04 — Pitch throughline. */}
         <View style={styles.section}>
-          <View style={styles.throughComp}>
-            <View style={styles.col}>
-              <Text style={styles.sectionHeader}>The throughline</Text>
-              <View style={styles.rule} />
-              <Text style={[styles.throughText, { marginTop: 4 }]}>
-                <Text style={styles.bigQuote}>&ldquo;</Text>
-                {report.throughline}
-              </Text>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.sectionHeader}>The comparable</Text>
-              <View style={styles.rule} />
-              <Text style={[styles.compText, { marginTop: 4 }]}>
-                {report.comparable}
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.sectionHeader}>04 &middot; Pitch throughline</Text>
+          <View style={styles.rule} />
+          <Text style={[styles.throughText, { marginTop: 4 }]}>
+            <Text style={styles.bigQuote}>&ldquo;</Text>
+            {report.throughline}
+          </Text>
         </View>
 
-        {/* 8. Where this music lives */}
+        {/* 05 — Comparable context. */}
         <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeader}>Where this music lives</Text>
-            {lives.confidence && lives.n_briefs ? (
-              <Text style={styles.sectionMeta}>
-                live brief signal  ·  {lives.confidence} confidence (n=
-                {lives.n_briefs})
-              </Text>
-            ) : null}
-          </View>
+          <Text style={styles.sectionHeader}>05 &middot; Comparable context</Text>
           <View style={styles.rule} />
-          <View style={styles.livesBlock}>
-            {lives.verticals.map((v) => (
-              <View key={v.name} style={styles.vertRow}>
-                <Text style={styles.vertName}>{v.name}</Text>
-                <View style={styles.vertTrack}>
-                  <View style={[styles.vertFill, { width: `${v.pct}%` }]} />
-                </View>
-                <Text style={styles.vertPct}>{v.pct}%</Text>
-              </View>
-            ))}
-            {lives.sample_brief && (
-              <View style={styles.sampleRow}>
-                <Text style={styles.sampleText}>
-                  <Text style={styles.sampleLabel}>Sample active brief: </Text>
-                  {lives.sample_brief}
-                </Text>
-              </View>
-            )}
-          </View>
+          <Text style={[styles.compText, { marginTop: 4 }]}>
+            {report.comparable}
+          </Text>
         </View>
+
+        {/* The brief-signal block ("Where this music lives") is removed until
+            verified data exists. It rested on brief counts and demand
+            percentages the product cannot currently source. */}
 
         {/* 9. Creator tease */}
         <View style={styles.creatorBand}>
@@ -718,7 +679,7 @@ export function ReportPDF({
           <Text style={styles.footerText}>
             Scored by CHRP  //  scan.chrp.ai
             <Text style={styles.footerDisclaimer}>
-              {"     "}Behavioral scoring only. Methodology at
+              {"     "}Behavioural scoring only. Methodology at
               scan.chrp.ai/methodology.
             </Text>
           </Text>

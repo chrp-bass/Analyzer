@@ -51,11 +51,17 @@ const FREE_ITEMS = [
   "One emotional-signature statement",
 ];
 
+/**
+ * What the paid report actually contains today. Kept in lockstep with
+ * ReportBody — the page must never promise a movement the report does not
+ * ship. "Positioning language" from the approved hierarchy has no backing
+ * engine output yet and is therefore not advertised.
+ */
 const PAID_ITEMS = [
   "Emotional signature, in full",
+  "The CHRP reading",
   "Complete EPI profile",
   "What it’s built for",
-  "Positioning language",
   "Pitch throughline",
   "Comparable context",
 ];
@@ -65,6 +71,11 @@ const MOVEMENTS = [
     n: "01",
     title: "Emotional signature",
     body: "What the song is doing emotionally.",
+  },
+  {
+    n: "—",
+    title: "The CHRP reading",
+    body: "The interpretation of that position, in CHRP’s voice. No named analyst, no persona.",
   },
   {
     n: "02",
@@ -78,16 +89,11 @@ const MOVEMENTS = [
   },
   {
     n: "04",
-    title: "Positioning language",
-    body: "A concise way to describe the song without relying only on vague genre adjectives.",
-  },
-  {
-    n: "05",
     title: "Pitch throughline",
     body: "Language you can adapt for a pitch, deck, metadata, campaign or conversation.",
   },
   {
-    n: "06",
+    n: "05",
     title: "Comparable context",
     body: "Where supportable, references that help explain the emotional territory.",
   },
@@ -208,7 +214,7 @@ function Hero() {
           <div aria-hidden className="si-hero-horizon" />
           <div className="si-portrait">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/graphics/hero-artist-aura.png" alt="" aria-hidden />
+            <img src="/brand/graphics/chrp-aura-portrait.png" alt="" aria-hidden />
             <div aria-hidden className="tint-a" />
             <div aria-hidden className="tint-b" />
             <div aria-hidden className="vignette" />
@@ -343,7 +349,7 @@ function Statement() {
   return (
     <section className="si-statement">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/graphics/feature-card-warm.png" alt="" aria-hidden />
+      <img src="/brand/graphics/hero-artist-aura.png" alt="" aria-hidden />
       <div aria-hidden className="scrim" />
       <div className="wrap">
         <p>Not just what it sounds like. What it does.</p>
@@ -543,7 +549,7 @@ function Movements() {
             Turn the signal into a position.
           </h2>
           <p className="si-body" style={{ maxWidth: "46ch", margin: 0 }}>
-            Six movements that move you from &ldquo;Here&rsquo;s my song&rdquo;
+            The movements that take you from &ldquo;Here&rsquo;s my song&rdquo;
             to &ldquo;Here&rsquo;s what this song does, the moments it fits, and
             how I should talk about it.&rdquo;
           </p>

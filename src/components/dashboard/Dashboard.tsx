@@ -512,13 +512,12 @@ function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
             Catalog complete
           </div>
           <p className="mt-1.5 font-display font-bold text-[20px] md:text-[24px] leading-[1.15]">
-            Your full Artist Catalog is now in CHRP&rsquo;s corpus.
+            Your full Artist Catalog has been read.
           </p>
           <p className="mt-2 font-sans text-[12.5px] md:text-[13px] leading-[1.55] max-w-[60ch]">
-            Your signature is documented, your patterns are mapped, and your
-            tracks are positioned in the live market. Add new releases as they
-            come out to keep your profile current &mdash; your fingerprint
-            evolves with your work.
+            Your signature is documented and the patterns across your songs
+            are mapped. Add new releases as they come out to keep the picture
+            current &mdash; each song you add changes what the others mean.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button

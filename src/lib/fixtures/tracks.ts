@@ -86,7 +86,7 @@ export const reports: Record<string, ReportPayload> = {
       call: "Pitch now",
       confidence: "High",
       rationale:
-        "Extreme Motivation and elevated Focus at the top of the Ready catalog. Strongest active brief alignment in esports broadcast and performance automotive. Pitch this week.",
+        "Extreme Motivation and elevated Focus, held without drift. The profile sits naturally against esports broadcast and performance automotive moments. Pitch this week.",
     },
     chrp_scores: [
       { name: "Focus", score: 84, rank: "Top 11%", rank_class: "high", anchor: "sustained-intensity cues" },
@@ -101,7 +101,7 @@ export const reports: Record<string, ReportPayload> = {
       { name: "Rest", score: 9, rank: "Btm 4%", rank_class: "low", anchor: "not for wind-down" },
     ],
     rhodes:
-      "A Ready-mode track operating at the extreme end of the catalog. Motivation at top 1%, Calm at bottom 9% — there is no ambiguity about what this song is for. It is a launch sequence. Built for the ten seconds before everything changes. Lead exclusively with apex performance moments: esports broadcast opens, championship fight-night entrances, performance vehicle reveals. The riff architecture escalates through volume and layering rather than chord progression, which means it holds intensity across extended cuts without telegraphing its ceiling. Do not hand this to anything requiring nuance, emotional complexity, or descent. It does one thing at the top of the catalog and does it with rare conviction.",
+      "A Ready-mode track operating at the extreme end of the catalog. Motivation at its ceiling, Calm at its floor — there is no ambiguity about what this song is for. It is a launch sequence. Built for the ten seconds before everything changes. Lead exclusively with apex performance moments: esports broadcast opens, championship fight-night entrances, performance vehicle reveals. The riff architecture escalates through volume and layering rather than chord progression, which means it holds intensity across extended cuts without telegraphing its ceiling. Do not hand this to anything requiring nuance, emotional complexity, or descent. It does one thing, and does it with rare conviction.",
     signature:
       "A relentless launch sequence built for the apex moment. No ceiling. No descent.",
     placements: [
@@ -179,7 +179,7 @@ export const reports: Record<string, ReportPayload> = {
       { name: "Rest", score: 78, rank: "Top 21%", rank_class: "high", anchor: "sleep + wind-down" },
     ],
     rhodes:
-      "A Recharge-mode track with exceptional structural balance. Balance at top 7%, Calm at top 18% — this is a song built to restore without sedating. It operates in the restorative register without crossing into recovery territory: present, warm, unhurried. Lead with wellness brand films, luxury travel, and milestone celebrations where the music is asked to hold a feeling rather than move one. The acoustic arrangement remains accessible across demographic ranges from twenty to seventy-five, which makes it commercially flexible in a way most Recharge tracks are not. Hold this back from athletic, action, and high-tempo contexts where its intimate scale will be crushed. It earns its placement by being the right temperature, not the loudest signal.",
+      "A Recharge-mode track with exceptional structural balance. Balance and Calm both sit high — this is a song built to restore without sedating. It operates in the restorative register without crossing into recovery territory: present, warm, unhurried. Lead with wellness brand films, luxury travel, and milestone celebrations where the music is asked to hold a feeling rather than move one. The acoustic arrangement remains accessible across demographic ranges from twenty to seventy-five, which makes it commercially flexible in a way most Recharge tracks are not. Hold this back from athletic, action, and high-tempo contexts where its intimate scale will be crushed. It earns its placement by being the right temperature, not the loudest signal.",
     signature:
       "Warm, restorative, and structurally balanced. Holds a feeling without insisting on it.",
     placements: [
@@ -242,7 +242,7 @@ export const reports: Record<string, ReportPayload> = {
       call: "Pitch now",
       confidence: "High",
       rationale:
-        "Recovery at top 4%, Rest at top 8%. Exceptional structural balance within Recover mode. Active demand in prestige TV and documentary verticals. Pitch now.",
+        "Recovery and Rest both sit high, with exceptional structural balance within Recover mode. Suited to prestige TV and documentary moments. Pitch now.",
     },
     chrp_scores: [
       { name: "Focus", score: 58, rank: "Top 42%", rank_class: "mid", anchor: "works under dialogue" },
@@ -257,7 +257,7 @@ export const reports: Record<string, ReportPayload> = {
       { name: "Rest", score: 86, rank: "Top 8%", rank_class: "high", anchor: "sleep + deep rest" },
     ],
     rhodes:
-      "A Recover-mode track operating in the upper register. Recovery at top 4%, Rest at top 8%, Motivation withdrawn to the bottom quartile — this song is built for the aftermath. Not grief exactly, but the long exhale after. Lead with third-act dramatic resolution, end-of-season memorial segments, and long-form brand films that have earned an emotional landing. The string-and-piano arrangement carries sufficient weight to work beneath dialogue and voiceover without competing. What makes this unusual within the Recover mode is the Balance score: it holds emotional complexity without becoming heavy or punishing. That makes it more commercially flexible than most deep-Recover tracks. Hold it back from sport, action, and product-launch contexts — its gravity will read as deflation in those placements.",
+      "A Recover-mode track operating in the upper register. Recovery and Rest both high, Motivation withdrawn to its lowest register — this song is built for the aftermath. Not grief exactly, but the long exhale after. Lead with third-act dramatic resolution, end-of-season memorial segments, and long-form brand films that have earned an emotional landing. The string-and-piano arrangement carries sufficient weight to work beneath dialogue and voiceover without competing. What makes this unusual within the Recover mode is the Balance score: it holds emotional complexity without becoming heavy or punishing. That makes it more commercially flexible than most deep-Recover tracks. Hold it back from sport, action, and product-launch contexts — its gravity will read as deflation in those placements.",
     signature:
       "A song that arrives after the hard part. Carries weight without punishment.",
     placements: [
@@ -320,7 +320,7 @@ export const reports: Record<string, ReportPayload> = {
       call: "Pitch now",
       confidence: "High",
       rationale:
-        "Balance at top 5%, Flow at top 10%. Sophisticated Flow positioning with strong premium-brand brief alignment. Active demand in tech and fashion verticals.",
+        "Balance and Flow both sit high — sophisticated Flow positioning that suits premium-brand, tech and fashion moments.",
     },
     chrp_scores: [
       { name: "Focus", score: 78, rank: "Top 17%", rank_class: "high", anchor: "sustained attention" },
@@ -335,7 +335,7 @@ export const reports: Record<string, ReportPayload> = {
       { name: "Rest", score: 44, rank: "Btm 44%", rank_class: "low", anchor: "not for wind-down" },
     ],
     rhodes:
-      "A Flow-mode track with unusually high structural balance and a refined sense of rhythmic self-possession. Balance at top 5%, Flow at top 10% — this song moves without rushing. It creates momentum through patience rather than propulsion. Lead with premium lifestyle brand films, tech product launches, and fashion editorial where the music is asked to carry cool without broadcasting it. The neo-soul arrangement sits outside genre clichés, extending its commercial range. The mid-range Motivation is intentional: this is not a performance anthem, it is ambient intelligence — it makes the room smarter without making it louder. Hold it back from athletic and action contexts where its subtle authority will read as passivity.",
+      "A Flow-mode track with unusually high structural balance and a refined sense of rhythmic self-possession. Balance and Flow both sit high — this song moves without rushing. It creates momentum through patience rather than propulsion. Lead with premium lifestyle brand films, tech product launches, and fashion editorial where the music is asked to carry cool without broadcasting it. The neo-soul arrangement sits outside genre clichés, extending its commercial range. The mid-range Motivation is intentional: this is not a performance anthem, it is ambient intelligence — it makes the room smarter without making it louder. Hold it back from athletic and action contexts where its subtle authority will read as passivity.",
     signature:
       "Moves without announcing itself. Built for the room that already knows.",
     placements: [
@@ -398,7 +398,7 @@ export const reports: Record<string, ReportPayload> = {
       call: "Pitch now",
       confidence: "High",
       rationale:
-        "Motivation top 8% with mid-range Calm — social-energy Ready with fashion and beauty access. Active demand in fashion-week and lifestyle verticals. Pitch now.",
+        "High Motivation with mid-range Calm — social-energy Ready with fashion and beauty access. Suited to fashion-week and lifestyle moments. Pitch now.",
     },
     chrp_scores: [
       { name: "Focus", score: 74, rank: "Top 21%", rank_class: "high", anchor: "directional attention" },
@@ -413,7 +413,7 @@ export const reports: Record<string, ReportPayload> = {
       { name: "Rest", score: 18, rank: "Btm 11%", rank_class: "low", anchor: "not for wind-down" },
     ],
     rhodes:
-      "A Ready-mode track with strong Motivation and a higher Calm than most in its mode — which is the distinguishing commercial feature. At Motivation top 8% and Calm mid-range, this is not an apex-performance anthem; it is a social-energy track. The difference matters for placement. Where extreme-Ready tracks are built for competition, this is built for the first hour of a night that hasn't peaked yet. Lead with fashion-week content, club-culture brand campaigns, and summer-season retail activation. The contemporary synth architecture gives it commercial longevity that harder-edged Ready tracks lack. The mid-range Calm specifically opens doors in beauty and fragrance campaigns that avoid low-Calm aggression. This is versatile Ready, not singular Ready.",
+      "A Ready-mode track with strong Motivation and a higher Calm than most in its mode — which is the distinguishing commercial feature. With Motivation high and Calm mid-range, this is not an apex-performance anthem; it is a social-energy track. The difference matters for placement. Where extreme-Ready tracks are built for competition, this is built for the first hour of a night that hasn't peaked yet. Lead with fashion-week content, club-culture brand campaigns, and summer-season retail activation. The contemporary synth architecture gives it commercial longevity that harder-edged Ready tracks lack. The mid-range Calm specifically opens doors in beauty and fragrance campaigns that avoid low-Calm aggression. This is versatile Ready, not singular Ready.",
     signature:
       "Social-energy Ready mode. Built for the night, not the competition.",
     placements: [
@@ -476,7 +476,7 @@ export const reports: Record<string, ReportPayload> = {
       call: "Develop",
       confidence: "Moderate",
       rationale:
-        "Strong Focus and Flow scores with cinematic quality. Mid-Motivation limits active brief matches. Pair with a higher-Motivation track on pitches. Develop the catalog before leading with this one.",
+        "Strong Focus and Flow scores with cinematic quality. Mid-Motivation narrows the range of moments it fits. Pair with a higher-Motivation track on pitches. Develop the catalog before leading with this one.",
     },
     chrp_scores: [
       { name: "Focus", score: 86, rank: "Top 9%", rank_class: "high", anchor: "sustained deep attention" },
@@ -491,7 +491,7 @@ export const reports: Record<string, ReportPayload> = {
       { name: "Rest", score: 56, rank: "Top 42%", rank_class: "mid", anchor: "light rest contexts" },
     ],
     rhodes:
-      "A Flow-mode track with exceptional Focus and a cinematic quality that separates it from standard grooves in the mode. Focus at top 9%, Flow at top 8%, with Motivation at mid-range — this is a song with inner stillness rather than outward energy. The result is a track that creates an atmosphere rather than a feeling, which is a specific and valuable commercial quality. Lead with nature documentary, luxury automotive, and architecture brand films where the music must sustain a visual world without directing it. The verdict here is Develop rather than Pitch now: the EPI score is strong but mid-Motivation limits active brief categories. Pair with a higher-Motivation track on pitches to supervisors who need both atmosphere and forward movement. The track earns its placement when it has context alongside it.",
+      "A Flow-mode track with exceptional Focus and a cinematic quality that separates it from standard grooves in the mode. Focus and Flow both high, with Motivation at mid-range — this is a song with inner stillness rather than outward energy. The result is a track that creates an atmosphere rather than a feeling, which is a specific and valuable commercial quality. Lead with nature documentary, luxury automotive, and architecture brand films where the music must sustain a visual world without directing it. The verdict here is Develop rather than Pitch now: the EPI score is strong but mid-Motivation narrows the moments it fits. Pair with a higher-Motivation track on pitches to supervisors who need both atmosphere and forward movement. The track earns its placement when it has context alongside it.",
     signature:
       "Cinematic stillness at high resolution. Builds an atmosphere rather than a feeling.",
     placements: [

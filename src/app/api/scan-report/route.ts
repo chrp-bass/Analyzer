@@ -4,7 +4,7 @@ import { getReportById } from "@/lib/fixtures/tracks";
 import { payloadToTrackData } from "@/lib/data-source";
 import {
   generateReport,
-  generateRhodesReading,
+  generateChrpReading,
 } from "@/lib/prompts/report";
 
 export const runtime = "nodejs";
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   try {
     const trackData = payloadToTrackData(fixture);
     const sections = await generateReport(trackData);
-    const rhodes = await generateRhodesReading(
+    const rhodes = await generateChrpReading(
       trackData,
       JSON.stringify(sections, null, 2),
     );

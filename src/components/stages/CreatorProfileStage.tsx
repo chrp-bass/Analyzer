@@ -487,18 +487,16 @@ function CatalogComparableSection({
           <div className="font-display font-bold text-[28px] md:text-[32px] leading-none mt-1 text-chrp-black">
             {comparable.artist}
           </div>
-          <div className="font-sans text-[11px] text-ink-soft mt-2">
-            Market demand{" "}
-            <span className="font-bold text-chrp-black">{comparable.demand}</span>
-          </div>
+          {/* The market-demand readout is removed. Demand level and vertical
+              are not signals the product can currently source, so stating them
+              would be an unsupported claim. The comparison stays descriptive:
+              it names an emotional territory, not a market position. */}
         </div>
         <p className="font-sans text-[12.5px] text-ink-soft leading-[1.55] max-w-[60ch]">
-          {comparable.artist}&rsquo;s catalog has historically performed in{" "}
-          <span className="text-chrp-black">{comparable.placements}</span>. The
-          live market currently shows{" "}
-          <span className="text-chrp-black">{comparable.demand}</span> demand in{" "}
-          <span className="text-chrp-black">{comparable.vertical}</span>. Your
-          catalog is positioned to compete in that lane.
+          {comparable.artist}&rsquo;s catalog sits in{" "}
+          <span className="text-chrp-black">{comparable.placements}</span>. Your
+          catalog keeps returning to the same emotional territory, which makes
+          that a useful reference point when you describe the work.
         </p>
       </div>
     </section>

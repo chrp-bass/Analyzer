@@ -999,6 +999,36 @@ em { font-style: italic; }
   .si-instrument { position: static; width: 86%; margin: 22px auto 0; }
 }
 
+/* Thumb-first at 390. The scan field is reachable before any argument, so it
+ * stacks to full width rather than sharing a row with the action and being
+ * squeezed to half a line of placeholder. The header CTA stays one tap away
+ * for the rest of the scroll. */
+@media (max-width: 560px) {
+  .si-nav .wrap { gap: 10px; }
+  .si-nav nav { gap: 12px; }
+  .si-nav nav a { font-size: 0.72rem; white-space: nowrap; }
+  .si-nav-cta {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .logo, .logo img { height: 20px; }
+
+  .si-search-row { flex-direction: column; align-items: stretch; }
+  .si-search-row input { min-height: 56px; width: 100%; }
+  .si-search-go {
+    width: 100%;
+    min-height: 56px;
+    border-top: 1px solid rgba(251, 251, 244, 0.3);
+  }
+
+  .si-cols3, .si-stages, .si-tiers, .si-reveal-grid { gap: clamp(22px, 6vw, 34px); }
+  .si-col-bottom { align-items: flex-start; }
+  .si-move { padding-right: 0; }
+}
+
 /* Footer */
 .foot {
   background: var(--ink);
@@ -1420,4 +1450,403 @@ em { font-style: italic; }
   background: var(--chrp-white);
   border: 1.5px solid rgba(15, 14, 14, 0.20);
   color: var(--chrp-black);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * FREE REVEAL + HONEST BOUNDARY — locked design (Deliverables 07 / 08).
+ *
+ * The reveal is a place, not a transition: it has its own ground, it holds,
+ * and nothing auto-advances off it. It renders on ink even though the scan
+ * flow around it is a light product surface, so colours here are stated
+ * explicitly rather than inherited from the .product-shell scope.
+ *
+ * The boundary is drawn as two lists. There is no blur treatment in this
+ * file on purpose — paid sections are named, never rendered-then-obscured.
+ * ───────────────────────────────────────────────────────────────────── */
+.rv,
+.rv-boundary {
+  /* The reveal lives inside .product-shell (a light surface) but renders on
+   * ink, so the dark-theme polygon + text tokens are restored here rather
+   * than inherited. Without this the radar draws dark strokes on dark. */
+  --on-dark:            #EFEAE0;
+  --on-dark-2:          #A29C92;
+  --line-dark:          rgba(239, 234, 224, 0.13);
+  --polygon-stroke:     rgba(240, 237, 230, 0.30);
+  --polygon-axis:       rgba(240, 237, 230, 0.10);
+  --polygon-ring:       rgba(240, 237, 230, 0.16);
+  --polygon-ring-outer: rgba(240, 237, 230, 0.28);
+  --polygon-label:      var(--on-dark-2);
+  --polygon-text:       var(--on-dark);
+
+  /* .product-shell draws the radar for cream paper: mode strokes become ink.
+   * On the reveal's ink ground that renders the polygon black-on-black, so
+   * the per-mode strokes are restored to their light-on-dark values too. */
+  --mode-ready-fill:      rgba(230, 215, 79, 0.42);
+  --mode-ready-stroke:    rgba(230, 215, 79, 0.78);
+  --mode-flow-fill:       rgba(64, 107, 214, 0.40);
+  --mode-flow-stroke:     rgba(100, 140, 230, 0.80);
+  --mode-recharge-fill:   rgba(190, 226, 168, 0.38);
+  --mode-recharge-stroke: rgba(190, 226, 168, 0.78);
+  --mode-recover-fill:    rgba(138, 58, 110, 0.40);
+  --mode-recover-stroke:  rgba(175, 100, 155, 0.78);
+}
+.rv {
+  background: var(--ink);
+  color: var(--paper);
+  padding: clamp(36px, 5vw, 72px) clamp(20px, 5vw, 56px) clamp(44px, 6vw, 88px);
+}
+.rv-inner { max-width: 1080px; margin: 0 auto; }
+.rv-kicker {
+  margin: 0 0 12px;
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+.rv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: clamp(28px, 4vw, 68px);
+  align-items: start;
+}
+.rv-instrument { display: flex; flex-direction: column; align-items: center; }
+.rv-mode {
+  margin-top: 18px;
+  padding: 9px 18px;
+  background: var(--yellow);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+.rv-artwork {
+  width: clamp(64px, 7vw, 88px);
+  height: clamp(64px, 7vw, 88px);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(251, 251, 244, 0.3);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.54rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(251, 251, 244, 0.45);
+  overflow: hidden;
+}
+.rv-artwork img { width: 100%; height: 100%; object-fit: cover; }
+.rv-idrow { display: flex; gap: 16px; align-items: center; }
+.rv-title {
+  margin: 0;
+  font-family: var(--d);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 3.4vw, 2.9rem);
+  line-height: 1.06;
+  color: var(--paper);
+}
+.rv-artist {
+  margin: 6px 0 0;
+  font-family: var(--d);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(1.05rem, 1.5vw, 1.3rem);
+  color: rgba(251, 251, 244, 0.66);
+}
+.rv-axes { margin: clamp(24px, 3vw, 38px) 0 0; display: flex; flex-direction: column; }
+.rv-axis {
+  display: grid;
+  grid-template-columns: 96px 1fr 46px;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(251, 251, 244, 0.16);
+}
+.rv-axis-name { margin: 0; font-family: var(--s); font-weight: 700; font-size: 0.88rem; }
+.rv-axis-track { height: 6px; background: rgba(251, 251, 244, 0.14); }
+.rv-axis-fill { height: 100%; display: block; }
+.rv-axis-score {
+  margin: 0;
+  text-align: right;
+  font-family: var(--d);
+  font-weight: 400;
+  font-size: 1.15rem;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.rv-signature {
+  margin: clamp(24px, 3vw, 38px) 0 0;
+  max-width: 38ch;
+  padding-left: clamp(16px, 2vw, 22px);
+  border-left: 4px solid var(--yellow);
+  font-family: var(--d);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  line-height: 1.18;
+  color: var(--paper);
+  text-wrap: pretty;
+}
+.rv-actions {
+  margin: clamp(26px, 3.2vw, 42px) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+.rv-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  padding: 0 26px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  border: 0;
+  cursor: pointer;
+}
+.rv-save {
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: rgba(251, 251, 244, 0.72);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(251, 251, 244, 0.4);
+  padding: 0 0 2px;
+  cursor: pointer;
+}
+.rv-save:hover { color: var(--paper); }
+.rv-keep {
+  margin: 16px 0 0;
+  max-width: 46ch;
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(251, 251, 244, 0.6);
+}
+.rv-transition {
+  margin: clamp(30px, 4vw, 56px) 0 0;
+  padding-top: clamp(18px, 2.2vw, 26px);
+  border-top: 1px solid rgba(251, 251, 244, 0.16);
+  max-width: 64ch;
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+  line-height: 1.2;
+  color: var(--paper);
+  text-wrap: pretty;
+}
+
+/* Inline save-the-reveal form — email + magic link, never a password. */
+.rv-saveform {
+  margin: 18px 0 0;
+  max-width: 420px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rv-saveform input {
+  flex: 1;
+  min-width: 200px;
+  min-height: 46px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid rgba(251, 251, 244, 0.3);
+  border-radius: 0;
+  color: var(--paper);
+  font-family: var(--s);
+  font-size: 0.94rem;
+}
+.rv-saveform input::placeholder { color: rgba(251, 251, 244, 0.4); }
+.rv-saveform button {
+  min-height: 46px;
+  padding: 0 18px;
+  background: transparent;
+  border: 1px solid var(--yellow);
+  color: var(--yellow);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rv-saveform button:disabled { opacity: 0.5; cursor: not-allowed; }
+.rv-note {
+  margin: 12px 0 0;
+  font-family: var(--s);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: rgba(251, 251, 244, 0.6);
+}
+
+/* ── The boundary ───────────────────────────────────────────────────── */
+.rv-boundary { padding: clamp(40px, 6vw, 88px) clamp(20px, 5vw, 56px); background: var(--ink); }
+.rv-boundary h2 {
+  margin: 0;
+  max-width: 22ch;
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  line-height: 1.06;
+  color: var(--paper);
+  text-wrap: pretty;
+}
+.rv-boundary-lede {
+  margin: clamp(18px, 2.2vw, 28px) 0 0;
+  max-width: 62ch;
+  font-family: var(--s);
+  font-size: clamp(1rem, 1.1vw, 1.08rem);
+  line-height: 1.5;
+  color: rgba(251, 251, 244, 0.8);
+}
+.rv-cols {
+  margin: clamp(30px, 4vw, 60px) 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 0;
+}
+.rv-have {
+  padding: clamp(24px, 3vw, 40px);
+  outline: 1px solid rgba(251, 251, 244, 0.2);
+  background: var(--ink);
+}
+.rv-have-head {
+  margin: 0 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--yellow);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+.rv-have p {
+  margin: 0;
+  padding: 9px 0;
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  color: var(--paper);
+}
+.rv-have .rv-have-foot {
+  margin: 20px 0 0;
+  max-width: 36ch;
+  font-weight: 400;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: rgba(251, 251, 244, 0.6);
+}
+.rv-adds {
+  padding: clamp(24px, 3vw, 40px);
+  outline: 1px solid rgba(251, 251, 244, 0.2);
+  background: var(--paper);
+  color: var(--ink);
+}
+.rv-adds-head {
+  margin: 0 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(15, 14, 14, 0.4);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(15, 14, 14, 0.7);
+}
+.rv-add { padding: 10px 0; border-bottom: 1px solid rgba(15, 14, 14, 0.12); }
+.rv-add-n {
+  margin: 0;
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: rgba(15, 14, 14, 0.45);
+}
+.rv-add-title {
+  margin: 3px 0 0;
+  font-family: var(--d);
+  font-weight: 400;
+  font-size: clamp(1.15rem, 1.6vw, 1.35rem);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.rv-price {
+  margin-top: clamp(22px, 2.6vw, 32px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: baseline;
+}
+.rv-price p:first-child {
+  margin: 0;
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(2.4rem, 4vw, 3.2rem);
+  line-height: 1;
+  color: var(--ink);
+}
+.rv-price p:last-child {
+  margin: 0;
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: rgba(15, 14, 14, 0.7);
+}
+.rv-buy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 60px;
+  margin-top: 16px;
+  background: var(--yellow);
+  border: 0;
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+}
+.rv-buy-alt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 10px;
+  background: transparent;
+  border: 2px solid var(--ink);
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 0.76rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+}
+.rv-terms {
+  margin: 16px 0 0;
+  font-family: var(--s);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: rgba(15, 14, 14, 0.6);
+}
+
+@media (max-width: 560px) {
+  .rv-axis { grid-template-columns: 78px 1fr 38px; gap: 10px; }
+  .rv-idrow { gap: 12px; }
 }

@@ -117,16 +117,16 @@ function modeVersatilityCallout(
     return `Your catalog commits to a single mode. This is rare consistency. ${dominantMode}-only artists develop dedicated supervisor relationships and own their lane decisively.`;
   }
   if (dominantPct >= 50 && dominantMode) {
-    return `Your catalog has a dominant mode — ${dominantMode} leads at ${dominantPct}% — with deliberate range around it. This combination of signature and versatility is commercially strong: supervisors learn your sound while knowing you can adapt to brief.`;
+    return `Your catalog has a dominant mode — ${dominantMode} leads at ${dominantPct}% — with deliberate range around it. This combination of signature and versatility is commercially strong: the work is recognisable without being narrow.`;
   }
   if (modesPresent >= 4) {
-    return "Your catalog spans 4 distinct modes. Top 8% versatility across the CHRP corpus. Multi-mode artists place broader than single-mode performers and serve a wider range of active briefs.";
+    return "Your catalog spans all four modes. That is unusual range. Multi-mode catalogs support a wider spread of moments than single-mode ones.";
   }
   if (modesPresent === 3) {
-    return "Your catalog spans 3 distinct modes. Top 18% versatility across the CHRP corpus. Multi-mode artists place broader than single-mode performers and serve a wider range of active briefs.";
+    return "Your catalog spans 3 distinct modes. Multi-mode catalogs support a wider spread of moments than single-mode ones.";
   }
   if (modesPresent === 2) {
-    return "Your catalog spans 2 distinct modes. Multi-mode artists place broader than single-mode performers and serve a wider range of active briefs.";
+    return "Your catalog spans 2 distinct modes. Multi-mode catalogs support a wider spread of moments than single-mode ones.";
   }
   return "Your catalog is still emerging. Scan a wider range of tracks to position across modes.";
 }
@@ -156,7 +156,7 @@ function getPolygonFor(scan: ScanRecordOnAccount) {
 
 function crossTrackObservation(scans: ScanRecordOnAccount[]): string {
   if (scans.length < 2) {
-    return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this in pitches: you adapt to brief, you don't force one sound onto every placement.";
+    return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this when you describe the work: the range is deliberate, not unfocused.";
   }
   let closestPair: [number, number] | null = null;
   let closestDist = Infinity;
@@ -179,7 +179,7 @@ function crossTrackObservation(scans: ScanRecordOnAccount[]): string {
     const b = getReportById(scans[j].trackSlug)!.track.title;
     return `${a} and ${b} share an unusually tight signature — your strongest cross-pitchable pair. These two work as a package for supervisors who need consistency across two cues in the same scene or campaign.`;
   }
-  return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this in pitches: you adapt to brief, you don't force one sound onto every placement.";
+  return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this when you describe the work: the range is deliberate, not unfocused.";
 }
 
 function catalogVsCorpusCallout(averages: {
@@ -288,7 +288,7 @@ function crossTrackForMulti(scans: ScanRecordOnAccount[]): string {
 }
 
 function multiModeRangeCopy(): string {
-  return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this in pitches: you adapt to brief, you don't force one sound onto every placement.";
+  return "Your catalog shows intentional emotional range rather than clustering. This breadth is a working artist's signature — deliberate variety across releases rather than one repeating pattern. Lean into this when you describe the work: the range is deliberate, not unfocused.";
 }
 
 export function getCatalogIntelligence(

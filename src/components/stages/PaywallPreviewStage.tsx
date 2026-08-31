@@ -58,12 +58,6 @@ export function PaywallPreviewStage({
             </span>
           </div>
 
-          <div className="mt-3 font-sans text-[11px] text-ink-soft">
-            <span className="font-bold text-kelly-green">
-              {report.epi.rank_in_mode}
-            </span>{" "}
-            of catalog in {report.epi.mode} mode
-          </div>
         </div>
       </div>
     </div>

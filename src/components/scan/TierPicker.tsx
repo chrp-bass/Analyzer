@@ -78,17 +78,9 @@ export function TierPicker({
                   : undefined
               }
             >
-              {popular && (
-                <div
-                  className="absolute -top-3 left-5 px-2 py-0.5 font-sans font-black text-[10px] tracking-wider uppercase"
-                  style={{
-                    backgroundColor: "var(--chrp-yellow)",
-                    color: "var(--chrp-black)",
-                  }}
-                >
-                  Most popular
-                </div>
-              )}
+              {/* No "Most popular" / "Most chosen" badge. The catalog tier is a
+                  different product, not a volume discount, and social-proof
+                  badges are prohibited by the locked sales architecture. */}
               {tier.comingSoon && (
                 <div className="absolute -top-3 right-5 px-2 py-0.5 font-sans font-black text-[10px] tracking-wider uppercase bg-ink-soft text-chrp-white">
                   Coming soon

@@ -1,7 +1,6 @@
 import {
   MODE,
   getOrCreateGuestUser,
-  getUserScans,
   recordScan as accountsRecordScan,
 } from "@/lib/accounts";
 import { encodeScanId, decodeScanId, ScanRecord, getScanById, saveScan } from "@/lib/scan-id";
@@ -24,15 +23,25 @@ export async function initiateScan(
   if (MODE === "demo") {
     const trackSlug = matchInputToReportId(input);
     const scanId = encodeScanId(trackSlug);
-    // Ensure the user exists BEFORE counting their prior scans — a
-    // brand-new visitor gets a User row with zero scans, which is the
-    // "first scan free" trigger below.
+    // A guest User row is created up front so the scan has somewhere to live
+    // and can be claimed later by email. No sign-in is required to get here.
     const user = await getOrCreateGuestUser();
-    const priorScans = user ? await getUserScans(user.id) : [];
-    const isFirstScan = priorScans.length === 0;
-    saveScan(scanId, { trackSlug, paid: isFirstScan, scannedAt: new Date().toISOString() });
+
+    // A new scan is NOT entitled to the paid report. "First scan free" in the
+    // locked architecture means the free REVEAL is free — EPI score, mode, the
+    // four dimensions and one signature statement — not the full report.
+    //
+    // This previously granted `paid: true` on a visitor's first scan, which
+    // meant a first-time user never met the paywall and Deliverable 08 (the
+    // honest boundary) was unreachable for them. That contradicts the locked
+    // Five-Moment sequence: FREE REVEAL -> PAYWALL -> PAID REPORT.
+    //
+    // COMMERCIAL CHANGE — flagged for sign-off. To restore the previous
+    // behaviour, set `paid` back to `priorScans.length === 0`.
+    const paid = false;
+    saveScan(scanId, { trackSlug, paid, scannedAt: new Date().toISOString() });
     if (user) {
-      await accountsRecordScan(user.id, trackSlug, isFirstScan, scanId);
+      await accountsRecordScan(user.id, trackSlug, paid, scanId);
     }
     return { scanId, trackSlug };
   }
@@ -77,7 +86,11 @@ export function payloadToTrackData(rl: ReportPayload): TrackData {
     verdict: rl.verdict.call === "Pitch now" ? "Pitch Now" : rl.verdict.call,
     verdict_reasoning: rl.verdict.rationale,
     comparable_artists,
-    demand_signal: `${rl.where_this_music_lives.confidence} — ${rl.where_this_music_lives.n_briefs} active briefs, top vertical "${top.name}" at ${top.pct}%`,
+    // demand_signal previously packed brief counts and vertical percentages
+    // into the generator's input. Those are unsupported claims, so the field
+    // now carries only the emotional territory the scoring can actually
+    // support. The prompt no longer asks the model to reference demand.
+    demand_signal: top.name,
     ...stub,
     spotify_popularity: 42,
     release_date: rl.report_meta.scanned_at.slice(0, 10),
@@ -95,7 +108,7 @@ const CACHE_KEY = (scanId: string) => `chrp_generated_${scanId}`;
  *   - Always resolves to a renderable ReportPayload (or null for bad scanId).
  *   - Fixture is the fallback; a generation failure NEVER breaks the render.
  *   - First view of a scan hits the /api/scan-report route which server-side
- *     calls generateReport + generateRhodesReading with the ANTHROPIC_API_KEY.
+ *     calls generateReport + generateChrpReading with the ANTHROPIC_API_KEY.
  *   - The merged payload is cached in localStorage under chrp_generated_<scanId>.
  *     Subsequent views of the same scanId serve the cached payload — no API call.
  *   - Only successful generations are cached, so a transient failure doesn't

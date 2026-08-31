@@ -4,33 +4,71 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ReportPayload, MODE_COLORS } from "@/lib/fixtures/tracks";
+import { ReportPayload } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
-import {
-  HeaderBand,
-  HeroTitleBlock,
-  PitchVerdictBlock,
-  ScoresGrid,
-  RhodesSection,
-  SignatureSection,
-  BuiltForSection,
-  ThroughComp,
-  WhereLives,
-  CreatorBand,
-  Footer,
-} from "@/components/ReportPage";
+import { ReportBody } from "@/components/ReportPage";
 import { getScanById } from "@/lib/scan-id";
 import {
   getCurrentUser,
   getUserCredits,
-  getUserScans,
   consumeCatalogCredit,
   markScanPaid,
   recordScan,
+  setUserEmail,
+  signInByEmail,
 } from "@/lib/accounts";
+import { sendMagicLink } from "@/lib/email";
 
-type Status = "checking" | "paywall" | "unlocking" | "unlocked";
+type Status = "checking" | "reveal" | "unlocking" | "unlocked";
+
+/** Canonical EPI axis order. The payload stores them unordered. */
+const AXIS_ORDER = ["Focus", "Calm", "Motivation", "Balance"] as const;
+
+const AXIS_COLOR: Record<string, string> = {
+  Focus: "#7A9FE8",
+  Calm: "#A8D990",
+  Motivation: "#E6D74F",
+  Balance: "#C990B8",
+};
+
+/**
+ * The paid movements, named — never rendered — before entitlement.
+ *
+ * This list must stay in lockstep with what ReportBody actually ships: the
+ * boundary is only honest if every line here is a section the customer
+ * receives. "Positioning language" from the approved hierarchy has no backing
+ * output in the engine yet, so it is not promised here.
+ */
+const PAID_HIERARCHY = [
+  { n: "01", title: "Emotional signature, in full" },
+  { n: "—", title: "The CHRP reading" },
+  { n: "02", title: "EPI profile" },
+  { n: "03", title: "What it’s built for" },
+  { n: "04", title: "Pitch throughline" },
+  { n: "05", title: "Comparable context" },
+];
+
+const FREE_ITEMS = [
+  "EPI Score",
+  "Primary mode",
+  "Focus, Calm, Motivation, Balance",
+  "Your four-dimension EPI position",
+  "One emotional-signature statement",
+];
+
+/**
+ * The free reveal's one-line signature statement.
+ *
+ * The full signature is paid ("Emotional signature, in full"). The free tier
+ * gets one concise statement, so this takes the first sentence of the real
+ * generated signature rather than inventing a second string. No new
+ * intelligence is created here — it is the same output, truncated honestly.
+ */
+function firstStatement(signature: string): string {
+  const m = signature.match(/^[^.!?]*[.!?]/);
+  return (m ? m[0] : signature).trim();
+}
 
 export function ScanPreview({
   report,
@@ -47,24 +85,12 @@ export function ScanPreview({
 
   const [status, setStatus] = useState<Status>("checking");
   const [showBanner, setShowBanner] = useState(false);
-  // firstScanCta: user reached this preview via the free-first-scan path
-  // (paid=true AND their user has exactly one scan on record). Anyone who
-  // paid, consumed a catalog credit, or has scanned more than once has
-  // already converted — no CTA for them.
-  const [firstScanCta, setFirstScanCta] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const scan = getScanById(scanId);
       if (scan?.paid) {
-        const user = await getCurrentUser();
-        if (user) {
-          const scans = await getUserScans(user.id);
-          if (!cancelled && scans.length === 1 && !justPaid) {
-            setFirstScanCta(true);
-          }
-        }
         if (!cancelled) {
           if (justPaid) {
             setStatus("unlocking");
@@ -98,23 +124,26 @@ export function ScanPreview({
           return;
         }
       }
-      if (!cancelled) setStatus("paywall");
+      if (!cancelled) setStatus("reveal");
     })();
     return () => {
       cancelled = true;
     };
   }, [scanId, trackSlug, justPaid]);
 
-  const unpaid = status === "paywall";
-  // While "unlocking" we keep the blur applied for one frame, then drop it -
-  // the CSS transition on filter animates the unblur.
-  const blurApplied = status === "checking" || status === "paywall" || status === "unlocking";
+  // Nothing renders until entitlement is known. The reveal and the report are
+  // separate screens: paid sections are never mounted-then-hidden, so no paid
+  // text reaches the DOM before unlock.
+  if (status === "checking") return <div style={{ minHeight: "70vh" }} aria-hidden />;
 
-  const gatedStyle: React.CSSProperties = {
-    filter: blurApplied ? "blur(8px) opacity(0.3)" : "blur(0px) opacity(1)",
-    transition: "filter 800ms ease",
-    pointerEvents: blurApplied ? "none" : "auto",
-  };
+  if (status === "reveal") {
+    return (
+      <>
+        <FreeReveal report={report} scanId={scanId} />
+        <Boundary scanId={scanId} />
+      </>
+    );
+  }
 
   return (
     <div className="relative">
@@ -153,68 +182,291 @@ export function ScanPreview({
         )}
       </AnimatePresence>
 
-      <article className="chrp-report px-6 md:px-10 lg:px-14 py-8 md:py-12 max-w-[920px] mx-auto w-full">
-        <HeaderBand
-          id={report.report_meta.id}
-          version={report.report_meta.version}
-        />
-
-        <VisibleTop report={report} />
-
-        <ScoresGrid report={report} />
-
-        <div className="relative mt-12">
-          <div style={gatedStyle}>
-            <PitchVerdictBlock report={report} />
-            <RhodesSection text={report.rhodes} />
-            <SignatureSection text={report.signature} />
-            <BuiltForSection placements={report.placements} />
-            <ThroughComp report={report} />
-            <WhereLives lives={report.where_this_music_lives} />
-            <CreatorBand creator={report.creator} />
-            <Footer id={report.report_meta.id} reportId={scanId} />
-          </div>
-
-          <AnimatePresence>
-            {unpaid && (
-              <motion.div
-                key="paywall"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.3 }}
-                className="absolute inset-x-0 top-0 flex items-start justify-center pt-6 md:pt-12 px-3 md:px-6"
-              >
-                <PaywallCard scanId={scanId} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </article>
-
-      {firstScanCta && status === "unlocked" && (
-        <FirstScanCta scanId={scanId} />
-      )}
+      <ReportBody report={report} id={scanId} />
+      <CatalogClose scanId={scanId} />
     </div>
   );
 }
 
-function FirstScanCta({ scanId }: { scanId: string }) {
+// ─── The free reveal ─────────────────────────────────────────────────────────
+/**
+ * Deliverable 07. The reveal is a place: it has its own URL, a save action
+ * and no timer. Nothing auto-advances off it, and nothing here asked the
+ * visitor to sign in to get this far.
+ */
+function FreeReveal({
+  report,
+  scanId,
+}: {
+  report: ReportPayload;
+  scanId: string;
+}) {
+  const byName = new Map(report.chrp_scores.map((r) => [r.name, r]));
+  const axes = AXIS_ORDER.map((name) => ({
+    name,
+    score: byName.get(name)?.score ?? 0,
+  }));
+
+  return (
+    <section className="rv">
+      <div className="rv-inner">
+        <div className="rv-grid">
+          <div className="rv-instrument">
+            {/* Settled, not re-animating. The ten-second draw-in belongs to the
+                processing screen; by the time the reveal lands the shape is
+                the artifact, and it holds. */}
+            <PolygonRadar
+              vertices={polygonFromChrpScores(report.chrp_scores)}
+              mode={report.epi.mode}
+              epiScore={report.epi.score}
+              size={300}
+            />
+            <div className="rv-mode">
+              <p style={{ margin: 0 }}>{report.epi.mode} mode</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="rv-kicker">Your song&rsquo;s emotional signature</p>
+            <div className="rv-idrow">
+              <div className="rv-artwork" aria-hidden>
+                Artwork
+              </div>
+              <div>
+                <p className="rv-title">{report.track.title}</p>
+                <p className="rv-artist">by {report.track.artist}</p>
+              </div>
+            </div>
+
+            <div className="rv-axes">
+              {axes.map((a) => (
+                <div key={a.name} className="rv-axis">
+                  <p
+                    className="rv-axis-name"
+                    style={{ color: AXIS_COLOR[a.name] }}
+                  >
+                    {a.name}
+                  </p>
+                  <span className="rv-axis-track">
+                    <span
+                      className="rv-axis-fill"
+                      style={{
+                        width: `${a.score}%`,
+                        background: AXIS_COLOR[a.name],
+                      }}
+                    />
+                  </span>
+                  <p className="rv-axis-score">{a.score}</p>
+                </div>
+              ))}
+            </div>
+
+            <p className="rv-signature">{firstStatement(report.signature)}</p>
+
+            <RevealActions scanId={scanId} />
+          </div>
+        </div>
+
+        <p className="rv-transition">
+          That tells you what the song is doing. The full report tells you what
+          to do with it.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Primary unlock plus the quiet save path. Saving uses the existing
+ * magic-link infrastructure — an email address and a link, no password and
+ * no account setup step.
+ */
+function RevealActions({ scanId }: { scanId: string }) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    const trimmed = email.trim();
+    if (!trimmed.includes("@") || trimmed.length < 5) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const existing = await getCurrentUser();
+      if (existing) await setUserEmail(trimmed);
+      else await signInByEmail(trimmed);
+      await sendMagicLink(trimmed);
+      setSent(true);
+    } catch (err) {
+      console.error(err);
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="rv-actions">
+        <button
+          type="button"
+          className="rv-cta"
+          onClick={() => router.push(`/scan/${scanId}/checkout`)}
+        >
+          Unlock the full Song Intelligence
+        </button>
+        {!saving && !sent && (
+          <button
+            type="button"
+            className="rv-save"
+            onClick={() => setSaving(true)}
+          >
+            Email me this reveal
+          </button>
+        )}
+      </div>
+
+      {saving && !sent && (
+        <form className="rv-saveform" onSubmit={save}>
+          <label htmlFor="rv-email" className="sr-only">
+            Email address
+          </label>
+          <input
+            id="rv-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@studio.com"
+            autoComplete="email"
+            autoFocus
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? "Sending…" : "Send"}
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <p className="rv-note" style={{ color: "#E58BB4" }} role="alert">
+          {error}
+        </p>
+      )}
+      {sent && (
+        <p className="rv-note" style={{ color: "var(--yellow)" }}>
+          Sent. The link brings you back to this reveal.
+        </p>
+      )}
+
+      <p className="rv-keep">
+        This screen is yours to keep. Nothing moves until you move it, and
+        nothing asked you to sign in to get here. Saving takes an email address
+        and a link &mdash; no password, no account setup.
+      </p>
+    </>
+  );
+}
+
+// ─── The boundary ────────────────────────────────────────────────────────────
+/**
+ * Deliverable 08. No blur, no teased fragments, nothing paid rendered behind
+ * a filter. The boundary is stated as a list: here is what you have, here is
+ * what you do not. Paid section contents are not present in this tree.
+ */
+function Boundary({ scanId }: { scanId: string }) {
+  const router = useRouter();
+  return (
+    <section className="rv-boundary">
+      <div className="rv-inner">
+        <h2>An honest boundary, drawn on purpose.</h2>
+        <p className="rv-boundary-lede">
+          No blur and no teased fragments. Here is what you already have, and
+          here is what the full report adds. The report is generated when you
+          unlock it.
+        </p>
+
+        <div className="rv-cols">
+          <div className="rv-have">
+            <p className="rv-have-head">You already have this</p>
+            {FREE_ITEMS.map((i) => (
+              <p key={i}>{i}</p>
+            ))}
+            <p className="rv-have-foot">
+              Free on your first scan, and it stays with your songs.
+            </p>
+          </div>
+
+          <div className="rv-adds">
+            <p className="rv-adds-head">The full report adds</p>
+            {PAID_HIERARCHY.map((h) => (
+              <div key={h.n} className="rv-add">
+                <p className="rv-add-n">{h.n}</p>
+                <p className="rv-add-title">{h.title}</p>
+              </div>
+            ))}
+
+            <div className="rv-price">
+              <p>$19</p>
+              <p>this song</p>
+            </div>
+            <button
+              type="button"
+              className="rv-buy"
+              onClick={() => router.push(`/scan/${scanId}/checkout`)}
+            >
+              Unlock this song
+            </button>
+            <button
+              type="button"
+              className="rv-buy-alt"
+              onClick={() => router.push(`/scan/${scanId}/tiers`)}
+            >
+              Understand your catalog &middot; $149
+            </button>
+            <p className="rv-terms">
+              Report access runs 60 days on a single song, 12 months on a
+              catalog.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Catalog close ───────────────────────────────────────────────────────────
+/**
+ * The catalog argument becomes the closing movement of the paid report
+ * rather than a thin band in the footer — by this point the artist has just
+ * read something useful and the argument writes itself.
+ */
+function CatalogClose({ scanId }: { scanId: string }) {
   return (
     <section className="bg-oat px-6 md:px-10 py-12 md:py-16 border-t border-rule">
       <div className="max-w-[720px] mx-auto text-center">
         <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
-          What&rsquo;s next
+          Understand the work
         </div>
-        <h2 className="mt-3 font-display font-bold text-[30px] md:text-[42px] leading-[1.05] text-chrp-black display-tight">
-          You&rsquo;ve seen what CHRP sees. Run your next track.
+        <h2 className="mt-3 font-display text-[30px] md:text-[42px] leading-[1.05] text-chrp-black display-tight">
+          One song tells you something. A catalog tells you who you are.
         </h2>
+        <p className="mt-4 font-sans text-[14px] leading-[1.6] text-ink-soft max-w-[52ch] mx-auto">
+          Each song you add changes what the others mean. Creator profile
+          unlocks at eight songs.
+        </p>
         <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
           <Link
             href="/scan"
             className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-3.5 text-center"
           >
-            Scan another track &mdash; $19
+            Scan another song
           </Link>
           <Link
             href={`/scan/${scanId}/checkout-tier?product=artist_catalog`}
@@ -224,155 +476,10 @@ function FirstScanCta({ scanId }: { scanId: string }) {
               color: "var(--chrp-black)",
             }}
           >
-            Unlock your catalog &mdash; $149 for 10 songs
+            Understand your catalog &mdash; $149
           </Link>
         </div>
       </div>
     </section>
-  );
-}
-
-function VisibleTop({ report }: { report: ReportPayload }) {
-  const chip = MODE_COLORS[report.epi.mode];
-  const vertices = polygonFromChrpScores(report.chrp_scores);
-  return (
-    <section className="mt-6 md:mt-8 flex flex-col items-center text-center">
-      <div className="self-start text-left md:self-auto md:text-center">
-        <HeroTitleBlock report={report} />
-      </div>
-      <div className="mt-6 md:mt-8">
-        <PolygonRadar
-          vertices={vertices}
-          mode={report.epi.mode}
-          epiScore={report.epi.score}
-          size={280}
-        />
-      </div>
-      <div
-        className="mt-4 px-3 py-1.5"
-        style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
-      >
-        <span className="font-sans font-bold text-[13px]">
-          {report.epi.mode} mode
-        </span>
-      </div>
-      <div className="mt-2 font-sans text-[11px] text-ink-soft">
-        <span className="font-bold text-kelly-green">
-          {report.epi.rank_in_mode}
-        </span>{" "}
-        of catalog in {report.epi.mode} mode
-      </div>
-    </section>
-  );
-}
-
-function PaywallCard({ scanId }: { scanId: string }) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-
-  function goSingle() {
-    const q = email ? `?email=${encodeURIComponent(email)}` : "";
-    router.push(`/scan/${scanId}/checkout${q}`);
-  }
-  function goCatalog() {
-    const q = email ? `?email=${encodeURIComponent(email)}` : "";
-    router.push(`/scan/${scanId}/tiers${q}`);
-  }
-
-  return (
-    <div className="w-full max-w-[540px] bg-chrp-white border border-rule shadow-[0_18px_60px_-12px_rgba(15,14,14,0.18)]">
-      <div className="px-5 md:px-7 py-6 md:py-7">
-        <h2 className="font-display font-bold text-[26px] md:text-[34px] leading-[1.05] text-chrp-black">
-          Unlock the interpretation.
-        </h2>
-        <p className="mt-2 font-sans text-[12.5px] md:text-[13.5px] leading-snug text-ink-soft">
-          Your fingerprint and scores are visible above. The pitch verdict,
-          Dr.&nbsp;Rhodes&rsquo; analysis, placement intelligence, throughline,
-          and where this music lives &mdash; that&rsquo;s what you&rsquo;re
-          unlocking.
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            onClick={goSingle}
-            className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-4 py-3"
-            style={{
-              backgroundColor: "var(--chrp-yellow)",
-              color: "var(--chrp-black)",
-            }}
-          >
-            Unlock this song &mdash; $19
-          </button>
-          <button
-            onClick={goCatalog}
-            className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-4 py-3"
-          >
-            Unlock your catalog &mdash; $149 for 10 songs
-          </button>
-        </div>
-
-        <p className="mt-3 font-sans text-[11.5px] leading-[1.5] text-ink-soft">
-          Single scan gives you this song&rsquo;s interpretation. Catalog scan
-          unlocks your creator profile &mdash; signature pattern, emotional
-          consistency, and reliability score across your body of work.
-        </p>
-
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <ExpressMethod label="Pay" />
-          <ExpressMethod label="G Pay" />
-          <ExpressMethod label="Link" />
-        </div>
-
-        <label className="mt-3 flex flex-col gap-1">
-          <span className="font-sans text-[10.5px] tracking-wider uppercase text-ink-soft">
-            Email for your receipt
-          </span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@studio.com"
-            className="font-sans text-[14px] text-chrp-black bg-chrp-white border border-rule px-3 py-2.5 focus:outline-none focus:border-chrp-black"
-          />
-        </label>
-
-        <div className="mt-4 hairline" />
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3 text-[10.5px] font-sans text-ink-soft">
-          <div className="flex items-center gap-3">
-            <Link href="/methodology" className="hover:text-chrp-black">
-              Methodology
-            </Link>
-            <span className="text-ink-light">·</span>
-            <Link
-              href="/?stage=unlocked"
-              className="hover:text-chrp-black"
-            >
-              Sample report
-            </Link>
-          </div>
-          <div className="text-ink-light">
-            Behavioral scoring only.
-          </div>
-        </div>
-        <p className="mt-2.5 font-sans text-[10px] text-ink-light leading-snug">
-          Demo checkout &mdash; no card data is captured. CHRP is a decision
-          tool, not a forecast. Reports compare against the CHRP corpus; market
-          conditions can shift.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ExpressMethod({ label }: { label: string }) {
-  return (
-    <div
-      aria-disabled
-      className="flex items-center justify-center px-3 py-2 border border-rule bg-chrp-white opacity-70 cursor-not-allowed"
-    >
-      <span className="font-sans font-bold text-[11px] tracking-wider uppercase text-ink-soft">
-        {label}
-      </span>
-    </div>
   );
 }
