@@ -49,6 +49,15 @@ export interface RecordAnalysisInput {
   epiScore?: number | null;
   mode?: string | null;
   verdict?: string | null;
+  /**
+   * The engine's grounded reading of its own verdict.
+   *
+   * The paid report renders this and the generator consumes it as an input.
+   * It is never defaulted or synthesised here: when the scoring pipeline has
+   * no grounded value, this stays null and `generatePaidSections` refuses,
+   * rather than the model authoring a claim the science never made.
+   */
+  verdictRationale?: string | null;
   scores?: unknown;
   circumplex?: unknown;
 }
@@ -141,6 +150,7 @@ export async function recordCompletedAnalysis(
         epi_score: input.epiScore ?? null,
         mode: input.mode ?? null,
         verdict: input.verdict ?? null,
+        verdict_rationale: input.verdictRationale ?? null,
         scores: input.scores ?? null,
         circumplex: input.circumplex ?? null,
         engine_version: input.engineVersion,
