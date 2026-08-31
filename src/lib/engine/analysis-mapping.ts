@@ -84,34 +84,67 @@ function displayTimestamp(d: Date): string {
 }
 
 /**
- * A one-line reading of what the scoring found.
- *
- * Every clause restates a measured value: the dominant dimension, the EPI
- * score, and the verdict the engine already reached from that score. It
- * introduces no market, demand, or placement claim.
+ * The dimension -> mode mapping the engine actually applies (MODE_FOR in
+ * scores.ts). Exported so the report prompt and the rationale describe the
+ * same model rather than two versions of it.
  */
-export function verdictRationale(payload: AnalyzePayload): string {
-  const { scores, epiScore, mode, verdict } = payload;
-  const entries: Array<[string, number]> = [
+export const DIMENSION_MODE: Record<string, string> = {
+  Focus: "Flow",
+  Motivation: "Ready",
+  Calm: "Recharge",
+  Balance: "Recover",
+};
+
+/** The engine's verdict thresholds, from verdictFor() in scores.ts. */
+export const VERDICT_THRESHOLDS = { pitchNow: 80, develop: 60 } as const;
+
+function dimensionEntries(
+  scores: AnalyzePayload["scores"],
+): Array<[string, number]> {
+  return [
     ["Focus", scores.focus],
     ["Balance", scores.balance],
     ["Motivation", scores.motivation],
     ["Calm", scores.calm],
   ];
-  const [topName, topScore] = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
-  const [lowName, lowScore] = entries.reduce((a, b) => (b[1] < a[1] ? b : a));
+}
 
-  const consistency =
+/**
+ * Why the deterministic verdict follows from the deterministic evidence.
+ *
+ * This is a restatement of the engine's own decision procedure, nothing more:
+ *
+ *   EPI Score = the value of the highest-scoring dimension
+ *   Mode      = which dimension that was
+ *   Verdict   = a threshold on that score (>=80 Pitch Now, >=60 Develop)
+ *
+ * It cites the four measured scores and the rule that consumed them. It makes
+ * no claim about consistency over the track's duration — the engine reads
+ * track-level aggregate features and performs no temporal analysis, so any
+ * statement about drift, arcs or "holding across the song" would be evidence
+ * the science never produced.
+ */
+export function verdictRationale(payload: AnalyzePayload): string {
+  const { scores, epiScore, mode, verdict } = payload;
+  const entries = dimensionEntries(scores);
+  const [topName] = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+
+  const others = entries
+    .filter(([name]) => name !== topName)
+    .map(([name, value]) => `${name} ${Math.round(value)}`)
+    .join(", ");
+
+  const rule =
     verdict === "Pitch Now"
-      ? "holds its coordinate without drift"
+      ? `at or above the ${VERDICT_THRESHOLDS.pitchNow} threshold, which returns Pitch Now`
       : verdict === "Develop"
-        ? "holds the mode but carries range"
-        : "reads emotionally ambiguous";
+        ? `between ${VERDICT_THRESHOLDS.develop} and ${VERDICT_THRESHOLDS.pitchNow}, which returns Develop`
+        : `below ${VERDICT_THRESHOLDS.develop}, which returns Hold`;
 
   return (
-    `${mode}-dominant at ${Math.round(epiScore)} EPI — ` +
-    `${topName} leads at ${Math.round(topScore)}, ${lowName} sits lowest at ${Math.round(lowScore)}. ` +
-    `The profile ${consistency}, which is why the engine reads it ${verdict}.`
+    `${topName} is the dominant dimension at ${Math.round(epiScore)} ` +
+    `(${others}), which sets the mode to ${mode} and the EPI Score to ` +
+    `${Math.round(epiScore)}. That score sits ${rule}.`
   );
 }
 

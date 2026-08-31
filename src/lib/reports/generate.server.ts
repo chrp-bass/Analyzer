@@ -52,6 +52,18 @@ export interface AnalysisFacts {
    */
   verdictRationale?: string | null;
 
+  /**
+   * The four scored dimensions. The highest of these IS the EPI score, and
+   * which one it is determines the mode — so without them the generator can
+   * only see the winning number, not the profile that produced it.
+   */
+  dimensions?: {
+    focus: number;
+    calm: number;
+    motivation: number;
+    balance: number;
+  } | null;
+
   // Real audio features, when the analysis carried them.
   bpm?: number;
   valence?: number;
@@ -92,6 +104,7 @@ export function factsToTrackData(facts: AnalysisFacts): TrackData {
     epi_score: facts.epiScore,
     verdict: facts.verdict,
     verdict_reasoning: facts.verdictRationale ?? undefined,
+    dimensions: facts.dimensions ?? undefined,
     percentile_corpus: facts.percentileCorpus,
     percentile_mode: facts.percentileMode,
     comparable_artists: facts.comparableArtists,

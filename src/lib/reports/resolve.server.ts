@@ -245,7 +245,7 @@ async function factsForAnalysis(
 ): Promise<AnalysisFacts | null> {
   const { data } = await db
     .from("analyses")
-    .select("epi_score,mode,verdict,verdict_rationale,circumplex")
+    .select("epi_score,mode,verdict,verdict_rationale,circumplex,scores")
     .eq("creator_id", userId)
     .eq("scan_id", scanId)
     .limit(1);
@@ -257,6 +257,12 @@ async function factsForAnalysis(
         verdict: string | null;
         verdict_rationale: string | null;
         circumplex: { valence?: number; arousal?: number } | null;
+        scores: {
+          focus?: number;
+          calm?: number;
+          motivation?: number;
+          balance?: number;
+        } | null;
       }
     | undefined;
   if (!row) return null;
@@ -275,6 +281,22 @@ async function factsForAnalysis(
     // Never defaulted. When the scoring pipeline has produced no grounded
     // rationale this stays null and generation refuses.
     verdictRationale: row.verdict_rationale,
+    // The measured profile behind the mode. Without it the generator sees
+    // only the winning number and has to reason around the song rather than
+    // from it.
+    dimensions:
+      row.scores &&
+      typeof row.scores.focus === "number" &&
+      typeof row.scores.calm === "number" &&
+      typeof row.scores.motivation === "number" &&
+      typeof row.scores.balance === "number"
+        ? {
+            focus: row.scores.focus,
+            calm: row.scores.calm,
+            motivation: row.scores.motivation,
+            balance: row.scores.balance,
+          }
+        : null,
     valence: row.circumplex?.valence,
     energy: row.circumplex?.arousal,
   };
