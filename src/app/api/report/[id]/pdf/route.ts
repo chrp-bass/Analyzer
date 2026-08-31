@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { ReportPDF } from "@/components/ReportPDF";
-import { assertReportAccess } from "@/lib/commerce/entitlements";
-import { getFullReport } from "@/lib/fixtures/report.server";
+import { resolveEntitledReport } from "@/lib/reports/resolve.server";
+import { decodeScanId } from "@/lib/scan-id";
 import path from "path";
 import { promises as fs } from "fs";
 
@@ -37,31 +37,20 @@ export async function GET(
   _req: Request,
   { params }: { params: { id: string } },
 ) {
-  const access = await assertReportAccess(params.id);
-  if (!access.ok) {
-    if (access.reason === "not_configured") {
-      return NextResponse.json(
-        { error: "entitlement_unavailable" },
-        { status: 503 },
-      );
+  // Same authority and the same stored payload as the JSON route — the PDF
+  // is a rendering of the persisted report, never a second generation.
+  const resolved = await resolveEntitledReport(params.id);
+  if (!resolved.ok) {
+    const body: Record<string, unknown> = { error: resolved.error };
+    if (resolved.entitled) {
+      body.entitled = true;
+      if (resolved.detail) body.detail = resolved.detail;
     }
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    return NextResponse.json(body, { status: resolved.status });
   }
 
-  const assembled = getFullReport(access.trackSlug);
-  if (!assembled) {
-    return NextResponse.json(
-      {
-        error: "report_unavailable",
-        entitled: true,
-        detail:
-          "report generation unavailable; your purchase is safe and access is retained",
-      },
-      { status: 503 },
-    );
-  }
-  const report = assembled.report;
-  const slug = access.trackSlug;
+  const report = resolved.report;
+  const slug = decodeScanId(params.id) ?? params.id;
 
   const fonts = await loadFonts();
   const buffer = await renderToBuffer(

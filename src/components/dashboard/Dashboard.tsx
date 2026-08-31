@@ -19,6 +19,10 @@ import {
   clearAllUserData,
   signOut,
 } from "@/lib/accounts";
+import {
+  fetchServerCatalog,
+  demoFallbackAllowed,
+} from "@/lib/memory/catalog.client";
 import { TIERS } from "@/lib/payments";
 import { sendProfileUnlock } from "@/lib/email";
 import {
@@ -46,6 +50,34 @@ export function Dashboard() {
   const [playReveal, setPlayReveal] = useState(false);
 
   async function refresh() {
+    // The SERVER is the authority for catalog and credit balance. It is asked
+    // first, and when it answers for a verified identity its answer is the
+    // only one used — a cleared or edited localStorage cannot add a scan,
+    // restore a spent credit, or extend an entitlement.
+    const server = await fetchServerCatalog();
+    if (server.identified) {
+      const u = await getCurrentUser();
+      setUser(u ?? { id: "server", email: null, createdAt: "" });
+      const s = [...server.scans].sort((a, b) =>
+        a.scannedAt < b.scannedAt ? 1 : -1,
+      );
+      setScans(s);
+      setCredits(server.credits);
+      setHydrated(true);
+      return;
+    }
+
+    // No server memory available. In local development the browser-backed
+    // demo catalog still renders so the flow stays exercisable; in production
+    // this branch is unreachable and the dashboard simply shows nothing.
+    if (!demoFallbackAllowed()) {
+      setUser(null);
+      setScans([]);
+      setCredits(null);
+      setHydrated(true);
+      return;
+    }
+
     const u = await getCurrentUser();
     setUser(u);
     if (u) {

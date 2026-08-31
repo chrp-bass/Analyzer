@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { decodeScanId } from "@/lib/scan-id";
-import { getFullReport } from "@/lib/fixtures/report.server";
+import {
+  getFullReport,
+  fixtureReportsPermitted,
+} from "@/lib/fixtures/report.server";
 import { payloadToTrackData } from "@/lib/data-source";
 import {
   generateReport,
@@ -19,6 +22,13 @@ export const dynamic = "force-dynamic";
  * client can fall back to the fixture and keep the report rendering.
  */
 export async function POST(req: Request) {
+  // Development bridge only. This route returns PAID prose and performs no
+  // entitlement check, so it must never be reachable in production. The paid
+  // path is /api/report/[id], which is gated and persists what it generates.
+  if (!fixtureReportsPermitted()) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
   let scanId: string | undefined;
   try {
     const body = await req.json();

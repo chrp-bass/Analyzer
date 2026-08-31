@@ -184,11 +184,7 @@ async function grantFromSession(
 
   // Unique on stripe_checkout_session_id — a second grant for the same
   // session is impossible even if this ran twice.
-  const { data: inserted, error } = await db
-    .from("entitlements")
-    .insert(row)
-    .select("id")
-    .single();
+  const { error } = await db.from("entitlements").insert(row);
 
   if (error) {
     // A duplicate here means the same Checkout Session was already granted.
@@ -196,15 +192,12 @@ async function grantFromSession(
     throw error;
   }
 
-  // Creator Intelligence: seed the originating scan as the first attached
-  // track so the buyer's allowance is tracked from the moment of purchase.
-  if (offer.key === "creator_intelligence" && scanId && inserted) {
-    await db.from("entitlement_tracks").insert({
-      entitlement_id: inserted.id,
-      scan_id: scanId,
-      track_slug: trackSlug,
-    });
-  }
+  // Creator Intelligence deliberately attaches NOTHING here.
+  //
+  // The originating song becomes the first of the ten only when its analysis
+  // actually completes — see `consumeCreditForScan`. Seeding it at purchase
+  // would bill a credit for work that has not happened yet, and a webhook
+  // retry would look like a second song. Paying is not analysing.
 }
 
 async function revokeFromCharge(db: AdminDb, charge: Stripe.Charge) {

@@ -10,26 +10,36 @@ export interface ReportSections {
   comparable: string
 }
 
+/**
+ * The generator's input.
+ *
+ * Required fields are the ones every completed CHRP analysis produces. The
+ * optional ones are optional because upstream analysis genuinely may not have
+ * them — a directly uploaded demo has no Spotify popularity or release date,
+ * and the engine does not compute corpus percentiles. Callers omit what they
+ * do not have; `JSON.stringify` drops undefined keys, so the model is shown
+ * only real values and never a plausible stand-in.
+ */
 export interface TrackData {
   track: string
   artist: string
   mode: 'Ready' | 'Flow' | 'Recharge' | 'Recover'
   epi_score: number
-  percentile_corpus: string
-  percentile_mode: string
   verdict: 'Pitch Now' | 'Develop' | 'Hold'
-  verdict_reasoning: string
-  comparable_artists: string[]
-  demand_signal: string
-  bpm: number
-  key: string
-  spotify_valence: number
-  spotify_energy: number
-  spotify_instrumentalness: number
-  spotify_popularity: number
-  release_date: string
-  genres: string[]
-  duration_seconds: number
+  percentile_corpus?: string
+  percentile_mode?: string
+  verdict_reasoning?: string
+  comparable_artists?: string[]
+  demand_signal?: string
+  bpm?: number
+  key?: string
+  spotify_valence?: number
+  spotify_energy?: number
+  spotify_instrumentalness?: number
+  spotify_popularity?: number
+  release_date?: string
+  genres?: string[]
+  duration_seconds?: number
 }
 
 const CHRP_SYSTEM_PROMPT = `
