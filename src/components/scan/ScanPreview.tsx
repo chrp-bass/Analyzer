@@ -9,8 +9,6 @@ import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
 import { fetchEntitledReport, claimFirstReport } from "@/lib/data-source";
-import { getCurrentUser, setUserEmail, signInByEmail } from "@/lib/accounts";
-import { sendMagicLink } from "@/lib/email";
 import { startCheckout } from "@/lib/payments";
 import { ensureIdentity, linkEmail } from "@/lib/identity";
 
@@ -321,20 +319,25 @@ function RevealActions({ scanId }: { scanId: string }) {
     setError(null);
     setBusy(true);
     try {
-      // Supabase Auth issues the real magic link and binds it to the same
-      // identity that owns any entitlements. The legacy local write is kept
-      // as a development fallback when Supabase is not configured.
-      const linked = await linkEmail(trimmed);
-      if (!linked) {
-        const existing = await getCurrentUser();
-        if (existing) await setUserEmail(trimmed);
-        else await signInByEmail(trimmed);
-        await sendMagicLink(trimmed);
+      // Attaches the address to the SAME identity that already owns this
+      // report, so nothing about the creator's history changes. "Saved" is
+      // claimed ONLY when the send was accepted — the report and the
+      // identity survive a failure untouched, so retrying is safe.
+      const result = await linkEmail(trimmed);
+      if (result.ok) {
+        setSent(true);
+      } else {
+        setError(
+          result.reason === "not_configured"
+            ? "Saving isn't available right now. Your report is safe — this page stays yours."
+            : "We couldn't send your link just now. Your report is safe — try again in a moment.",
+        );
       }
-      setSent(true);
     } catch (err) {
       console.error(err);
-      setError("Something went wrong. Try again.");
+      setError(
+        "We couldn't send your link just now. Your report is safe — try again in a moment.",
+      );
     } finally {
       setBusy(false);
     }
@@ -363,7 +366,7 @@ function RevealActions({ scanId }: { scanId: string }) {
             className="rv-save"
             onClick={() => setSaving(true)}
           >
-            Email me this reveal
+            Save my report
           </button>
         )}
       </div>
@@ -373,6 +376,10 @@ function RevealActions({ scanId }: { scanId: string }) {
           <label htmlFor="rv-email" className="sr-only">
             Email address
           </label>
+          <p className="rv-note" style={{ gridColumn: "1 / -1", margin: 0 }}>
+            Enter your email to save your Song Intelligence and access My
+            Songs anytime.
+          </p>
           <input
             id="rv-email"
             type="email"
@@ -383,7 +390,7 @@ function RevealActions({ scanId }: { scanId: string }) {
             autoFocus
           />
           <button type="submit" disabled={busy}>
-            {busy ? "Sending…" : "Send"}
+            {busy ? "Saving…" : "Save"}
           </button>
         </form>
       )}
@@ -395,14 +402,14 @@ function RevealActions({ scanId }: { scanId: string }) {
       )}
       {sent && (
         <p className="rv-note" style={{ color: "var(--yellow)" }}>
-          Sent. The link brings you back to this reveal.
+          Saved. Check your email — the link brings you back to your songs.
         </p>
       )}
 
       <p className="rv-keep">
         This screen is yours to keep. Nothing moves until you move it, and
-        nothing asked you to sign in to get here. Saving takes an email address
-        and a link &mdash; no password, no account setup.
+        nothing asked you to sign in to get here. Saving takes an email
+        address &mdash; no password, no account setup.
       </p>
     </>
   );

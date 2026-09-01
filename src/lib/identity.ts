@@ -36,21 +36,47 @@ export async function ensureIdentity(): Promise<string | null> {
 }
 
 /**
- * Attach an email to the current identity and send a magic link, so the
- * person can return to their songs from any browser.
+ * Attach an email to the current identity and send the return link.
+ *
+ * This upgrades the SAME anonymous user rather than creating a second one,
+ * so the creator's id — and with it their report, their My Songs history,
+ * their entitlements and their first-free-used state — is preserved exactly.
+ * One creator, one identity.
+ *
+ * The result is deliberately explicit. Saving is only "done" when the auth
+ * service accepted the send; a queued-but-undeliverable message is a
+ * failure, and the caller must not tell the creator their report was saved
+ * when no email will arrive.
  */
-export async function linkEmail(email: string): Promise<boolean> {
-  if (!supabaseConfigured()) return false;
+export type LinkEmailResult =
+  | { ok: true }
+  | { ok: false; reason: "not_configured" | "in_use" | "send_failed" };
+
+export async function linkEmail(email: string): Promise<LinkEmailResult> {
+  if (!supabaseConfigured()) return { ok: false, reason: "not_configured" };
   const supabase = createClient();
-  await ensureIdentity();
+  const userId = await ensureIdentity();
+  if (!userId) return { ok: false, reason: "not_configured" };
+
   const { error } = await supabase.auth.updateUser({ email });
-  if (error) {
-    // Already-registered email: send a sign-in link instead of failing.
+  if (!error) return { ok: true };
+
+  // Already-registered address: this email belongs to an existing identity.
+  // Send that identity a sign-in link instead of attaching the address here
+  // — two creator histories must never be silently merged.
+  const message = `${error.message ?? ""}`.toLowerCase();
+  const alreadyRegistered =
+    message.includes("already registered") ||
+    message.includes("already been registered") ||
+    message.includes("already exists");
+
+  if (alreadyRegistered) {
     const { error: otpError } = await supabase.auth.signInWithOtp({ email });
-    if (otpError) {
-      console.error("[identity] magic link failed:", otpError.message);
-      return false;
-    }
+    if (!otpError) return { ok: true };
+    console.error("[identity] sign-in link failed:", otpError.message);
+    return { ok: false, reason: "send_failed" };
   }
-  return true;
+
+  console.error("[identity] email link failed:", error.message);
+  return { ok: false, reason: "send_failed" };
 }
