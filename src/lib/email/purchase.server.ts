@@ -30,7 +30,7 @@ export type PurchaseEmailResult =
       detail?: string;
     };
 
-const COPY: Record<
+export const PURCHASE_COPY: Record<
   OfferKey,
   { subject: string; heading: string; body: string; cta: string; support: string; path: string }
 > = {
@@ -74,7 +74,7 @@ export async function sendPurchaseEmail(
   const email = userData?.user?.email;
   if (userError || !email) return { ok: false, reason: "no_email_on_file" };
 
-  const copy = COPY[input.offer];
+  const copy = PURCHASE_COPY[input.offer];
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://scan.chrp.ai").replace(
     /\/$/,
     "",
