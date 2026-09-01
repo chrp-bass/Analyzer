@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe, stripeConfigured } from "@/lib/commerce/stripe";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
+import { sendPurchaseEmail } from "@/lib/email/purchase.server";
 import {
   OFFERS,
   isOfferKey,
@@ -106,7 +107,30 @@ export async function POST(req: Request) {
 
   try {
     if (event.type === "checkout.session.completed") {
-      await grantFromSession(db, event.data.object as Stripe.Checkout.Session);
+      const granted = await grantFromSession(
+        db,
+        event.data.object as Stripe.Checkout.Session,
+      );
+
+      // Confirmation is STRICTLY downstream of the grant, and deliberately
+      // cannot affect it. It sits inside the idempotency gate — which exactly
+      // one delivery of this event ever wins — so a Stripe retry cannot send
+      // a second email. Any failure is logged and swallowed: an email problem
+      // must never roll the ledger back, fail the webhook, or cost someone
+      // the thing they paid for.
+      if (granted) {
+        try {
+          const emailed = await sendPurchaseEmail(db, granted);
+          if (!emailed.ok) {
+            console.error(
+              `[stripe webhook] purchase email not sent for ${granted.userId} (${granted.offer}): ${emailed.reason}` +
+                (emailed.detail ? ` — ${emailed.detail}` : ""),
+            );
+          }
+        } catch (err) {
+          console.error("[stripe webhook] purchase email threw:", err);
+        }
+      }
     } else if (REVOKING_EVENTS.has(event.type)) {
       await revokeFromCharge(db, event.data.object as Stripe.Charge);
     }
@@ -128,28 +152,36 @@ export async function POST(req: Request) {
 
 type AdminDb = ReturnType<typeof createAdminClient>;
 
+/**
+ * Grant the entitlement for a paid session.
+ *
+ * Returns what was granted so the caller can confirm it to the buyer, or
+ * null when nothing new was granted — an unpaid session, unusable metadata,
+ * or a session already granted by an earlier delivery. Returning null on the
+ * duplicate path is what stops a Stripe retry from emailing twice.
+ */
 async function grantFromSession(
   db: AdminDb,
   session: Stripe.Checkout.Session,
-) {
+): Promise<{ userId: string; offer: OfferKey; scanId: string | null } | null> {
   // Only a genuinely paid session grants anything.
   if (session.payment_status !== "paid") {
     console.warn(
       `[stripe webhook] session ${session.id} completed but payment_status=${session.payment_status}; no grant`,
     );
-    return;
+    return null;
   }
 
   const meta = session.metadata ?? {};
   const offerKey = meta.offer;
   if (!isOfferKey(offerKey)) {
     console.error(`[stripe webhook] session ${session.id} has no valid offer metadata`);
-    return;
+    return null;
   }
   const userId = meta.user_id || session.client_reference_id;
   if (!userId) {
     console.error(`[stripe webhook] session ${session.id} has no user binding`);
-    return;
+    return null;
   }
 
   const offer = OFFERS[offerKey as OfferKey];
@@ -179,7 +211,7 @@ async function grantFromSession(
 
   if (offer.key === "song_intelligence" && !row.scan_id) {
     console.error(`[stripe webhook] song purchase ${session.id} has no scan_id`);
-    return;
+    return null;
   }
 
   // Unique on stripe_checkout_session_id — a second grant for the same
@@ -188,7 +220,7 @@ async function grantFromSession(
 
   if (error) {
     // A duplicate here means the same Checkout Session was already granted.
-    if (isUniqueViolation(error)) return;
+    if (isUniqueViolation(error)) return null;
     throw error;
   }
 
@@ -198,6 +230,8 @@ async function grantFromSession(
   // actually completes — see `consumeCreditForScan`. Seeding it at purchase
   // would bill a credit for work that has not happened yet, and a webhook
   // retry would look like a second song. Paying is not analysing.
+
+  return { userId, offer: offer.key, scanId: row.scan_id };
 }
 
 async function revokeFromCharge(db: AdminDb, charge: Stripe.Charge) {
