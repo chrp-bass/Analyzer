@@ -61,7 +61,7 @@ export default function MethodologyPage() {
             <h2>What you get in a scan.</h2>
             <ul>
               <li>Mode &amp; EPI Score &mdash; exactly what kind of track you made.</li>
-              <li>Pitch-readiness verdict &mdash; Pitch now, Develop, or Hold, with the reasoning.</li>
+              <li>Where that emotional architecture could be useful &mdash; and what to consider next.</li>
               <li>The CHRP reading &mdash; the interpretation of that position, in CHRP&rsquo;s voice.</li>
               <li>What it&rsquo;s built for &mdash; three moments the song naturally supports.</li>
               <li>A throughline you can paste into any pitch email today.</li>

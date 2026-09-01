@@ -171,7 +171,7 @@ async function freeReportForScan(
   const { data } = await db
     .from("analyses")
     .select(
-      "epi_score,mode,verdict,scores,circumplex,analyzed_at,status,songs!inner(title,artist_name,isrc)",
+      "epi_score,mode,scores,circumplex,analyzed_at,status,songs!inner(title,artist_name,isrc)",
     )
     .eq("creator_id", userId)
     .eq("scan_id", scanId)
@@ -180,7 +180,6 @@ async function freeReportForScan(
   type Row = {
     epi_score: number | null;
     mode: string | null;
-    verdict: string | null;
     scores: {
       focus?: number;
       calm?: number;
@@ -224,7 +223,6 @@ async function freeReportForScan(
         valence: row.circumplex?.valence ?? 0,
         arousal: row.circumplex?.arousal ?? 0,
       },
-      verdict: row.verdict ?? "",
     },
     row.analyzed_at ? new Date(row.analyzed_at) : new Date(),
   );
@@ -245,7 +243,7 @@ async function factsForAnalysis(
 ): Promise<AnalysisFacts | null> {
   const { data } = await db
     .from("analyses")
-    .select("epi_score,mode,verdict,verdict_rationale,circumplex,scores")
+    .select("epi_score,mode,circumplex,scores")
     .eq("creator_id", userId)
     .eq("scan_id", scanId)
     .limit(1);
@@ -254,8 +252,6 @@ async function factsForAnalysis(
     | {
         epi_score: number | null;
         mode: string | null;
-        verdict: string | null;
-        verdict_rationale: string | null;
         circumplex: { valence?: number; arousal?: number } | null;
         scores: {
           focus?: number;
@@ -267,20 +263,11 @@ async function factsForAnalysis(
     | undefined;
   if (!row) return null;
 
-  const verdict = row.verdict;
-  if (verdict !== "Pitch Now" && verdict !== "Develop" && verdict !== "Hold") {
-    return null;
-  }
-
   return {
     title: free.track.title,
     artist: free.track.artist,
     mode: (row.mode as Mode | null) ?? free.epi.mode,
     epiScore: row.epi_score ?? free.epi.score,
-    verdict,
-    // Never defaulted. When the scoring pipeline has produced no grounded
-    // rationale this stays null and generation refuses.
-    verdictRationale: row.verdict_rationale,
     // The measured profile behind the mode. Without it the generator sees
     // only the winning number and has to reason around the song rather than
     // from it.

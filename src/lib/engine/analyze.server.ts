@@ -3,6 +3,7 @@ import {
   getSoundchartsClient,
   SoundchartsError,
 } from "@/lib/engine/soundcharts";
+import { getSpotifyClient } from "@/lib/engine/spotify";
 import {
   calculateScores,
   translateToEPI,
@@ -108,16 +109,18 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
   // performance scores. translateToEPI owns the one canonical formula.
   const epi = translateToEPI(scores, audio);
 
-  // Loose extraction of artist name — Soundcharts sometimes puts it on
-  // song.creditName and sometimes on song.artist.name.
-  const artistNested = (song as { artist?: unknown }).artist;
-  const nestedArtistName =
-    artistNested &&
-    typeof artistNested === "object" &&
-    "name" in artistNested &&
-    typeof (artistNested as { name?: unknown }).name === "string"
-      ? (artistNested as { name: string }).name
-      : null;
+  // Identity comes from Spotify, never from Soundcharts.
+  //
+  // Soundcharts is the analytical feature source and nothing more. Its
+  // creditName is demonstrably unreliable — it returns "Samy Jebari" for
+  // Noah Kahan's Stick Season and "Starseeds" for The Weeknd's Blinding
+  // Lights, both on the correct ISRC. Letting that reach a creator would
+  // put someone else's name on their song.
+  //
+  // The ISRC is the join key: it came from the Spotify result the creator
+  // chose, so an ISRC-scoped Spotify lookup recovers exactly the recording
+  // they picked, server-side, without trusting anything the client sent.
+  const identity = await resolveSpotifyIdentity(isrc);
 
   const payload: AnalyzePayload = {
     song: {
@@ -128,18 +131,14 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
             ? song.id
             : null,
       isrc: extractIsrc(song, isrc),
-      songName: typeof song.name === "string" ? song.name : null,
-      artistName:
-        typeof song.creditName === "string"
-          ? song.creditName
-          : nestedArtistName,
+      songName: identity.title,
+      artistName: identity.artist,
       artworkUrl: typeof song.imageUrl === "string" ? song.imageUrl : null,
     },
     scores,
     epiScore: epi.epiScore,
     mode: epi.mode,
     circumplex: epi.circumplex,
-    verdict: epi.verdict,
   };
 
   // Evict oldest entry once we hit the cap. Map iteration is insertion
@@ -151,4 +150,38 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
   cache.set(isrc, payload);
 
   return payload;
+}
+
+/**
+ * Canonical recording identity for an ISRC, from Spotify.
+ *
+ * Fails explicitly rather than falling back to Soundcharts metadata: a wrong
+ * artist presented as canonical is worse than an honest failure, and every
+ * ISRC reaching here was chosen from a Spotify search result, so a miss means
+ * something is genuinely wrong.
+ */
+async function resolveSpotifyIdentity(
+  isrc: string,
+): Promise<{ title: string; artist: string }> {
+  let items: Array<Record<string, unknown>>;
+  try {
+    items = await getSpotifyClient().searchTracks(`isrc:${isrc}`, 1);
+  } catch (err) {
+    throw new AnalyzeError(
+      `could not resolve recording identity: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+      502,
+    );
+  }
+
+  const track = items[0] as
+    | { name?: string; artists?: Array<{ name?: string }> }
+    | undefined;
+  const title = track?.name;
+  const artist = track?.artists?.[0]?.name;
+  if (!title || !artist) {
+    throw new AnalyzeError("could not resolve recording identity", 502);
+  }
+  return { title, artist };
 }

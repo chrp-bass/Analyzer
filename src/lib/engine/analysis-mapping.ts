@@ -3,7 +3,7 @@ import type { FreeReport, Mode, RankClass, ScoreRow } from "@/lib/fixtures/track
 /**
  * Engine output -> report payload.
  *
- * The scan pipeline produces CHRP scores, an EPI score, a mode and a verdict.
+ * The scan pipeline produces CHRP scores, an EPI score and a mode.
  * The report components were built against the fixture shape, so this module
  * is the one place that translates between them. Consumers are unchanged.
  *
@@ -27,7 +27,6 @@ export interface AnalyzePayload {
   epiScore: number;
   mode: string;
   circumplex: { valence: number; arousal: number };
-  verdict: string;
   cached?: boolean;
 }
 
@@ -94,61 +93,6 @@ export const DIMENSION_MODE: Record<string, string> = {
   Calm: "Recharge",
   Balance: "Recover",
 };
-
-/** The engine's verdict thresholds, from verdictFor() in scores.ts. */
-export const VERDICT_THRESHOLDS = { pitchNow: 80, develop: 60 } as const;
-
-function dimensionEntries(
-  scores: AnalyzePayload["scores"],
-): Array<[string, number]> {
-  return [
-    ["Focus", scores.focus],
-    ["Balance", scores.balance],
-    ["Motivation", scores.motivation],
-    ["Calm", scores.calm],
-  ];
-}
-
-/**
- * Why the deterministic verdict follows from the deterministic evidence.
- *
- * This is a restatement of the engine's own decision procedure, nothing more:
- *
- *   EPI Score = (arousal + valence) / 2, computed from the audio features
- *   Mode      = which of the four performance dimensions dominates
- *   Verdict   = a threshold on that score (>=80 Pitch Now, >=60 Develop)
- *
- * It cites the four measured scores and the rule that consumed them. It makes
- * no claim about consistency over the track's duration — the engine reads
- * track-level aggregate features and performs no temporal analysis, so any
- * statement about drift, arcs or "holding across the song" would be evidence
- * the science never produced.
- */
-export function verdictRationale(payload: AnalyzePayload): string {
-  const { scores, epiScore, mode, verdict } = payload;
-  const entries = dimensionEntries(scores);
-  const [topName] = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
-
-  const others = entries
-    .filter(([name]) => name !== topName)
-    .map(([name, value]) => `${name} ${Math.round(value)}`)
-    .join(", ");
-
-  const rule =
-    verdict === "Pitch Now"
-      ? `at or above the ${VERDICT_THRESHOLDS.pitchNow} threshold, which returns Pitch Now`
-      : verdict === "Develop"
-        ? `between ${VERDICT_THRESHOLDS.develop} and ${VERDICT_THRESHOLDS.pitchNow}, which returns Develop`
-        : `below ${VERDICT_THRESHOLDS.develop}, which returns Hold`;
-
-  const top = entries.find(([name]) => name === topName)![1];
-  return (
-    `${topName} is the dominant dimension at ${Math.round(top)} ` +
-    `(${others}), which sets the mode to ${mode}. The EPI Score of ` +
-    `${Math.round(epiScore)} is a separate reading, taken from the track's ` +
-    `arousal and valence. That score sits ${rule}.`
-  );
-}
 
 /**
  * The free reveal's single signature line.

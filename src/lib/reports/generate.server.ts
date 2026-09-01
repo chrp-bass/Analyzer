@@ -40,18 +40,6 @@ export interface AnalysisFacts {
   artist: string;
   mode: Mode;
   epiScore: number;
-  /** Engine verdict from translateToEPI. */
-  verdict: "Pitch Now" | "Develop" | "Hold";
-  /**
-   * Why the engine reached that verdict, in CHRP's voice.
-   *
-   * REQUIRED. The generator consumes this as an input and the report renders
-   * it; it is not something the model is asked to author, because that would
-   * be a new claim rather than a reading of the score. See the environment /
-   * handoff notes: the production scoring pipeline must supply this.
-   */
-  verdictRationale?: string | null;
-
   /**
    * The four scored dimensions. The highest of these IS the EPI score, and
    * which one it is determines the mode — so without them the generator can
@@ -83,7 +71,6 @@ export interface AnalysisFacts {
 
 export type GenerationFailure =
   | { reason: "no_api_key"; detail: string }
-  | { reason: "missing_upstream_field"; detail: string; field: string }
   | { reason: "generation_failed"; detail: string };
 
 export type GenerationResult =
@@ -107,8 +94,6 @@ export function factsToTrackData(facts: AnalysisFacts): TrackData {
     artist: facts.artist,
     mode: facts.mode,
     epi_score: facts.epiScore,
-    verdict: facts.verdict,
-    verdict_reasoning: facts.verdictRationale ?? undefined,
     dimensions: facts.dimensions ?? undefined,
     percentile_corpus: facts.percentileCorpus,
     percentile_mode: facts.percentileMode,
@@ -120,11 +105,6 @@ export function factsToTrackData(facts: AnalysisFacts): TrackData {
   };
 }
 
-/** Engine verdict casing -> the casing the report payload uses. */
-function verdictCall(v: AnalysisFacts["verdict"]): PaidSections["verdict"]["call"] {
-  return v === "Pitch Now" ? "Pitch now" : v;
-}
-
 export async function generatePaidSections(
   facts: AnalysisFacts,
 ): Promise<GenerationResult> {
@@ -133,19 +113,6 @@ export async function generatePaidSections(
       ok: false,
       reason: "no_api_key",
       detail: "ANTHROPIC_API_KEY is not configured",
-    };
-  }
-
-  // Fail closed on a missing upstream fact rather than inventing one. The
-  // report renders this rationale; an empty or model-authored one would be a
-  // claim CHRP's scoring never made.
-  if (!facts.verdictRationale) {
-    return {
-      ok: false,
-      reason: "missing_upstream_field",
-      field: "verdict.rationale",
-      detail:
-        "upstream analysis supplied no verdict rationale; refusing to author one",
     };
   }
 
@@ -160,13 +127,6 @@ export async function generatePaidSections(
     return {
       ok: true,
       sections: {
-        verdict: {
-          call: verdictCall(facts.verdict),
-          // No confidence measure exists upstream. Null is honest; a value
-          // here would be manufactured certainty.
-          confidence: null,
-          rationale: facts.verdictRationale,
-        },
         rhodes,
         signature: sections.signature,
         placements: sections.placements,

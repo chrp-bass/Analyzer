@@ -15,8 +15,6 @@ const FACTS: AnalysisFacts = {
   artist: "Voss Black",
   mode: "Ready",
   epiScore: 91,
-  verdict: "Pitch Now",
-  verdictRationale: "Motivation at ceiling, Calm at floor, held without drift.",
   bpm: 152,
   valence: 0.62,
   arousal: 0.94,
@@ -114,16 +112,4 @@ describe("generation fails closed", () => {
     expect(result).toMatchObject({ ok: false, reason: "no_api_key" });
   });
 
-  it("refuses to author a verdict rationale upstream never produced", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-used");
-    const result = await generatePaidSections({
-      ...FACTS,
-      verdictRationale: null,
-    });
-    expect(result).toMatchObject({
-      ok: false,
-      reason: "missing_upstream_field",
-      field: "verdict.rationale",
-    });
-  });
 });

@@ -130,42 +130,6 @@ const styles = StyleSheet.create({
     color: INK_LIGHT,
     marginTop: 6,
   },
-  verdictBlock: {
-    marginTop: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: YELLOW,
-    paddingLeft: 9,
-    paddingVertical: 3,
-  },
-  verdictLabel: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 6.5,
-    letterSpacing: 0.6,
-    color: INK_SOFT,
-  },
-  verdictCall: {
-    fontFamily: "Cormorant",
-    fontWeight: 700,
-    fontSize: 18,
-    lineHeight: 1.05,
-    marginTop: 2,
-  },
-  verdictConfidence: {
-    fontFamily: "Lato",
-    fontWeight: 700,
-    fontSize: 7.5,
-    marginTop: 2,
-  },
-  verdictRationale: {
-    fontFamily: "Lato",
-    fontWeight: 400,
-    fontSize: 7.5,
-    color: INK_SOFT,
-    marginTop: 3,
-    lineHeight: 1.3,
-    maxWidth: 320,
-  },
   heroRight: { alignItems: "center", width: 170 },
   modeChip: {
     marginTop: 6,
@@ -403,13 +367,6 @@ const styles = StyleSheet.create({
   },
 });
 
-function confidenceColor(c: string | null) {
-  if (c === "High") return KELLY;
-  if (c === "Moderate") return INK_SOFT;
-  if (c === "Preliminary") return PLUM;
-  return INK_SOFT;
-}
-
 function PdfPolygon({ report }: { report: ReportPayload }) {
   const v = polygonFromChrpScores(report.chrp_scores);
   const points = polygonPoints(v);
@@ -518,7 +475,6 @@ export function ReportPDF({
   registerFonts(fonts);
 
   const chip = MODE_CHIP[report.epi.mode];
-  const conf = report.verdict.confidence;
 
   return (
     <Document
@@ -544,23 +500,6 @@ export function ReportPDF({
               {`${report.report_meta.scanned_at_display}  //  ISRC ${report.track.isrc}`}
             </Text>
 
-            <View style={styles.verdictBlock}>
-              <Text style={styles.verdictLabel}>PITCH READINESS</Text>
-              <Text style={styles.verdictCall}>{report.verdict.call}</Text>
-              {conf && (
-                <Text
-                  style={[
-                    styles.verdictConfidence,
-                    { color: confidenceColor(conf) },
-                  ]}
-                >
-                  {conf} confidence
-                </Text>
-              )}
-              <Text style={styles.verdictRationale}>
-                {report.verdict.rationale}
-              </Text>
-            </View>
           </View>
 
           <View style={styles.heroRight}>

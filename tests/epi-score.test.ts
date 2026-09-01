@@ -181,7 +181,6 @@ describe("one EPI everywhere", () => {
       epiScore: epi.epiScore,
       mode: epi.mode,
       circumplex: epi.circumplex,
-      verdict: epi.verdict,
     });
     expect(report.epi.score).toBe(Math.round(epi.epiScore));
     expect(report.epi.mode).toBe(epi.mode);

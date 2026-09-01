@@ -67,11 +67,6 @@ export interface FreeReport {
 
 /** Paid intelligence. Server-only; see fixtures/tracks.paid.ts. */
 export interface PaidSections {
-  verdict: {
-    call: "Pitch now" | "Develop" | "Hold";
-    confidence: Confidence;
-    rationale: string;
-  };
   rhodes: string;
   signature: string;
   placements: Placement[];

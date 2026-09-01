@@ -17,6 +17,15 @@ import type { PaidSections } from "@/lib/fixtures/tracks";
 
 type Db = ReturnType<typeof createAdminClient>;
 
+/**
+ * DEPRECATED COLUMNS — analyses.verdict and analyses.verdict_rationale.
+ *
+ * CHRP no longer issues a verdict, so nothing writes these and nothing reads
+ * them for product behaviour. They are left in place rather than dropped: a
+ * destructive migration buys nothing, and the columns are nullable. New rows
+ * carry NULL in both.
+ */
+
 export type SongSource = "spotify" | "soundcharts" | "direct_upload";
 
 export interface CatalogEntry {
@@ -28,7 +37,6 @@ export interface CatalogEntry {
   source: SongSource;
   epiScore: number | null;
   mode: string | null;
-  verdict: string | null;
   scores: unknown;
   circumplex: unknown;
   engineVersion: string;
@@ -48,16 +56,6 @@ export interface RecordAnalysisInput {
   engineVersion: string;
   epiScore?: number | null;
   mode?: string | null;
-  verdict?: string | null;
-  /**
-   * The engine's grounded reading of its own verdict.
-   *
-   * The paid report renders this and the generator consumes it as an input.
-   * It is never defaulted or synthesised here: when the scoring pipeline has
-   * no grounded value, this stays null and `generatePaidSections` refuses,
-   * rather than the model authoring a claim the science never made.
-   */
-  verdictRationale?: string | null;
   scores?: unknown;
   circumplex?: unknown;
 }
@@ -149,8 +147,6 @@ export async function recordCompletedAnalysis(
         status: "complete",
         epi_score: input.epiScore ?? null,
         mode: input.mode ?? null,
-        verdict: input.verdict ?? null,
-        verdict_rationale: input.verdictRationale ?? null,
         scores: input.scores ?? null,
         circumplex: input.circumplex ?? null,
         engine_version: input.engineVersion,
@@ -177,7 +173,7 @@ export async function getCatalog(
   const { data, error } = await db
     .from("analyses")
     .select(
-      "scan_id,status,epi_score,mode,verdict,scores,circumplex,engine_version,analyzed_at,source,songs!inner(track_key,title,artist_name,isrc)",
+      "scan_id,status,epi_score,mode,scores,circumplex,engine_version,analyzed_at,source,songs!inner(track_key,title,artist_name,isrc)",
     )
     .eq("creator_id", userId)
     .order("analyzed_at", { ascending: false, nullsFirst: false });
@@ -189,7 +185,6 @@ export async function getCatalog(
     status: CatalogEntry["status"];
     epi_score: number | null;
     mode: string | null;
-    verdict: string | null;
     scores: unknown;
     circumplex: unknown;
     engine_version: string;
@@ -214,7 +209,6 @@ export async function getCatalog(
       source: r.source,
       epiScore: r.epi_score,
       mode: r.mode,
-      verdict: r.verdict,
       scores: r.scores,
       circumplex: r.circumplex,
       engineVersion: r.engine_version,

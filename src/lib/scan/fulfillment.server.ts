@@ -2,7 +2,6 @@ import "server-only";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { decodeScanId, isFixtureKey, isrcFromKey } from "@/lib/scan-id";
 import { analyzeByIsrc, AnalyzeError } from "@/lib/engine/analyze.server";
-import { verdictRationale } from "@/lib/engine/analysis-mapping";
 import { recordCompletedAnalysis } from "@/lib/memory/catalog.server";
 
 /** Bumped when the scoring contract changes. v2 = corrected EPI. */
@@ -84,19 +83,6 @@ export async function ensureAnalysisPersisted(
   // counts as complete. Missing truth is a failure, never a default.
   const title = payload.song.songName;
   if (!title) return { ok: false, reason: "song_unavailable" };
-  if (
-    payload.verdict !== "Pitch Now" &&
-    payload.verdict !== "Develop" &&
-    payload.verdict !== "Hold"
-  ) {
-    return { ok: false, reason: "engine_unavailable", detail: "no verdict" };
-  }
-
-  // The rationale is derived deterministically from the engine's own decision
-  // procedure — which dimension dominated, the other three, and the threshold
-  // rule that produced the verdict. It introduces no new claim.
-  const rationale = verdictRationale(payload);
-
   try {
     const { analysisId, songId } = await recordCompletedAnalysis(
       createAdminClient(),
@@ -114,8 +100,6 @@ export async function ensureAnalysisPersisted(
         engineVersion: ENGINE_VERSION,
         epiScore: Math.round(payload.epiScore),
         mode: payload.mode,
-        verdict: payload.verdict,
-        verdictRationale: rationale,
         scores: payload.scores,
         circumplex: payload.circumplex,
       },

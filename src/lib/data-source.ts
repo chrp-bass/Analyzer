@@ -25,7 +25,6 @@ import {
 } from "@/lib/fixtures/profile";
 import {
   analysisToFreeReport,
-  verdictRationale,
   type AnalyzePayload,
   type SongSearchResult,
 } from "@/lib/engine/analysis-mapping";
@@ -158,24 +157,6 @@ async function realFreeReport(
   const report = analysisToFreeReport(payload);
   analysisCache.set(scanId, report);
   return report;
-}
-
-/**
- * The engine's reading of its own verdict, for a scan.
- *
- * This is what `analyses.verdict_rationale` is meant to hold: the paid report
- * renders it, and the generator consumes it as an input rather than authoring
- * one. Every clause restates a measured value.
- */
-export async function getVerdictRationale(
-  scanId: string,
-): Promise<string | null> {
-  const key = decodeScanId(scanId);
-  if (!key) return null;
-  const isrc = isrcFromKey(key);
-  if (!isrc) return null;
-  const payload = await analyzeIsrc(isrc);
-  return verdictRationale(payload);
 }
 
 /**
@@ -401,8 +382,6 @@ export function payloadToTrackData(rl: ReportPayload): TrackData {
     epi_score: rl.epi.score,
     percentile_corpus: rl.epi.rank_overall,
     percentile_mode: rl.epi.rank_in_mode,
-    verdict: rl.verdict.call === "Pitch now" ? "Pitch Now" : rl.verdict.call,
-    verdict_reasoning: rl.verdict.rationale ?? undefined,
     comparable_artists,
     demand_signal: top?.name,
     ...stub,

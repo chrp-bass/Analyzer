@@ -15,6 +15,7 @@
  */
 
 import { getSoundchartsClient } from "../src/lib/engine/soundcharts";
+import { getSpotifyClient } from "../src/lib/engine/spotify";
 import {
   calculateScores,
   calculateArousal,
@@ -88,16 +89,31 @@ async function main() {
 
     console.log(`\n${"=".repeat(72)}`);
     console.log(`${label}`);
-    console.log(`  SOUNDCHARTS SAYS : ${song.name} — ${artist}`);
+    console.log(`  SOUNDCHARTS META : ${song.name} — ${artist}   (analytical source only)`);
     console.log(`  ISRC             : ${isrc}`);
     console.log(`  energy ${n(audio.energy)} | tempo ${n(audio.tempo,1)} -> ${n(tempoNorm)} | loudness ${n(audio.loudness,1)} -> ${n(loudNorm)}`);
     console.log(`  danceability ${n(audio.danceability)} | acousticness ${n(audio.acousticness)} | valence ${n(audio.valence)}`);
     console.log(`  arousal          = ${n(arousal, 4)}`);
     console.log(`  epi_raw          = (${n(arousal,4)} + ${n(clamp(audio.valence),4)}) / 2 = ${n(epiRaw, 4)}`);
     console.log(`  DISPLAYED EPI    = ${epi.epiScore}`);
-    console.log(`  F ${scores.focus}  C ${scores.calm}  M ${scores.motivation}  B ${scores.balance}   mode ${epi.mode}   verdict ${epi.verdict}`);
+    console.log(`  F ${scores.focus}  C ${scores.calm}  M ${scores.motivation}  B ${scores.balance}   mode ${epi.mode}`);
     console.log(`  OLD EPI (max F/C/M/B) = ${oldEpi}   ->   CORRECTED = ${epi.epiScore}`);
     console.log(`  EPI != max(F/C/M/B)   : ${epi.epiScore !== oldEpi ? "CONFIRMED" : "EQUAL (coincidence — inspect)"}`);
+  }
+
+  // ── Identity ownership: Spotify, never Soundcharts ────────────────────
+  console.log(`\n${"=".repeat(72)}\nIDENTITY OWNERSHIP CHECK (Spotify by ISRC)`);
+  for (const isrc of ["USUM72212470", "USUG11904206"]) {
+    const sc = await getSoundchartsClient().getSongByIsrc(isrc);
+    const scArtist =
+      (sc as { creditName?: string }).creditName ??
+      (sc as { artist?: { name?: string } }).artist?.name ??
+      "?";
+    const items = await getSpotifyClient().searchTracks(`isrc:${isrc}`, 1);
+    const t = items[0] as { name?: string; artists?: Array<{ name?: string }> };
+    console.log(`  ${isrc}`);
+    console.log(`    soundcharts credit (rejected) : ${sc.name} — ${scArtist}`);
+    console.log(`    SPOTIFY CANONICAL (used)      : ${t?.name} — ${t?.artists?.[0]?.name}`);
   }
 
   if (epis.length === 0) return;

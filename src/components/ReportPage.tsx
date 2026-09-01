@@ -151,56 +151,12 @@ function PositionBlock({ report }: { report: ReportPayload }) {
     <section className="flex flex-col md:flex-row gap-8 md:gap-10 items-start mt-6 md:mt-8">
       <div className="flex-1 min-w-0">
         <HeroTitleBlock report={report} />
-        <PitchVerdictBlock report={report} className="mt-5" />
       </div>
       <HeroPolygonAside report={report} />
     </section>
   );
 }
 
-export function PitchVerdictBlock({
-  report,
-  className = "",
-}: {
-  report: ReportPayload;
-  className?: string;
-}) {
-  const conf = report.verdict.confidence;
-  // Pitch now leads with CHRP Yellow. Develop and Hold get a muted treatment
-  // so a non-go verdict reads as credible rather than as a failed green light.
-  const call = report.verdict.call;
-  const muted = call === "Develop" || call === "Hold";
-  const borderColor = muted ? "var(--ink-light)" : "var(--chrp-yellow)";
-  const callColor = muted ? "var(--ink-soft)" : "var(--chrp-black)";
-  return (
-    <div
-      className={`pl-4 py-2 border-l-[3px] max-w-[480px] ${className}`}
-      style={{ borderLeftColor: borderColor }}
-    >
-      <div className="font-sans font-bold text-[10px] tracking-wider text-ink-soft">
-        PITCH READINESS
-      </div>
-      <div
-        className="font-display text-[32px] md:text-[36px] leading-none mt-1"
-        style={{ color: callColor }}
-      >
-        {report.verdict.call}
-      </div>
-      {conf && (
-        <div
-          className={`font-sans font-bold text-[11px] mt-1.5 ${confidenceColor(
-            conf,
-          )}`}
-        >
-          {conf} confidence
-        </div>
-      )}
-      <p className="font-sans text-[12px] text-ink-soft mt-2 leading-snug max-w-[460px]">
-        {report.verdict.rationale}
-      </p>
-    </div>
-  );
-}
 
 export function HeroPolygonAside({ report }: { report: ReportPayload }) {
   const chip = MODE_COLORS[report.epi.mode];

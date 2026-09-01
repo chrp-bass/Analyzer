@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  *
  * Fetches the song's audio features from Soundcharts, computes the four
  * CHRP scores, and returns them alongside the EPI translation (mode,
- * epiScore, verdict, circumplex).
+ * epiScore, circumplex). Identity comes from Spotify, not Soundcharts.
  *
  * The scoring itself lives in @/lib/engine/analyze.server so commerce can
  * reach the same answer server-side without an HTTP hop. Results are cached

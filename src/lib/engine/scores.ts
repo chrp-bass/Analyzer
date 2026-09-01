@@ -5,7 +5,7 @@
  *   1. Turn 10 Soundcharts audio features into the four CHRP scores
  *      (focus / calm / motivation / balance) via calculateScores().
  *   2. Translate those four scores + the raw energy/valence pair into
- *      an EPI reading (epiScore, mode, circumplex, verdict) that the
+ *      an EPI reading (epiScore, mode, circumplex) that the
  *      report + UI speak.
  *
  * Helpers (clamp / mu / displayRange / transformScore) and the four
@@ -23,13 +23,10 @@ export type Metric = "focus" | "calm" | "motivation" | "balance";
 
 export type Mode = "Flow" | "Ready" | "Recharge" | "Recover";
 
-export type Verdict = "Pitch Now" | "Develop" | "Hold";
-
 export interface EPIResult {
   epiScore: number;
   mode: Mode;
   circumplex: { valence: number; arousal: number };
-  verdict: Verdict;
 }
 
 // ─── Transform constants (from Python scores.py — DO NOT retype) ──────────
@@ -206,22 +203,6 @@ const MODE_FOR: Record<Metric, Mode> = {
 const TIE_PRIORITY: Metric[] = ["motivation", "focus", "calm", "balance"];
 
 /**
- * FLAGGED FOR REVIEW — thresholds not recalibrated.
- *
- * These 80/60 cut points were chosen when "epiScore" was the dominant
- * performance dimension on a 30-99 scale. Corrected EPI is (arousal +
- * valence) / 2 on 0-100, a different quantity with a different distribution,
- * so the same numbers no longer mean what they meant. Deliberately left
- * unchanged: inventing replacement thresholds would be inventing commercial
- * methodology. Alan sets these.
- */
-function verdictFor(epiScore: number): Verdict {
-  if (epiScore >= 80) return "Pitch Now";
-  if (epiScore >= 60) return "Develop";
-  return "Hold";
-}
-
-/**
  * Translate the four CHRP scores + raw energy/valence into an EPI reading.
  *
  * The dominant score determines the mode (and its value is the EPI Score).
@@ -286,8 +267,12 @@ export function calculateEpi(audio: unknown): number {
  *
  * Three separate things come out of here and must stay separate:
  *   epiScore  — (arousal + valence) / 2, from calculateEpi
- *   mode      — which of the four dimensions dominates (unchanged)
+ *   mode      — which of the four dimensions dominates
  *   circumplex— the arousal/valence pair EPI was computed from
+ *
+ * No verdict. CHRP does not judge whether a song is ready, viable or worth
+ * pitching — it reports what the song is doing and leaves the decision with
+ * the creator.
  */
 export function translateToEPI(
   scores: { focus: number; calm: number; motivation: number; balance: number },
@@ -317,7 +302,6 @@ export function translateToEPI(
       // reported raw energy, which is only one of its five inputs.
       arousal: Math.round(arousal * 1000) / 1000,
     },
-    verdict: verdictFor(epiScore),
   };
 }
 
