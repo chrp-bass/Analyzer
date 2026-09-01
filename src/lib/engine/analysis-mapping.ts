@@ -187,6 +187,10 @@ export function analysisToFreeReport(
       title: payload.song.songName ?? "Untitled",
       artist,
       isrc: payload.song.isrc,
+      // The engine already resolved this song's cover art. Carrying it here
+      // is what makes the reveal show the actual record rather than a
+      // placeholder box.
+      artworkUrl: payload.song.artworkUrl ?? null,
     },
     epi: {
       score: Math.round(payload.epiScore),

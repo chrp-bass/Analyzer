@@ -217,8 +217,18 @@ function FreeReveal({
           <div>
             <p className="rv-kicker">Your song&rsquo;s emotional signature</p>
             <div className="rv-idrow">
-              <div className="rv-artwork" aria-hidden>
-                Artwork
+              {/* The engine resolves cover art with the song, so the reveal
+                  shows the actual record. When a song genuinely has none the
+                  dashed frame stands empty — nothing is substituted, and a
+                  fixture's artwork is never shown for a real song. */}
+              <div className="rv-artwork" aria-hidden={!report.track.artworkUrl}>
+                {report.track.artworkUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={report.track.artworkUrl}
+                    alt={`${report.track.title} by ${report.track.artist}`}
+                  />
+                ) : null}
               </div>
               <div>
                 <p className="rv-title">{report.track.title}</p>
@@ -469,6 +479,8 @@ function Boundary({ scanId }: { scanId: string }) {
  * read something useful and the argument writes itself.
  */
 function CatalogClose({ scanId }: { scanId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   return (
     <section className="bg-oat px-6 md:px-10 py-12 md:py-16 border-t border-rule">
       <div className="max-w-[720px] mx-auto text-center">
@@ -489,17 +501,43 @@ function CatalogClose({ scanId }: { scanId: string }) {
           >
             Scan another song
           </Link>
-          <Link
-            href={`/scan/${scanId}/checkout-tier?product=artist_catalog`}
+          {/* Goes through the SAME real Stripe path as the paywall button
+              above. It previously linked to /scan/[id]/checkout-tier, the
+              demo checkout page — which resolves its song through the
+              fixture catalogue, so a real song 404'd there, and which is
+              hard-disabled in production anyway. One offer, one price, one
+              route. */}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              beginPurchase("creator_intelligence", scanId, (m) => {
+                setErr(m);
+                setBusy(false);
+              });
+            }}
             className="font-sans font-bold text-[12.5px] tracking-wider uppercase px-6 py-3.5 text-center"
             style={{
               backgroundColor: "var(--chrp-yellow)",
               color: "var(--chrp-black)",
+              opacity: busy ? 0.7 : 1,
             }}
           >
-            Understand your catalog &mdash; $149
-          </Link>
+            {busy
+              ? "Opening checkout…"
+              : "Understand your catalog — $149"}
+          </button>
         </div>
+        {err && (
+          <p
+            className="mt-4 font-sans text-[12.5px]"
+            style={{ color: "#C990B8" }}
+            role="alert"
+          >
+            {err}
+          </p>
+        )}
       </div>
     </section>
   );

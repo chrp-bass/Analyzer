@@ -40,6 +40,13 @@ export interface FreeReport {
     title: string;
     artist: string;
     isrc: string;
+    /**
+     * Cover art for the resolved song, when the engine supplied one.
+     * Optional: the bundled demo tracks have no artwork, and a real song
+     * may legitimately have none. Absent means "show nothing", never
+     * "substitute something that looks real".
+     */
+    artworkUrl?: string | null;
   };
   epi: {
     score: number;

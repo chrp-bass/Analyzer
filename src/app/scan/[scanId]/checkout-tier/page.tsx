@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { decodeScanId } from "@/lib/scan-id";
+import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { getFreeReportById } from "@/lib/fixtures/tracks";
 import { StripeCheckoutForm } from "@/components/scan/StripeCheckoutForm";
 import { ProductId } from "@/lib/accounts";
@@ -18,6 +18,10 @@ export default function CheckoutTier({
 }) {
   const trackSlug = decodeScanId(params.scanId);
   if (!trackSlug) notFound();
+  // A real ISRC scan has no fixture-backed report; these demo checkout
+  // surfaces cannot describe it, and the real Stripe CTAs live on the
+  // reveal. Send them there rather than 404 on a legitimate song.
+  if (!isFixtureKey(trackSlug)) redirect(`/scan/${params.scanId}/preview`);
   const report = getFreeReportById(trackSlug);
   if (!report) notFound();
 
