@@ -55,7 +55,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "no_identity" }, { status: 401 });
   }
 
-  // Real, completed analysis first. A failure here consumes nothing.
+  const db = createAdminClient();
+
+  // Eligibility BEFORE persistence.
+  //
+  // My Songs means songs this creator actually received intelligence for —
+  // free or paid. Merely looking at a reveal must not quietly file a song
+  // into someone's catalog as though they owned it. So a creator who has
+  // already used their included report gets told so, and nothing is
+  // written: no analysis row, no catalog entry, no implied ownership.
+  if (await hasUsedFreeFirst(db, userId)) {
+    const { data: owned } = await db
+      .from("entitlements")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("offer", "song_intelligence")
+      .eq("scan_id", scanId)
+      .limit(1);
+    if (!owned || owned.length === 0) {
+      return NextResponse.json({ status: "already_used" }, { status: 200 });
+    }
+  }
+
+  // The creator IS receiving this report, so the analysis becomes theirs.
+  // A failure here consumes nothing.
   const fulfillment = await ensureAnalysisPersisted(userId, scanId);
   if (!fulfillment.ok) {
     return NextResponse.json(
@@ -68,7 +91,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const db = createAdminClient();
   try {
     const outcome = await grantFreeFirst(db, userId, scanId, trackKey);
     return NextResponse.json(
