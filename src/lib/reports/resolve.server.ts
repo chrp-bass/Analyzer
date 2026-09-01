@@ -298,6 +298,10 @@ async function factsForAnalysis(
           }
         : null,
     valence: row.circumplex?.valence,
-    energy: row.circumplex?.arousal,
+    // NOT energy. circumplex.arousal is CHRP's weighted arousal — energy is
+    // only one of its five inputs — so passing it as spotify_energy would
+    // have Rhodes report a composite as a raw audio feature. Raw energy is
+    // not persisted, so the field is omitted rather than approximated.
+    arousal: row.circumplex?.arousal,
   };
 }

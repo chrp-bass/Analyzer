@@ -104,10 +104,9 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
     throw err;
   }
 
-  const a = audio as Record<string, unknown>;
-  const energy = typeof a.energy === "number" ? a.energy : 0;
-  const valence = typeof a.valence === "number" ? a.valence : 0;
-  const epi = translateToEPI(scores, energy, valence);
+  // EPI is computed from the audio features themselves, not from the four
+  // performance scores. translateToEPI owns the one canonical formula.
+  const epi = translateToEPI(scores, audio);
 
   // Loose extraction of artist name — Soundcharts sometimes puts it on
   // song.creditName and sometimes on song.artist.name.

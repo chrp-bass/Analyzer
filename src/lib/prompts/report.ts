@@ -29,8 +29,9 @@ export interface TrackData {
   /**
    * The four scored dimensions the engine actually computed.
    *
-   * These are the substance behind the mode and the EPI Score: the highest
-   * of them IS the EPI Score, and which one it is determines the mode. Before
+   * These are the performance profile and they determine the MODE. They do
+   * NOT determine the EPI Score, which is computed separately from arousal
+   * and valence. Before
    * this was passed, the report layer saw only the winning number and a mode
    * label, so it could not reason from the real profile — only around it.
    */
@@ -48,6 +49,8 @@ export interface TrackData {
   bpm?: number
   key?: string
   spotify_valence?: number
+  /** CHRP's weighted arousal (one of EPI's two halves), not raw energy. */
+  chrp_arousal?: number
   spotify_energy?: number
   spotify_instrumentalness?: number
   spotify_popularity?: number
@@ -72,7 +75,8 @@ Four dimensions are scored from the track's audio features, each on a 30–99 sc
 — BALANCE: equilibrium. Rewards energy, valence, tempo and loudness sitting MID-RANGE. A high Balance score means the track is measured and centred — not that it is negative or low-energy.
 
 WHAT THE EPI SCORE IS:
-The EPI Score is the value of the single HIGHEST-scoring dimension. It is not an average, not a quality grade, and not a measure of consistency over time.
+The EPI Score is a SEPARATE reading from the four dimensions, on a 0-100 scale. It is CHRP's overall affective score: arousal and valence averaged, where arousal is a weighted reading of the track's audio features. It is NOT the highest dimension, not an average of the four, not a quality grade, not a measure of consistency over time, and not a statement that the song is better than a lower-scoring one.
+A song can legitimately show EPI 58, Ready mode and Motivation 78. The numbers are not required to agree — EPI and the profile answer different questions.
 
 WHAT THE MODE IS:
 The mode names WHICH dimension scored highest. That is its entire meaning:
@@ -84,9 +88,10 @@ BALANCE highest    -> RECOVER   — the track's strongest property is equilibriu
 A mode is a statement about which dimension dominates. It is NOT a claim about a valence/arousal quadrant, and you must not describe it as one.
 
 VERDICTS ARE A THRESHOLD ON THE EPI SCORE. NOTHING ELSE:
-80 or above -> Pitch Now. The dominant dimension is strongly expressed.
-60 to 79    -> Develop. The dominant dimension is present but not commanding.
-Below 60    -> Hold. No dimension is strongly expressed.
+80 or above -> Pitch Now.
+60 to 79    -> Develop.
+Below 60    -> Hold.
+The threshold is applied to EPI, not to any dimension. Do not explain a verdict by pointing at Motivation or Focus.
 The verdict is arithmetic. Do not attribute it to market conditions, saturation, competition, or anything the engine did not measure.
 
 THE ENGINE HAS NO TIME AXIS:
@@ -160,8 +165,9 @@ WHAT THE SCORING FOUND — READ IT THE SAME WAY THE REPORT DID:
 Four dimensions, each 30-99: Focus (sustained attention), Calm (low energy,
 positive, acoustic restraint), Motivation (energy, tempo, loudness,
 danceability) and Balance (equilibrium — mid-range energy, valence, tempo and
-loudness). The EPI Score is the value of the highest one. The mode names which
-one that was: Focus highest is FLOW, Motivation highest is READY, Calm highest
+loudness). The EPI Score is a separate 0-100 reading — arousal and valence averaged —
+not the highest of these four and not an average of them. The mode names
+which dimension dominates: Focus highest is FLOW, Motivation highest is READY, Calm highest
 is RECHARGE, Balance highest is RECOVER. The verdict is a threshold on that
 score alone: 80+ Pitch Now, 60-79 Develop, below 60 Hold.
 

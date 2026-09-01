@@ -114,8 +114,8 @@ function dimensionEntries(
  *
  * This is a restatement of the engine's own decision procedure, nothing more:
  *
- *   EPI Score = the value of the highest-scoring dimension
- *   Mode      = which dimension that was
+ *   EPI Score = (arousal + valence) / 2, computed from the audio features
+ *   Mode      = which of the four performance dimensions dominates
  *   Verdict   = a threshold on that score (>=80 Pitch Now, >=60 Develop)
  *
  * It cites the four measured scores and the rule that consumed them. It makes
@@ -141,10 +141,12 @@ export function verdictRationale(payload: AnalyzePayload): string {
         ? `between ${VERDICT_THRESHOLDS.develop} and ${VERDICT_THRESHOLDS.pitchNow}, which returns Develop`
         : `below ${VERDICT_THRESHOLDS.develop}, which returns Hold`;
 
+  const top = entries.find(([name]) => name === topName)![1];
   return (
-    `${topName} is the dominant dimension at ${Math.round(epiScore)} ` +
-    `(${others}), which sets the mode to ${mode} and the EPI Score to ` +
-    `${Math.round(epiScore)}. That score sits ${rule}.`
+    `${topName} is the dominant dimension at ${Math.round(top)} ` +
+    `(${others}), which sets the mode to ${mode}. The EPI Score of ` +
+    `${Math.round(epiScore)} is a separate reading, taken from the track's ` +
+    `arousal and valence. That score sits ${rule}.`
   );
 }
 

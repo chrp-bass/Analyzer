@@ -45,7 +45,7 @@ const FREE_ITEMS = [
   "EPI Score",
   "Primary mode",
   "Focus, Calm, Motivation, Balance",
-  "Your four-dimension EPI position",
+  "Your four-dimension performance profile",
   "One emotional-signature statement",
 ];
 

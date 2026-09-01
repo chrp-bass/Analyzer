@@ -67,7 +67,12 @@ export interface AnalysisFacts {
   // Real audio features, when the analysis carried them.
   bpm?: number;
   valence?: number;
-  energy?: number;
+  /**
+   * CHRP's weighted arousal — the value EPI was computed from. Deliberately
+   * not called `energy`: energy is one of its five inputs, and labelling a
+   * composite as a raw feature would put an unmeasured claim in the report.
+   */
+  arousal?: number;
   instrumentalness?: number;
 
   // Corpus ranking, when the engine produces it.
@@ -110,7 +115,7 @@ export function factsToTrackData(facts: AnalysisFacts): TrackData {
     comparable_artists: facts.comparableArtists,
     bpm: facts.bpm,
     spotify_valence: facts.valence,
-    spotify_energy: facts.energy,
+    chrp_arousal: facts.arousal,
     spotify_instrumentalness: facts.instrumentalness,
   };
 }

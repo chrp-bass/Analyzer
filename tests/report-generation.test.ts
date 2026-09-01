@@ -19,7 +19,7 @@ const FACTS: AnalysisFacts = {
   verdictRationale: "Motivation at ceiling, Calm at floor, held without drift.",
   bpm: 152,
   valence: 0.62,
-  energy: 0.94,
+  arousal: 0.94,
 };
 
 afterEach(() => {

@@ -47,7 +47,7 @@ const FREE_ITEMS = [
   "EPI Score",
   "Primary mode",
   "Focus, Calm, Motivation, Balance",
-  "Your four-dimension EPI position",
+  "Your four-dimension performance profile",
   "One emotional-signature statement",
 ];
 
@@ -372,7 +372,7 @@ function Dimensions() {
           </div>
           <p className="si-body" style={{ maxWidth: "46ch", margin: 0 }}>
             CHRP reads how strongly a song supports each one, then plots the
-            four together. That shape is your song&rsquo;s EPI position, and no
+            four together. That shape is your song&rsquo;s performance profile, and no
             two are quite alike. Whichever dimension leads gives the song its
             mode, and its colour.
           </p>

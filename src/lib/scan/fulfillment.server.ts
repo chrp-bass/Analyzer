@@ -5,6 +5,9 @@ import { analyzeByIsrc, AnalyzeError } from "@/lib/engine/analyze.server";
 import { verdictRationale } from "@/lib/engine/analysis-mapping";
 import { recordCompletedAnalysis } from "@/lib/memory/catalog.server";
 
+/** Bumped when the scoring contract changes. v2 = corrected EPI. */
+export const ENGINE_VERSION = "chrp-epi-v2";
+
 /**
  * Fulfillment readiness.
  *
@@ -105,7 +108,10 @@ export async function ensureAnalysisPersisted(
         artistName: payload.song.artistName,
         isrc: payload.song.isrc,
         source: "soundcharts",
-        engineVersion: "chrp-epi-v1",
+        // v2 is the corrected EPI: (arousal + valence) / 2. Rows still
+        // marked v1 were scored when EPI was the dominant dimension, so the
+        // version is how a legacy value is told apart from a current one.
+        engineVersion: ENGINE_VERSION,
         epiScore: Math.round(payload.epiScore),
         mode: payload.mode,
         verdict: payload.verdict,

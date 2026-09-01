@@ -205,6 +205,16 @@ const MODE_FOR: Record<Metric, Mode> = {
 // Tie-break priority: earlier wins. Ready > Flow > Recharge > Recover.
 const TIE_PRIORITY: Metric[] = ["motivation", "focus", "calm", "balance"];
 
+/**
+ * FLAGGED FOR REVIEW — thresholds not recalibrated.
+ *
+ * These 80/60 cut points were chosen when "epiScore" was the dominant
+ * performance dimension on a 30-99 scale. Corrected EPI is (arousal +
+ * valence) / 2 on 0-100, a different quantity with a different distribution,
+ * so the same numbers no longer mean what they meant. Deliberately left
+ * unchanged: inventing replacement thresholds would be inventing commercial
+ * methodology. Alan sets these.
+ */
 function verdictFor(epiScore: number): Verdict {
   if (epiScore >= 80) return "Pitch Now";
   if (epiScore >= 60) return "Develop";
@@ -221,10 +231,67 @@ function verdictFor(epiScore: number): Verdict {
  * arousal in the circumplex is the raw energy value; valence is passed
  * through as-is.
  */
+/**
+ * Arousal weights, supplied by CHRP's engineer. NOT derived from the four
+ * performance dimensions — this is a separate reading of the same normalized
+ * audio features.
+ */
+const AROUSAL_WEIGHTS = {
+  energy: 0.35,
+  tempo: 0.25,
+  loudness: 0.20,
+  danceability: 0.10,
+  nonAcousticness: 0.10,
+} as const;
+
+/** EPI is reported on a 0-100 scale. epi_raw is 0-1, so this is the factor. */
+export const EPI_DISPLAY_SCALE = 100;
+
+/**
+ * CHRP arousal, from the same normalized features calculateScores() uses.
+ * Reuses normalizeTempo/normalizeLoudness deliberately: a second
+ * normalization path would be a second source of truth.
+ */
+export function calculateArousal(audio: unknown): number {
+  const f = requireFeatures(audio);
+  return (
+      AROUSAL_WEIGHTS.energy * clamp(f.energy)
+    + AROUSAL_WEIGHTS.tempo * normalizeTempo(f.tempo)
+    + AROUSAL_WEIGHTS.loudness * normalizeLoudness(f.loudness)
+    + AROUSAL_WEIGHTS.danceability * clamp(f.danceability)
+    + AROUSAL_WEIGHTS.nonAcousticness * (1 - clamp(f.acousticness))
+  );
+}
+
+/**
+ * THE canonical EPI Score.
+ *
+ * epi = (arousal + valence) / 2, on a 0-100 scale.
+ *
+ * EPI is deliberately NOT max(focus, calm, motivation, balance). Those four
+ * are the performance PROFILE; EPI is an overall affective reading from
+ * arousal and valence. A song may legitimately show EPI 58, Ready mode and
+ * Motivation 78 — the numbers are not required to agree, and making them
+ * agree was the bug this replaces.
+ */
+export function calculateEpi(audio: unknown): number {
+  const f = requireFeatures(audio);
+  const arousal = calculateArousal(audio);
+  const raw = (arousal + clamp(f.valence)) / 2;
+  return Math.round(raw * EPI_DISPLAY_SCALE * 10) / 10;
+}
+
+/**
+ * Translate the four CHRP scores plus the audio features into an EPI reading.
+ *
+ * Three separate things come out of here and must stay separate:
+ *   epiScore  — (arousal + valence) / 2, from calculateEpi
+ *   mode      — which of the four dimensions dominates (unchanged)
+ *   circumplex— the arousal/valence pair EPI was computed from
+ */
 export function translateToEPI(
   scores: { focus: number; calm: number; motivation: number; balance: number },
-  energy: number,
-  valence: number,
+  audio: unknown,
 ): EPIResult {
   let winner: Metric = TIE_PRIORITY[0];
   let winnerScore = scores[winner];
@@ -235,11 +302,22 @@ export function translateToEPI(
     }
     // On tie, an earlier-priority metric was already selected; skip.
   }
+  const f = requireFeatures(audio);
+  const arousal = calculateArousal(audio);
+  const epiScore = calculateEpi(audio);
+
   return {
-    epiScore: winnerScore,
+    epiScore,
+    // Mode is unchanged: still the dominant performance dimension. It is a
+    // classification of the profile, not a restatement of EPI.
     mode: MODE_FOR[winner],
-    circumplex: { valence, arousal: energy },
-    verdict: verdictFor(winnerScore),
+    circumplex: {
+      valence: clamp(f.valence),
+      // The weighted CHRP arousal EPI was computed from — previously this
+      // reported raw energy, which is only one of its five inputs.
+      arousal: Math.round(arousal * 1000) / 1000,
+    },
+    verdict: verdictFor(epiScore),
   };
 }
 
