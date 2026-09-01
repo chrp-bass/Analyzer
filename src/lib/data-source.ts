@@ -282,6 +282,40 @@ export async function getCreatorProfileForUser(
   return getCreatorProfileFixture(trackSlug);
 }
 
+/**
+ * Ask the server to apply this creator's included first report to a scan.
+ *
+ * The browser never decides this. It asks; the server checks whether the
+ * creator still has their included report, whether the song analysed
+ * successfully, and grants or refuses accordingly.
+ */
+export type ClaimOutcome =
+  | "granted"
+  | "already_entitled"
+  | "already_used"
+  | "not_eligible"
+  | "unavailable";
+
+export async function claimFirstReport(
+  scanId: string,
+): Promise<ClaimOutcome> {
+  try {
+    const res = await fetch("/api/scan/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scanId }),
+      cache: "no-store",
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: ClaimOutcome;
+    };
+    if (!res.ok) return "unavailable";
+    return body.status ?? "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
 // ─── Paid report ───────────────────────────────────────────────────────────
 
 export interface EntitledReport {

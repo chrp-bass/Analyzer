@@ -9,9 +9,9 @@ import { polygonFromChrpScores } from "@/lib/polygon";
 import { postStageComplete } from "@/lib/post-message";
 
 const STATUS_MESSAGES = [
-  "Resolving track on Spotify…",
+  "Analyzing your song…",
   "Reading emotional fingerprint…",
-  "Mapping to CHRP catalog…",
+  "Mapping its emotional signature…",
   "Computing EPI Score…",
 ];
 

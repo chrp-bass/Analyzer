@@ -8,7 +8,7 @@ import type { FreeReport, ReportPayload } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
-import { fetchEntitledReport } from "@/lib/data-source";
+import { fetchEntitledReport, claimFirstReport } from "@/lib/data-source";
 import { getCurrentUser, setUserEmail, signInByEmail } from "@/lib/accounts";
 import { sendMagicLink } from "@/lib/email";
 import { startCheckout } from "@/lib/payments";
@@ -95,14 +95,32 @@ export function ScanPreview({
   const [paid, setPaid] = useState<ReportPayload | null>(null);
   const [showBanner, setShowBanner] = useState(search.get("welcome") === "1");
   const [unavailableNote, setUnavailableNote] = useState<string | null>(null);
+  // True only when THIS view is the moment the included report was applied.
+  const [includedFirst, setIncludedFirst] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       // The SERVER decides. There is no client-readable entitlement flag to
       // consult and nothing in localStorage that can change this answer.
-      const result = await fetchEntitledReport(scanId);
+      let result = await fetchEntitledReport(scanId);
+
+      // Not entitled yet. A creator's FIRST complete report is included, so
+      // ask the server whether this song qualifies before showing a price.
+      // Identity is established silently here — no sign-in, no interruption
+      // — because the included report has to belong to someone to survive
+      // the creator leaving and coming back.
+      if (!cancelled && result.status === "forbidden") {
+        await ensureIdentity();
+        const outcome = await claimFirstReport(scanId);
+        if (cancelled) return;
+        if (outcome === "granted" || outcome === "already_entitled") {
+          if (outcome === "granted") setIncludedFirst(true);
+          result = await fetchEntitledReport(scanId);
+        }
+      }
       if (cancelled) return;
+
       if (result.status === "ok") {
         setPaid(result.data.report);
         setStatus("unlocked");
@@ -176,7 +194,7 @@ export function ScanPreview({
       </AnimatePresence>
 
       <ReportBody report={paid} id={scanId} />
-      <CatalogClose scanId={scanId} />
+      <CatalogClose scanId={scanId} includedFirst={includedFirst} />
     </div>
   );
 }
@@ -392,7 +410,7 @@ function RevealActions({ scanId }: { scanId: string }) {
 
 // ─── The boundary ────────────────────────────────────────────────────────────
 /**
- * Deliverable 08. No blur, no teased fragments, nothing paid rendered behind
+ * The paywall. Nothing paid is rendered behind
  * a filter. The boundary is stated as a list: here is what you have, here is
  * what you do not. Paid section contents are not present in this tree.
  */
@@ -402,12 +420,7 @@ function Boundary({ scanId }: { scanId: string }) {
   return (
     <section className="rv-boundary">
       <div className="rv-inner">
-        <h2>An honest boundary, drawn on purpose.</h2>
-        <p className="rv-boundary-lede">
-          No blur and no teased fragments. Here is what you already have, and
-          here is what the full report adds. The report is generated when you
-          unlock it.
-        </p>
+        <h2>The full report tells you what to do with it.</h2>
 
         <div className="rv-cols">
           <div className="rv-have">
@@ -416,7 +429,7 @@ function Boundary({ scanId }: { scanId: string }) {
               <p key={i}>{i}</p>
             ))}
             <p className="rv-have-foot">
-              Free on your first scan, and it stays with your songs.
+              Yours to keep, with your songs.
             </p>
           </div>
 
@@ -483,28 +496,37 @@ function Boundary({ scanId }: { scanId: string }) {
  * rather than a thin band in the footer — by this point the artist has just
  * read something useful and the argument writes itself.
  */
-function CatalogClose({ scanId }: { scanId: string }) {
+function CatalogClose({
+  scanId,
+  includedFirst = false,
+}: {
+  scanId: string;
+  includedFirst?: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   return (
     <section className="bg-oat px-6 md:px-10 py-12 md:py-16 border-t border-rule">
       <div className="max-w-[720px] mx-auto text-center">
         <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
-          Understand the work
+          {includedFirst ? "Your first complete report is on us" : "Understand the work"}
         </div>
         <h2 className="mt-3 font-display text-[30px] md:text-[42px] leading-[1.05] text-chrp-black display-tight">
-          One song tells you something. A catalog tells you who you are.
+          {includedFirst
+            ? "Want to understand another song?"
+            : "One song tells you something. A catalog tells you who you are."}
         </h2>
         <p className="mt-4 font-sans text-[14px] leading-[1.6] text-ink-soft max-w-[52ch] mx-auto">
-          Each song you add changes what the others mean. Creator profile
-          unlocks at eight songs.
+          {includedFirst
+            ? "Your first complete report is on us. Understanding another song is $19, or $149 for your catalog."
+            : "Each song you add changes what the others mean. Creator profile unlocks at eight songs."}
         </p>
         <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
           <Link
             href="/scan"
             className="font-sans font-bold text-[12.5px] tracking-wider uppercase bg-chrp-black text-chrp-white px-6 py-3.5 text-center"
           >
-            Scan another song
+            {includedFirst ? "Understand another song — $19" : "Scan another song"}
           </Link>
           {/* Goes through the SAME real Stripe path as the paywall button
               above. It previously linked to /scan/[id]/checkout-tier, the
