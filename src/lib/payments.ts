@@ -47,7 +47,9 @@ export async function startCheckout(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error ?? "checkout unavailable");
+    // `message` is buyer-facing copy the server chose (e.g. a fulfillment
+    // refusal). Prefer it over the machine-readable error code.
+    throw new Error(body?.message ?? body?.error ?? "checkout unavailable");
   }
   const body = (await res.json()) as { url?: string };
   if (!body.url) throw new Error("checkout unavailable");

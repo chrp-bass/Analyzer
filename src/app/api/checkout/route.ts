@@ -7,6 +7,10 @@ import {
   type Offer,
 } from "@/lib/commerce/offers";
 import { currentUserId } from "@/lib/commerce/entitlements";
+import {
+  ensureAnalysisPersisted,
+  fulfillmentMessage,
+} from "@/lib/scan/fulfillment.server";
 import { decodeScanId } from "@/lib/scan-id";
 
 export const runtime = "nodejs";
@@ -127,6 +131,31 @@ export async function POST(req: Request) {
       { error: "no_identity", message: "Session could not be established." },
       { status: 401 },
     );
+  }
+
+  // ── Fulfillment guard ──────────────────────────────────────────────────
+  //
+  // Nobody reaches Stripe for a report we already know we cannot deliver.
+  // This persists the real completed analysis the paid report is generated
+  // from; if the engine cannot produce one, checkout fails here and no
+  // payment is taken. Server-side by necessity — a client check would be
+  // advisory, and this decides whether money moves.
+  if (scanId) {
+    const fulfillment = await ensureAnalysisPersisted(userId, scanId);
+    if (!fulfillment.ok) {
+      console.error(
+        `[api/checkout] refusing checkout for ${scanId}: ${fulfillment.reason}` +
+          (fulfillment.detail ? ` — ${fulfillment.detail}` : ""),
+      );
+      return NextResponse.json(
+        {
+          error: "fulfillment_unavailable",
+          reason: fulfillment.reason,
+          message: fulfillmentMessage(fulfillment.reason),
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const verified = await resolveVerifiedPrice(offer);

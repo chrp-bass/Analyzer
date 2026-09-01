@@ -68,8 +68,13 @@ async function beginPurchase(
     window.location.assign(url);
   } catch (err) {
     console.error("[checkout] could not start:", err);
+    // The server may have refused for a reason worth stating plainly — a
+    // song whose report cannot be produced, for instance. Nothing was
+    // charged either way.
     onError(
-      "Checkout is unavailable right now. Nothing has been charged — please try again shortly.",
+      err instanceof Error && err.message
+        ? err.message
+        : "Checkout is unavailable right now. Nothing has been charged — please try again shortly.",
     );
   }
 }
