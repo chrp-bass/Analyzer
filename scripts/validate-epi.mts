@@ -101,19 +101,28 @@ async function main() {
     console.log(`  EPI != max(F/C/M/B)   : ${epi.epiScore !== oldEpi ? "CONFIRMED" : "EQUAL (coincidence — inspect)"}`);
   }
 
-  // ── Identity ownership: Spotify, never Soundcharts ────────────────────
-  console.log(`\n${"=".repeat(72)}\nIDENTITY OWNERSHIP CHECK (Spotify by ISRC)`);
-  for (const isrc of ["USUM72212470", "USUG11904206"]) {
+  // ── Identity: exercise the REAL production function ───────────────────
+  // analyzeByIsrc is what the product calls. Importing it here proves the
+  // shipped path returns Spotify identity, not a re-implementation of it.
+  console.log(`\n${"=".repeat(72)}\nIDENTITY REGRESSION (via analyzeByIsrc — the production path)`);
+  const { analyzeByIsrc } = await import("../src/lib/engine/analyze.server");
+  const expected: Record<string, string> = {
+    USUM72212470: "Noah Kahan",
+    USUG11904206: "The Weeknd",
+  };
+  for (const isrc of Object.keys(expected)) {
     const sc = await getSoundchartsClient().getSongByIsrc(isrc);
     const scArtist =
       (sc as { creditName?: string }).creditName ??
-      (sc as { artist?: { name?: string } }).artist?.name ??
-      "?";
-    const items = await getSpotifyClient().searchTracks(`isrc:${isrc}`, 1);
-    const t = items[0] as { name?: string; artists?: Array<{ name?: string }> };
+      (sc as { artist?: { name?: string } }).artist?.name ?? "?";
+    const payload = await analyzeByIsrc(isrc);
+    const ok = payload.song.artistName === expected[isrc];
     console.log(`  ${isrc}`);
-    console.log(`    soundcharts credit (rejected) : ${sc.name} — ${scArtist}`);
-    console.log(`    SPOTIFY CANONICAL (used)      : ${t?.name} — ${t?.artists?.[0]?.name}`);
+    console.log(`    soundcharts credit (REJECTED) : ${sc.name} — ${scArtist}`);
+    console.log(`    PRODUCTION PAYLOAD (Spotify)  : ${payload.song.songName} — ${payload.song.artistName}`);
+    console.log(`    expected artist               : ${expected[isrc]}`);
+    console.log(`    features still from Soundcharts: EPI ${payload.epiScore}, F${payload.scores.focus} C${payload.scores.calm} M${payload.scores.motivation} B${payload.scores.balance}, mode ${payload.mode}`);
+    console.log(`    RESULT                        : ${ok ? "PASS" : "FAIL"}`);
   }
 
   if (epis.length === 0) return;
