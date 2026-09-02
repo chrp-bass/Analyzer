@@ -105,8 +105,8 @@ const RULES: Rule[] = [
     rule: "market-claim",
     severity: "fabrication",
     pattern:
-      /\b(music supervisors?|supervisors are|A&R|playlist(s|ing)?|active brief|live brief|briefs? (for|are|show)|placement probability|demand signal|(sync|market|placement|commercial) demand|brand interest|brands? (are|want|seek|seeking|look|looking|interested)|labels? (are|want)|radio play|will (place|land|get picked))\b/gi,
-    why: "No market, demand or placement data was supplied. Emotional affordance is not market intelligence.",
+      /\b(supervisors? (are|want|need|seek)|A&R (are|want|is looking)|playlist (interest|demand|acceptance|placement)|will (get|be) playlisted|active brief|live brief|briefs? (for|are|show)|placement probability|demand signal|(sync|market|placement|commercial) demand|brand interest|brands? (are|want|seek|seeking|look|looking|interested)|labels? (are|want)|radio (play|support)|will (place|land|get picked))\b/gi,
+    why: "Claims market, demand or placement CHRP has no evidence for. Naming a buyer category to approach is fine; asserting that they want the song is not.",
   },
   {
     rule: "external-science-claim",
@@ -461,6 +461,47 @@ export function auditInterpretation(
   return found.sort((a, b) =>
     a.severity === b.severity ? 0 : a.severity === "fabrication" ? -1 : 1,
   );
+}
+
+/**
+ * EXTERNAL COPY — the pitch fields, and only those.
+ *
+ * pitch.sync and pitch.promotion are the only strings written to leave CHRP.
+ * A creator pastes them into an email to a supervisor who has never heard of
+ * EPI, so they must carry no internal measurement: no dimension name, no
+ * score, no EPI or arousal or valence value.
+ *
+ * This cannot be folded into auditInterpretation, because the same words are
+ * entirely correct inside the reading — the boundary is the field, not the
+ * vocabulary.
+ */
+export function auditExternalCopy(text: string): Violation[] {
+  const found: Violation[] = [];
+  const label = /\b(Focus|Calm|Motivation|Balance|EPI|arousal|valence|Mode)\b/g;
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = label.exec(text)) !== null) {
+    const word = m[1];
+    if (seen.has(word.toLowerCase())) continue;
+    seen.add(word.toLowerCase());
+    found.push({
+      rule: "internal-label-in-external-copy",
+      severity: "style",
+      match: word,
+      why: `"${word}" is an internal CHRP measurement. This copy is pasted into an email to someone who has never heard of it — translate it into the function a buyer can picture.`,
+    });
+  }
+  // A bare score alongside a dimension is the shape this rule exists for.
+  const score = /\b\d{2}(?:\.\d)?\b/g;
+  if (found.length > 0 && score.test(text)) {
+    found.push({
+      rule: "internal-score-in-external-copy",
+      severity: "style",
+      match: (text.match(score) ?? []).slice(0, 2).join(", "),
+      why: "A measurement value in copy the creator forwards externally.",
+    });
+  }
+  return found;
 }
 
 /** True when anything in the list is a Level 0 claim about the world. */

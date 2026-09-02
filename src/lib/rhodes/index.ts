@@ -26,6 +26,7 @@
 import { SONG_INTELLIGENCE_SYSTEM_PROMPT } from "./song-intelligence";
 import { deriveRelationships, type Dimensions } from "./relationships";
 import {
+  auditExternalCopy,
   auditSections,
   correctionNote,
   hasFabrication,
@@ -42,6 +43,7 @@ export {
   auditInterpretation,
   auditSections,
   auditAgainstFacts,
+  auditExternalCopy,
   hasFabrication,
 } from "./governor";
 export type { Violation, AuditContext, FactSheet } from "./governor";
@@ -429,11 +431,18 @@ export async function generateSongIntelligence(
       continue;
     }
 
-    const violations = auditSections(
-      sections as unknown as Record<string, unknown>,
-      ctx,
-      facts,
-    );
+    const violations = [
+      ...auditSections(
+        sections as unknown as Record<string, unknown>,
+        ctx,
+        facts,
+      ),
+      // The pitch fields get one extra rule the rest of the report does not:
+      // they are the only strings a creator forwards to someone outside CHRP.
+      ...auditExternalCopy(
+        `${sections.pitch.sync}\n${sections.pitch.promotion}`,
+      ),
+    ];
     lastViolations = violations;
 
     if (violations.length === 0) {

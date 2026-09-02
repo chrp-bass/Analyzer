@@ -390,7 +390,15 @@ describe("the evidence governor catches fabrication", () => {
       "Music supervisors are actively looking for exactly this.",
       "market-claim",
     );
-    fabricates("It would do well on playlists.", "market-claim");
+    fabricates("There is strong playlist interest for this.", "market-claim");
+    // The boundary moved when the Buyer Map arrived: naming a category to
+    // approach is legitimate guidance, asserting that it wants the song is
+    // not. The bare noun is no longer a fabrication on its own.
+    expect(
+      hasFabrication(
+        auditInterpretation("Music supervisors working in reflective drama."),
+      ),
+    ).toBe(false);
   });
 
   it("audience behaviour with no behavioural data", () => {

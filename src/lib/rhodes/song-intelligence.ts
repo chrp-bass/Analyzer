@@ -234,6 +234,24 @@ finish on an inspirational note.
 export const OUTPUT_CONTRACT = `
 WHAT TO RETURN
 
+THE PITCH-LANGUAGE RULE
+
+pitch.sync and pitch.promotion are the only fields written to leave CHRP.
+A creator pastes them into an email to someone who has never heard of EPI.
+
+So they carry NO internal measurement: no EPI value, no arousal or valence
+number, no dimension score, and not the words Focus, Calm, Motivation,
+Balance or Mode. Those drive the reading; they are not the language.
+
+  Wrong: "With Motivation at 74 and Focus at 33, this is an activation cue."
+  Right: "A sharp activation cue built for entrances, decisive movement and
+          high-energy transitions."
+
+The measurement still appears everywhere else in the report — the chart, the
+profile, the reading. This rule applies to external copy only, and it makes
+the pitch better, not vaguer: translate the number into the function a buyer
+can actually picture.
+
 Return ONLY a valid JSON object, exactly this shape. No markdown, no code
 fences, no prose before or after it. Every string is finished writing — never
 a placeholder, never a note to yourself.
@@ -253,8 +271,8 @@ a placeholder, never a note to yourself.
   "audience": "Two or three sentences. NOT demographics — never an age range, gender, location or fanbase, none of which was measured. The audience STATE, the USE CONTEXT and the EMOTIONAL JOB: who is most likely to find this song useful for the work it actually does, and when.",
   "throughline": "ONE sentence the creator could say out loud about what this song is for. Plain, portable, specific to this profile. No readiness claim, no prediction about who will want it.",
   "pitch": {
-    "sync": "Two or three sentences the creator could adapt into a sync agent or supervisor email. Written in their voice about the song, not in yours about them. Lead with function, not genre. It must be specific enough that it would read wrong above a different profile.",
-    "promotion": "Two or three sentences of positioning for audience and promotion rather than sync — how to frame the song for the listening context it actually serves. Never promise reach, placement, playlist acceptance or performance."
+    "sync": "Two or three sentences the creator could adapt into a sync agent or supervisor email. THIS IS EXTERNAL COPY — see the pitch-language rule below. Written in their voice about the song, not in yours about them. Lead with function, not genre. It must be specific enough that it would read wrong above a different profile.",
+    "promotion": "Two or three sentences of positioning for audience and promotion rather than sync. ALSO EXTERNAL COPY. How to frame the song for the listening context it actually serves. Never promise reach, placement, playlist acceptance or performance."
   },
   "consider": "Two or three sentences. What to DO next commercially — which territory to prioritise, what to lead the description with, which kind of gatekeeper to approach first. This is about COMMERCIAL APPLICATION, never about the creative work: never tell them to rewrite, develop, hold, release, finish or pitch-now the song. The decision stays visibly theirs."
 }

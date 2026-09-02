@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { auditInterpretation, hasFabrication } from "@/lib/rhodes";
+import {
+  auditInterpretation,
+  auditExternalCopy,
+  hasFabrication,
+} from "@/lib/rhodes";
 
 /**
  * The commercial payoff, and the discipline that keeps it defensible.
@@ -121,5 +125,65 @@ describe("the dead verdict concepts have not returned", () => {
     // What matters is that no output field asks for one.
     const outputBlock = contract.slice(contract.indexOf("WHAT TO RETURN"));
     expect(outputBlock).not.toMatch(/"verdict"|"readiness"|"grade"|"score_out_of"/);
+  });
+});
+
+describe("external pitch copy carries no internal measurement", () => {
+  it("the rule is stated in the contract", () => {
+    expect(contract).toContain("THE PITCH-LANGUAGE RULE");
+    expect(contract).toMatch(/not the words Focus, Calm, Motivation,\s+Balance or Mode/);
+  });
+
+  it("catches a dimension label in copy the creator forwards", () => {
+    const v = auditExternalCopy(
+      "With Motivation at 74 and Focus at 33, this is an activation cue.",
+    );
+    expect(v.map((x) => x.rule)).toContain("internal-label-in-external-copy");
+    expect(v.map((x) => x.rule)).toContain("internal-score-in-external-copy");
+  });
+
+  it("catches EPI, arousal and valence too", () => {
+    for (const w of ["EPI", "arousal", "valence", "Mode"]) {
+      expect(
+        auditExternalCopy(`This track sits high on ${w}.`).length,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("passes copy written as function rather than measurement", () => {
+    expect(
+      auditExternalCopy(
+        "A sharp activation cue built for entrances, decisive movement and high-energy transitions.",
+      ),
+    ).toEqual([]);
+  });
+
+  it("applies to the pitch fields only, not to the reading", () => {
+    // The same words are correct inside the interpretation.
+    expect(hasFabrication(auditInterpretation("Motivation leads this profile."))).toBe(false);
+  });
+});
+
+describe("naming a buyer category is not claiming demand", () => {
+  it("permits the categories the Buyer Map is built from", () => {
+    for (const t of [
+      "Music supervisors working in reflective drama.",
+      "Playlist programmers in the focus and study space.",
+      "Sync agents and A&R contacts at independent publishers.",
+      "Trailer houses and sports content producers.",
+    ]) {
+      expect(hasFabrication(auditInterpretation(t))).toBe(false);
+    }
+  });
+
+  it("still catches the same categories asserting demand", () => {
+    for (const t of [
+      "Music supervisors are looking for this.",
+      "Supervisors want this sound right now.",
+      "Strong playlist interest for this track.",
+      "Brands are seeking exactly this.",
+    ]) {
+      expect(hasFabrication(auditInterpretation(t))).toBe(true);
+    }
   });
 });
