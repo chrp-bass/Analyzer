@@ -115,7 +115,9 @@ export function ScanProcessing({
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-md flex flex-col items-center">
+      {/* The aura sits behind the instrument, not behind the page. Scoped to
+          the full viewport it stops being atmosphere and becomes wallpaper. */}
+      <div className="chrp-aura w-full max-w-md flex flex-col items-center">
         <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
           CHRP &nbsp;//&nbsp; Emotional Intelligence
         </div>
@@ -154,7 +156,7 @@ export function ScanProcessing({
               initial={{ y: -10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-4 px-4 py-2"
+              className="mode-pill mt-4"
               style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
             >
               <span className="font-sans font-bold text-[13px]">

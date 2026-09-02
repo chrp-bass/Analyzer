@@ -371,7 +371,7 @@ function ModeDistribution({
         {entries.map((e) => (
           <span key={e.mode} className="inline-flex items-center gap-2">
             <span
-              className="inline-block w-2.5 h-2.5"
+              className="inline-block w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: MODE_COLORS[e.mode].chipBg }}
             />
             {e.mode}{" "}
@@ -458,8 +458,13 @@ function PriorityRow({
           {priority.epi_score}
         </div>
         <span
-          className="px-2 py-0.5 text-[10px] font-sans font-bold"
-          style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
+          className="mode-pill"
+          style={{
+            backgroundColor: chip.chipBg,
+            color: chip.chipText,
+            padding: "4px 10px",
+            fontSize: 10,
+          }}
         >
           {priority.mode}
         </span>

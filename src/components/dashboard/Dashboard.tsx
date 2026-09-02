@@ -508,10 +508,12 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
                     {r.epi.score}
                   </div>
                   <span
-                    className="px-2 py-0.5 text-[10px] font-sans font-bold"
+                    className="mode-pill"
                     style={{
                       backgroundColor: chip.chipBg,
                       color: chip.chipText,
+                      padding: "4px 10px",
+                      fontSize: 10,
                     }}
                   >
                     {r.epi.mode}

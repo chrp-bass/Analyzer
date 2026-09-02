@@ -167,7 +167,7 @@ export function HeroTitleBlock({ report }: { report: ReportPayload }) {
  */
 function PositionBlock({ report }: { report: ReportPayload }) {
   return (
-    <section className="flex flex-col md:flex-row gap-8 md:gap-10 items-start mt-6 md:mt-8">
+    <section className="chrp-aura flex flex-col md:flex-row gap-8 md:gap-10 items-start mt-6 md:mt-8">
       <div className="flex-1 min-w-0">
         <HeroTitleBlock report={report} />
       </div>
@@ -188,7 +188,7 @@ export function HeroPolygonAside({ report }: { report: ReportPayload }) {
         size={200}
       />
       <div
-        className="mt-3 px-3 py-1.5"
+        className="mode-pill mt-3"
         style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
       >
         <span className="font-sans font-bold text-[12px]">
@@ -303,9 +303,9 @@ function ScoreRowView({ row }: { row: ScoreRow }) {
   return (
     <div className="grid grid-cols-[76px_1fr_32px] items-center gap-3 mt-3">
       <div className="font-sans font-bold text-[12px]">{row.name}</div>
-      <div className="h-[5px] bg-bar-bg w-full">
+      <div className="h-[5px] bg-bar-bg w-full rounded-full overflow-hidden">
         <div
-          className="h-full bg-chrp-black"
+          className="h-full bg-chrp-black rounded-full"
           style={{ width: `${row.score}%` }}
         />
       </div>

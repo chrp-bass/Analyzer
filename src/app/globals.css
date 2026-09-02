@@ -46,6 +46,18 @@
   --line-dark:  rgba(239, 234, 224, 0.13);
   --line-light: rgba(26,  23,  20,  0.12);
 
+  /* ── Geometry ───────────────────────────────────────────────────────
+   * The app's objects are soft. Nothing interactive is hard-edged unless
+   * there is a structural reason, so radius lives here as a token rather
+   * than being decided per component — which is how the site ended up with
+   * 0px, 3px, 4px, 6px and 10px all meaning "rounded".
+   */
+  --r-pill:   999px;  /* mode chips, status markers */
+  --r-btn:    16px;   /* buttons, segmented controls */
+  --r-input:  16px;   /* text inputs, search fields */
+  --r-card:   20px;   /* cards, grouped objects */
+  --r-sm:     10px;   /* small inline objects, bars, thumbnails */
+
   /* Type families (next/font variables set by layout.tsx) */
   --d: var(--font-tiempos), "Tiempos Fine", Georgia, "Times New Roman", serif;
   --s: var(--font-lato), -apple-system, BlinkMacSystemFont, sans-serif;
@@ -119,7 +131,7 @@ input, textarea, select {
   background: var(--ink-3);
   border: 1px solid var(--line-dark);
   color: var(--on-dark);
-  border-radius: 4px;
+  border-radius: var(--r-input);
   font: inherit;
 }
 input:focus, textarea:focus, select:focus {
@@ -176,7 +188,7 @@ em { font-style: italic; }
   font-weight: 900;
   font-size: 13.5px;
   letter-spacing: 0.04em;
-  border-radius: 6px;
+  border-radius: var(--r-btn);
   padding: 15px 26px;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
@@ -203,7 +215,7 @@ em { font-style: italic; }
   text-transform: uppercase;
   color: var(--gold-2);
   border: 1px solid rgba(212, 168, 83, 0.45);
-  border-radius: 4px;
+  border-radius: var(--r-btn);
   padding: 10px 16px;
   font-weight: 900;
   transition: background 0.2s ease;
@@ -426,6 +438,9 @@ em { font-style: italic; }
   display: flex;
   align-items: stretch;
   border: 1px solid rgba(251, 251, 244, 0.3);
+  border-radius: var(--r-input);
+  /* The row owns the corners; the field and the action clip to them. */
+  overflow: hidden;
 }
 .si-search-row input {
   flex: 1;
@@ -1205,7 +1220,7 @@ em { font-style: italic; }
   background: var(--paper);
   border: 1.5px solid rgba(15, 14, 14, 0.20);
   color: var(--on-light);
-  border-radius: 4px;
+  border-radius: var(--r-input);
 }
 .product-shell ::placeholder { color: var(--on-light-2); }
 .product-shell input:focus,
@@ -1218,21 +1233,87 @@ em { font-style: italic; }
 .product-card {
   background: var(--paper);
   border: 1px solid var(--line-light);
-  border-radius: 10px;
+  border-radius: var(--r-card);
   padding: 24px 22px;
 }
 .product-card-elev {
   background: var(--paper);
   border: 1px solid var(--line-light);
-  border-radius: 10px;
+  border-radius: var(--r-card);
   padding: 28px 24px;
   box-shadow: 0 14px 36px -20px rgba(0, 0, 0, 0.12);
 }
 .product-card-soft {
   background: var(--oat);
   border: 1px solid var(--line-light);
-  border-radius: 10px;
+  border-radius: var(--r-card);
   padding: 24px 22px;
+}
+
+/* ── Mode pill ───────────────────────────────────────────────────────────
+ * The app renders mode as a fully-rounded status object. The site rendered
+ * it as a hard-cornered colour rectangle in nine places, each one styled
+ * inline at the call site. One class, one geometry, everywhere.
+ *
+ * Colour still comes from MODE_COLORS as an inline background, because it is
+ * data-driven per mode — the pill owns shape and type, not hue.
+ */
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  padding: 7px 16px;
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Aura ────────────────────────────────────────────────────────────────
+ * The app's signature: a soft emotional colour field sitting behind
+ * content, integrated into the surface rather than painted on top of it.
+ *
+ * Deliberately low-contrast and deliberately rare. This is for the moments
+ * the brief names — the measurement-to-interpretation transition and the
+ * report hero — not for every section. It sits at z-index 0 behind content
+ * and is inert to pointers and to screen readers.
+ *
+ * prefers-reduced-motion is irrelevant here: nothing animates. Nothing
+ * about it changes text contrast either, since it never sits above type.
+ */
+.chrp-aura {
+  position: relative;
+  isolation: isolate;
+}
+.chrp-aura > * {
+  position: relative;
+  z-index: 1;
+}
+.chrp-aura::before {
+  content: "";
+  position: absolute;
+  inset: -10% -14%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 42% at 24% 30%, rgba(64, 107, 214, 0.20), transparent 70%),
+    radial-gradient(34% 38% at 76% 26%, rgba(193, 44, 121, 0.16), transparent 72%),
+    radial-gradient(40% 44% at 58% 78%, rgba(230, 215, 79, 0.10), transparent 74%);
+  filter: blur(46px);
+}
+/* On cream the field has to sit much further back, and be much tighter, or
+ * it stops being atmosphere and becomes haze over the type. Dark surfaces
+ * absorb a wide soft field; cream ones do not. */
+.product-shell .chrp-aura::before {
+  inset: 4% 0;
+  filter: blur(58px);
+  background:
+    radial-gradient(30% 30% at 26% 34%, rgba(64, 107, 214, 0.055), transparent 72%),
+    radial-gradient(26% 28% at 74% 30%, rgba(193, 44, 121, 0.045), transparent 74%),
+    radial-gradient(30% 32% at 56% 74%, rgba(230, 215, 79, 0.05), transparent 76%);
 }
 
 /* Product hero — clean editorial intro on cream. */

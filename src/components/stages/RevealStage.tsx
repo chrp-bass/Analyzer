@@ -98,7 +98,7 @@ export function RevealStage({
               initial={{ y: -10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-4 px-4 py-2"
+              className="mode-pill mt-4"
               style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
             >
               <span className="font-sans font-bold text-[13px]">
