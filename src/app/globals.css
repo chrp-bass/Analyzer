@@ -1496,21 +1496,6 @@ em { font-style: italic; }
   padding: clamp(36px, 5vw, 72px) clamp(20px, 5vw, 56px) clamp(44px, 6vw, 88px);
 }
 
-/* The window between the analysis landing and the report painting.
- *
- * .product-shell is a cream surface, but everything the reveal renders sits
- * on ink. While entitlement is still being resolved there is no content to
- * paint, so the shell's own cream filled the viewport — a white frame that
- * read as a page reload between the analyzer and the report. This holds the
- * reveal's ground for exactly that window: same ink, full viewport, so the
- * surface the visitor is looking at never changes underneath them.
- *
- * It carries no content on purpose. The processing screen is the loading
- * state; this is only the ground beneath it staying put. */
-.rv-hold {
-  background: var(--ink);
-  min-height: 100vh;
-}
 .rv-inner { max-width: 1080px; margin: 0 auto; }
 .rv-kicker {
   margin: 0 0 12px;

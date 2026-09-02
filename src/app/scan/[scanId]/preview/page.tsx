@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { getFreeReportById, type FreeReport } from "@/lib/fixtures/tracks";
 import { getScanReport, ScanError } from "@/lib/data-source";
-import { ScanPreview, RevealHold } from "@/components/scan/ScanPreview";
+import { ScanPreview, ReportPreparing } from "@/components/scan/ScanPreview";
 
 /**
  * Preview page.
@@ -82,14 +82,14 @@ export default function PreviewPage({
     );
   }
 
-  // A real scan has no report until the engine answers. Returning null left
-  // an empty document for that whole window — and then a cream shell with
-  // nothing in it once ScanPreview mounted. Hold the reveal's ink ground
-  // instead, so the transition into the report never shows a white frame.
+  // A real scan has no report until the engine answers. This used to return
+  // null, then an empty coloured div — both of which are a dead viewport.
+  // The same waiting screen the entitlement check uses renders here too, so
+  // the whole window from processing to report is one continuous state.
   if (!trackSlug || !report) {
     return (
       <div className="product-shell">
-        <RevealHold />
+        <ReportPreparing report={null} />
       </div>
     );
   }

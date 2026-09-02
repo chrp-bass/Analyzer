@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import type { FreeReport, ReportPayload } from "@/lib/fixtures/tracks";
+import { MODE_COLORS, type FreeReport, type ReportPayload } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
@@ -136,12 +136,13 @@ export function ScanPreview({
     };
   }, [scanId]);
 
-  // Nothing renders until entitlement is known. The reveal and the report are
-  // separate screens: paid sections are never mounted-then-hidden, so no paid
-  // text reaches the DOM before unlock. What DOES render is the reveal's ink
-  // ground — otherwise this window shows the cream shell with nothing on it,
-  // which is the white frame between the analyzer and the report.
-  if (status === "checking") return <RevealHold />;
+  // No PAID text renders until entitlement is known — the reveal and the
+  // report stay separate screens, so paid prose never reaches the DOM before
+  // unlock. That restriction has nothing to do with the free reveal data,
+  // which this session already has and already showed on the processing
+  // screen. Withholding that too is what turned a thirty-second wait into a
+  // dead screen.
+  if (status === "checking") return <ReportPreparing report={report} />;
 
   if (status === "reveal") {
     return (
@@ -418,17 +419,102 @@ function RevealActions({ scanId }: { scanId: string }) {
 }
 
 /**
- * The ground, held.
+ * The screen the creator actually waits on.
  *
- * Every surface on this route paints ink (`.rv`, `.rv-boundary`) or paints
- * its own document over it (`.chrp-report`). Between mount and the first of
- * those there is nothing to paint, and the cream `.product-shell` underneath
- * became a full-viewport white frame. This is that ground, and nothing else:
- * no content, no spinner, no message — so when the reveal arrives the visitor
- * sees content appear, not the page change colour.
+ * This replaces an empty full-viewport div. That div was itself a fix for a
+ * cream empty div, and recolouring emptiness fixed nothing: the wait here is
+ * not a frame, it is up to four sequential operations — entitlement check,
+ * identity, the free-first claim, then a second entitlement check that
+ * generates the whole Rhodes report. Twenty to thirty seconds of blank
+ * viewport reads as a crashed page, and it was.
+ *
+ * So this continues the processing screen instead of interrupting it: same
+ * ground, same eyebrow, same italic status line, same instrument. The song's
+ * shape, EPI and mode were on screen a moment ago and stay on screen, which
+ * is what makes the wait feel like work continuing rather than a dead end.
+ *
+ * Everything shown here is free-tier data this component was already handed.
+ * No paid text, no invented progress, no percentage.
  */
-export function RevealHold() {
-  return <div className="rv-hold" aria-hidden />;
+const PREPARING_MESSAGES = [
+  "Building your Song Intelligence report\u2026",
+  "Composing the CHRP reading\u2026",
+  "Placing it in context\u2026",
+];
+
+export function ReportPreparing({ report }: { report: FreeReport | null }) {
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setMessageIndex((i) => (i + 1) % PREPARING_MESSAGES.length),
+      3600,
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  const chip = report ? MODE_COLORS[report.epi.mode] : null;
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-md flex flex-col items-center">
+        <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
+          CHRP &nbsp;//&nbsp; Emotional Intelligence
+        </div>
+
+        <div
+          className="font-display italic text-[18px] md:text-[20px] text-chrp-black text-center mb-10 min-h-[3rem]"
+          role="status"
+          aria-live="polite"
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={messageIndex}
+              // The first message must not animate in: an opacity-0 initial
+              // state is what the server renders, so on a direct load the
+              // line would be invisible until hydration finished.
+              initial={messageIndex === 0 ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.4 }}
+            >
+              {PREPARING_MESSAGES[messageIndex]}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <div style={{ minHeight: 280 }}>
+          {report ? (
+            <PolygonRadar
+              vertices={polygonFromChrpScores(report.chrp_scores)}
+              mode={report.epi.mode}
+              epiScore={report.epi.score}
+              size={280}
+            />
+          ) : (
+            <div style={{ width: 280, height: 280 }} aria-hidden />
+          )}
+        </div>
+
+        {report && chip && (
+          <div
+            className="mt-4 px-4 py-2"
+            style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
+          >
+            <span className="font-sans font-bold text-[13px]">
+              {report.epi.mode} mode
+            </span>
+          </div>
+        )}
+
+        {report && (
+          <div className="mt-10 font-sans text-[10px] tracking-wider uppercase text-ink-light text-center">
+            {report.track.title} &nbsp;//&nbsp; {report.track.artist}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ─── The boundary ────────────────────────────────────────────────────────────
