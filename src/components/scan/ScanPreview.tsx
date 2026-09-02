@@ -138,8 +138,10 @@ export function ScanPreview({
 
   // Nothing renders until entitlement is known. The reveal and the report are
   // separate screens: paid sections are never mounted-then-hidden, so no paid
-  // text reaches the DOM before unlock.
-  if (status === "checking") return <div style={{ minHeight: "70vh" }} aria-hidden />;
+  // text reaches the DOM before unlock. What DOES render is the reveal's ink
+  // ground — otherwise this window shows the cream shell with nothing on it,
+  // which is the white frame between the analyzer and the report.
+  if (status === "checking") return <RevealHold />;
 
   if (status === "reveal") {
     return (
@@ -413,6 +415,20 @@ function RevealActions({ scanId }: { scanId: string }) {
       </p>
     </>
   );
+}
+
+/**
+ * The ground, held.
+ *
+ * Every surface on this route paints ink (`.rv`, `.rv-boundary`) or paints
+ * its own document over it (`.chrp-report`). Between mount and the first of
+ * those there is nothing to paint, and the cream `.product-shell` underneath
+ * became a full-viewport white frame. This is that ground, and nothing else:
+ * no content, no spinner, no message — so when the reveal arrives the visitor
+ * sees content appear, not the page change colour.
+ */
+export function RevealHold() {
+  return <div className="rv-hold" aria-hidden />;
 }
 
 // ─── The boundary ────────────────────────────────────────────────────────────

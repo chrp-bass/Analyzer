@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { getFreeReportById, type FreeReport } from "@/lib/fixtures/tracks";
 import { getScanReport, ScanError } from "@/lib/data-source";
-import { ScanPreview } from "@/components/scan/ScanPreview";
+import { ScanPreview, RevealHold } from "@/components/scan/ScanPreview";
 
 /**
  * Preview page.
@@ -82,7 +82,17 @@ export default function PreviewPage({
     );
   }
 
-  if (!trackSlug || !report) return null;
+  // A real scan has no report until the engine answers. Returning null left
+  // an empty document for that whole window — and then a cream shell with
+  // nothing in it once ScanPreview mounted. Hold the reveal's ink ground
+  // instead, so the transition into the report never shows a white frame.
+  if (!trackSlug || !report) {
+    return (
+      <div className="product-shell">
+        <RevealHold />
+      </div>
+    );
+  }
   return (
     <div className="product-shell">
       <ScanPreview
