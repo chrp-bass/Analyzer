@@ -264,6 +264,97 @@ describe("the locked science survives in the prompt", () => {
   });
 });
 
+/**
+ * Rhodes Truth v1.2 reconciliation.
+ *
+ * Each of these locks a canonical requirement that the implementation brief
+ * either omitted or stated less precisely than the source of truth. They cite
+ * the SOT section so a future edit that drops one fails loudly rather than
+ * quietly de-canonicalising the core.
+ */
+describe("Rhodes Truth v1.2 — canonical requirements", () => {
+  it("§2 — carries the external-mechanism row of the truth table", () => {
+    expect(RHODES_CORE).toContain("EXTERNAL MECHANISM");
+    expect(RHODES_CORE).toMatch(/never establishes what happened for\s+this one subject/);
+  });
+
+  it("§4 — confidence rises through convergence, not through phrasing", () => {
+    expect(RHODES_CORE).toContain("CONFIDENCE RISES THROUGH CONVERGENCE");
+    // The five conditions the SOT names.
+    expect(RHODES_CORE).toMatch(/independent signals point the same way/);
+    expect(RHODES_CORE).toMatch(/departs meaningfully\s+from an established baseline/);
+    expect(RHODES_CORE).toMatch(/context is known/);
+    expect(RHODES_CORE).toMatch(/stated their intent/);
+    expect(RHODES_CORE).toMatch(/repeated outcome evidence agrees/);
+  });
+
+  it("§4 — Level 0 has the canonical language posture, not only silence", () => {
+    expect(RHODES_CORE).toMatch(/data\s+does not establish it/);
+  });
+
+  it("character canon + §14 — beside the person, guide not authority", () => {
+    expect(RHODES_CORE).toContain("WHERE YOU STAND");
+    expect(RHODES_CORE).toMatch(/Two chairs and a readout/);
+    expect(RHODES_CORE).toMatch(/never a desk, never a diagnosis, never a lecture/);
+    expect(RHODES_CORE).toMatch(/guide, not an authority over them/);
+  });
+
+  it("§14 — recognition is the job, prediction is not", () => {
+    expect(RHODES_CORE).toContain("RECOGNITION IS THE JOB. PREDICTION IS NOT");
+    expect(RHODES_CORE).toMatch(/more choice in what happens next/);
+  });
+
+  it("§3 — computational characterisation does not claim a uniform experience", () => {
+    expect(RHODES_CORE).toMatch(/without claiming that everyone\s+encounters it identically/);
+  });
+
+  it("keeps every canonical addition context-free", () => {
+    // The additions above must not smuggle song science into the reusable core.
+    expect(RHODES_CORE).not.toMatch(/\bEPI\b|Soundcharts|Spotify/);
+    expect(RHODES_CORE).not.toMatch(/\bFocus\b|\bCalm\b|\bMotivation\b/);
+  });
+});
+
+describe("Rhodes Truth v1.2 — prohibitions the governor now enforces", () => {
+  it("§2 — external literature cited as proof", () => {
+    for (const t of [
+      "Research shows music at this level improves performance.",
+      "Studies have shown listeners respond to this.",
+      "It is well established that this kind of drive helps.",
+    ]) {
+      expect(auditInterpretation(t).map((v) => v.rule)).toContain(
+        "external-science-claim",
+      );
+      expect(hasFabrication(auditInterpretation(t))).toBe(true);
+    }
+  });
+
+  it("§3 — a uniform response claimed for everyone", () => {
+    expect(
+      auditInterpretation("Every listener will feel the same push.").map(
+        (v) => v.rule,
+      ),
+    ).toContain("universal-response-claim");
+    // The compatible-with reading the SOT permits must stay clean.
+    expect(
+      auditInterpretation(
+        "This may work well for someone trying to create momentum.",
+      ),
+    ).toEqual([]);
+  });
+
+  it("§9 — brand interest and sync demand, both named in the prohibition list", () => {
+    expect(
+      auditInterpretation("Brands are looking for exactly this.").map((v) => v.rule),
+    ).toContain("market-claim");
+    expect(
+      auditInterpretation("There is real sync demand for this territory.").map(
+        (v) => v.rule,
+      ),
+    ).toContain("market-claim");
+  });
+});
+
 // ─── The governor ───────────────────────────────────────────────────────────
 
 describe("the evidence governor catches fabrication", () => {

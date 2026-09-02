@@ -105,8 +105,22 @@ const RULES: Rule[] = [
     rule: "market-claim",
     severity: "fabrication",
     pattern:
-      /\b(music supervisors?|supervisors are|A&R|playlist(s|ing)?|active brief|live brief|briefs? (for|are|show)|placement probability|demand signal|labels? (are|want)|radio play|will (place|land|get picked))\b/gi,
+      /\b(music supervisors?|supervisors are|A&R|playlist(s|ing)?|active brief|live brief|briefs? (for|are|show)|placement probability|demand signal|(sync|market|placement|commercial) demand|brand interest|brands? (are|want|seek|seeking|look|looking|interested)|labels? (are|want)|radio play|will (place|land|get picked))\b/gi,
     why: "No market, demand or placement data was supplied. Emotional affordance is not market intelligence.",
+  },
+  {
+    rule: "external-science-claim",
+    severity: "fabrication",
+    pattern:
+      /\b(research (shows|suggests|indicates|has shown|tells us|confirms)|stud(y|ies) (show|shows|have shown|suggest)|science (shows|tells us|says|confirms)|it is well[- ](documented|established)|evidence (shows|demonstrates|proves) that|clinical(ly)? proven|scientifically proven)\b/gi,
+    why: "Cites external literature as proof. General research may support what music can influence in aggregate; it never establishes anything about this one song.",
+  },
+  {
+    rule: "universal-response-claim",
+    severity: "fabrication",
+    pattern:
+      /\b(every listener|all listeners|everyone who hears (this|it)|anyone who hears (this|it) will|every person who)\b/gi,
+    why: "Claims a uniform response. A song can be characterised computationally without claiming that everyone encounters it identically.",
   },
   {
     rule: "audience-behaviour",
