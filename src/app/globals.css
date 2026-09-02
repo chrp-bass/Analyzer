@@ -1005,6 +1005,10 @@ em { font-style: italic; }
   font-size: 0.74rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
+  /* The last hard-edged primary action on the site: it sits directly
+   * against the nav's horizontal rule and directly above the now-rounded
+   * search field, which is what made the rule read as cutting into it. */
+  border-radius: var(--r-btn);
 }
 .si-nav-cta:hover { color: var(--ink); background: #efe270; }
 
