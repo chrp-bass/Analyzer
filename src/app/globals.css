@@ -1254,6 +1254,86 @@ em { font-style: italic; }
   padding: 24px 22px;
 }
 
+/* The post-payment acknowledgement. Yellow because it is the one moment on
+ * this screen that is a signal rather than a status. */
+.rp-paid-ack {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 8px 18px;
+  border-radius: var(--r-pill);
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Report ownership ────────────────────────────────────────────────────
+ * The "keep this report" module. It sits after the intelligence, never
+ * before it, and uses the existing product primitives — oat surface, card
+ * radius, .btn geometry — rather than introducing a treatment of its own.
+ */
+.rp-own {
+  margin-top: 40px;
+  background: var(--oat);
+  border: 1px solid var(--line-light);
+  border-radius: var(--r-card);
+  padding: clamp(22px, 3vw, 34px);
+}
+.rp-own-eyebrow {
+  margin: 0 0 6px;
+  font-family: var(--s);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rp-own-title {
+  margin: 0;
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.15;
+  color: var(--chrp-black);
+}
+.rp-own-note {
+  margin: 10px 0 0;
+  font-family: var(--s);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+.rp-own-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.rp-own-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 18px;
+  align-items: center;
+}
+.rp-own-form input { min-height: 50px; padding: 0 16px; }
+.rp-own-error {
+  margin: 12px 0 0;
+  font-family: var(--s);
+  font-size: 13px;
+  color: var(--magenta);
+}
+@media (max-width: 560px) {
+  .rp-own-form { grid-template-columns: 1fr; }
+  .rp-own-actions .btn { width: 100%; justify-content: center; }
+}
+
 /* ── Mode pill ───────────────────────────────────────────────────────────
  * The app renders mode as a fully-rounded status object. The site rendered
  * it as a hard-cornered colour rectangle in nine places, each one styled

@@ -33,7 +33,11 @@ export default async function CheckoutSuccessPage({
 
   // If the webhook has already landed, skip the interstitial entirely.
   const access = await assertReportAccess(scanId);
-  if (access.ok) redirect(`/scan/${scanId}/preview`);
+  // The webhook normally lands in a couple of seconds, so this redirect is
+  // the real post-payment path. `paid=1` is what lets the preparing state
+  // acknowledge the payment before the report exists — without it the
+  // creator went straight into a silent thirty-second generation.
+  if (access.ok) redirect(`/scan/${scanId}/preview?paid=1`);
 
   const sessionId = searchParams.session_id;
   let paidButPending = false;

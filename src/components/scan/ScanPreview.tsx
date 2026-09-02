@@ -142,7 +142,8 @@ export function ScanPreview({
   // which this session already has and already showed on the processing
   // screen. Withholding that too is what turned a thirty-second wait into a
   // dead screen.
-  if (status === "checking") return <ReportPreparing report={report} />;
+  if (status === "checking")
+    return <ReportPreparing report={report} paid={search.get("paid") === "1"} />;
 
   if (status === "reveal") {
     return (
@@ -442,7 +443,19 @@ const PREPARING_MESSAGES = [
   "Placing it in context\u2026",
 ];
 
-export function ReportPreparing({ report }: { report: FreeReport | null }) {
+export function ReportPreparing({
+  report,
+  paid = false,
+}: {
+  report: FreeReport | null;
+  /**
+   * True on the return from a successful Stripe checkout. The creator has
+   * just given CHRP money and then, previously, watched an empty viewport
+   * for thirty-four seconds. Acknowledging the payment is the first thing
+   * this screen owes them.
+   */
+  paid?: boolean;
+}) {
   const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
@@ -460,6 +473,11 @@ export function ReportPreparing({ report }: { report: FreeReport | null }) {
       {/* The aura sits behind the instrument, not behind the page. Scoped to
           the full viewport it stops being atmosphere and becomes wallpaper. */}
       <div className="chrp-aura w-full max-w-md flex flex-col items-center">
+        {paid && (
+          <div className="rp-paid-ack" role="status">
+            <span aria-hidden>&#10003;</span> Payment received
+          </div>
+        )}
         <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
           CHRP &nbsp;//&nbsp; Emotional Intelligence
         </div>

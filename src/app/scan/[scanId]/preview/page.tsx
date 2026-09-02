@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { getFreeReportById, type FreeReport } from "@/lib/fixtures/tracks";
 import { getScanReport, ScanError } from "@/lib/data-source";
@@ -21,6 +21,7 @@ export default function PreviewPage({
   params: { scanId: string };
 }) {
   const router = useRouter();
+  const search = useSearchParams();
   const trackSlug = decodeScanId(params.scanId);
   const fixture =
     trackSlug && isFixtureKey(trackSlug) ? getFreeReportById(trackSlug) : null;
@@ -89,7 +90,10 @@ export default function PreviewPage({
   if (!trackSlug || !report) {
     return (
       <div className="product-shell">
-        <ReportPreparing report={null} />
+        {/* The paid flag has to survive this branch too: on a real scan the
+            analysis resolves here first, so this is the frame a paying
+            creator lands on. */}
+        <ReportPreparing report={null} paid={search.get("paid") === "1"} />
       </div>
     );
   }
