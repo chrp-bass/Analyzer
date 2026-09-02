@@ -85,12 +85,24 @@ export function ReportBody({
       <MovementHeading n="02" title="EPI profile" caption="the four dimensions" />
       <ScoresGrid report={report} />
 
-      {/* 03 — the moments the song supports. */}
-      <MovementHeading n="03" title="What it’s built for" caption="moments and contexts" />
+      {/* 03 — the placement map. Where the measured function could work. */}
+      <MovementHeading n="03" title="Where this could live" caption="placement territory" />
       <BuiltForSection placements={report.placements} />
 
-      {/* 04 — language to carry into a pitch. */}
-      <MovementHeading n="04" title="Pitch throughline" caption="paste this anywhere" />
+      {/* 04 — the buyer map. Who could value that function. */}
+      {report.buyers && report.buyers.length > 0 ? (
+        <>
+          <MovementHeading
+            n="04"
+            title="Who to put it in front of"
+            caption="and what to lead with"
+          />
+          <BuyerSection buyers={report.buyers} />
+        </>
+      ) : null}
+
+      {/* 05 — language to carry into a pitch. */}
+      <MovementHeading n="05" title="Pitch throughline" caption="paste this anywhere" />
       <p className="font-display italic text-[17px] md:text-[19px] leading-[1.5] mt-3 max-w-[56ch] relative">
         <span
           aria-hidden
@@ -102,18 +114,39 @@ export function ReportBody({
         {report.throughline}
       </p>
 
-      {/* 05 — emotional territory, where supportable. */}
-      <MovementHeading n="05" title="Comparable context" caption="emotional territory" />
-      <p className="font-sans text-[14px] md:text-[15px] leading-[1.6] mt-3 max-w-[62ch] text-ink-soft">
-        {report.comparable}
-      </p>
+      {/* The positioning language itself, under the throughline it summarises. */}
+      {report.pitch ? <PitchSection pitch={report.pitch} /> : null}
+
+      {/* 06 — the audience map. State, context, emotional job. This replaced
+          "Comparable context", which was generic territory prose and the
+          section most prone to naming a genre nobody measured. Persisted
+          reports that still carry `comparable` keep rendering it. */}
+      {report.audience ? (
+        <>
+          <MovementHeading
+            n="06"
+            title="Who responds, and when"
+            caption="state and context"
+          />
+          <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[62ch]">
+            {report.audience}
+          </p>
+        </>
+      ) : report.comparable ? (
+        <>
+          <MovementHeading n="06" title="Comparable context" caption="emotional territory" />
+          <p className="font-sans text-[14px] md:text-[15px] leading-[1.6] mt-3 max-w-[62ch] text-ink-soft">
+            {report.comparable}
+          </p>
+        </>
+      ) : null}
 
       {/* 06 — the decision advantage, and where it hands back. Absent on
           reports persisted before the Rhodes v2 contract; those still read. */}
       {report.consider ? (
         <>
           <MovementHeading
-            n="06"
+            n="07"
             title="Worth considering"
             caption="your call"
           />
@@ -356,6 +389,11 @@ export function BuiltForSection({
             {String(i + 1).padStart(2, "0")}
           </div>
           <div>
+            {p.family ? (
+              <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft mb-1">
+                {p.family}
+              </div>
+            ) : null}
             <div className="font-display text-[18px] md:text-[20px] leading-tight max-w-[62ch]">
               {p.title}
             </div>
@@ -365,6 +403,60 @@ export function BuiltForSection({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The buyer map. Measurement is sans and compact; the reason someone may
+ * care is the human half, so it reads as body copy rather than a data row.
+ */
+export function BuyerSection({
+  buyers,
+}: {
+  buyers: NonNullable<ReportPayload["buyers"]>;
+}) {
+  return (
+    <div className="mt-2 flex flex-col">
+      {buyers.map((b, i) => (
+        <div key={i} className="mt-4">
+          <div className="font-sans font-bold text-[12px]">{b.category}</div>
+          <div className="font-sans text-[10.5px] tracking-wider uppercase text-ink-soft mt-1">
+            Lead with &middot; {b.lead}
+          </div>
+          <p className="font-sans text-[13px] text-ink-soft leading-[1.5] mt-1.5 max-w-[62ch]">
+            {b.why}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Positioning language the creator can actually adapt and send. */
+export function PitchSection({
+  pitch,
+}: {
+  pitch: NonNullable<ReportPayload["pitch"]>;
+}) {
+  return (
+    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+      <div>
+        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+          For sync
+        </div>
+        <p className="font-sans text-[13.5px] leading-[1.6] mt-2 max-w-[52ch]">
+          {pitch.sync}
+        </p>
+      </div>
+      <div>
+        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
+          For positioning
+        </div>
+        <p className="font-sans text-[13.5px] leading-[1.6] mt-2 max-w-[52ch]">
+          {pitch.promotion}
+        </p>
+      </div>
     </div>
   );
 }

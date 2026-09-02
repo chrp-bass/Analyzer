@@ -235,10 +235,18 @@ async function runCase(c: Case) {
   console.log(`\nTHE READING\n  ${s.rhodes}`);
   console.log(`\nWHAT IT'S BUILT FOR`);
   s.placements.forEach((p, i) =>
-    console.log(`  ${String(i + 1).padStart(2, "0")}  ${p.title}\n      ${p.body}`),
+    console.log(
+      `  ${String(i + 1).padStart(2, "0")}  ${p.family ?? "—"}\n      ${p.title}\n      ${p.body}`,
+    ),
   );
+  console.log(`\nWHO TO PUT IT IN FRONT OF`);
+  s.buyers.forEach((b) =>
+    console.log(`  ${b.category}\n      LEAD WITH: ${b.lead}\n      ${b.why}`),
+  );
+  console.log(`\nWHO RESPONDS, AND WHEN\n  ${s.audience}`);
   console.log(`\nTHROUGHLINE\n  ${s.throughline}`);
-  console.log(`\nCOMPARABLE CONTEXT\n  ${s.comparable}`);
+  console.log(`\nPITCH — SYNC\n  ${s.pitch.sync}`);
+  console.log(`\nPITCH — POSITIONING\n  ${s.pitch.promotion}`);
   console.log(`\nWORTH CONSIDERING\n  ${s.consider}`);
 
   const violations = auditSections(

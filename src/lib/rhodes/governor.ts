@@ -123,6 +123,34 @@ const RULES: Rule[] = [
     why: "Claims a uniform response. A song can be characterised computationally without claiming that everyone encounters it identically.",
   },
   {
+    // The commercial half brought a new failure mode with it: analogy is
+    // useful and allowed ("the kind of open-road storytelling common in
+    // automotive advertising"), but the same sentence becomes a claim about
+    // demand the moment it says someone WANTS the song.
+    rule: "claimed-demand",
+    severity: "fabrication",
+    pattern:
+      /\b((needs|wants|is looking for|are looking for|would use|will use|would love|is seeking|are seeking) this (song|track|record)?|there is demand for|demand exists|this will (get|land|win) (a )?(sync|placement|deal)|guaranteed (sync|placement)|is perfect for the next)\b/gi,
+    why: "Claims someone wants the song. Analogy locates a territory; it never establishes that anyone is asking for it.",
+  },
+  {
+    rule: "commercial-prediction",
+    severity: "fabrication",
+    pattern:
+      /\b(hit potential|will be a hit|chart potential|revenue potential|will earn|will make money|placement probability|sync probability|likely to (chart|place|blow up)|guaranteed (revenue|success)|commercially ready|market[- ]ready)\b/gi,
+    why: "Predicts a commercial outcome. CHRP has no demand, revenue or placement evidence of any kind.",
+  },
+  {
+    // Creative judgement is the other side of the removed verdict. Commercial
+    // application is in scope; telling a creator to change or withhold their
+    // song is not, and never comes back under a new name.
+    rule: "creative-direction",
+    severity: "fabrication",
+    pattern:
+      /\b(rewrite the|re-?record|rework the|develop the (bridge|chorus|verse|song|track)|increase the tempo|slow it down|shorten the|trim the|hold (off on|this song|the song)|do not (pitch|release)|don'?t (pitch|release)|pitch (it )?now|release (it )?now|not ready to (pitch|release))\b/gi,
+    why: "Judges or directs the creative work. CHRP advises on commercial application and never on whether the song is finished.",
+  },
+  {
     rule: "audience-behaviour",
     severity: "fabrication",
     pattern:

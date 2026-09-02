@@ -13,6 +13,15 @@ export interface ScoreRow {
 export interface Placement {
   title: string;
   body: string;
+  /** Placement family + register, e.g. "Automotive — adventure, freedom". */
+  family?: string;
+}
+
+/** Who to put the song in front of, and what to lead with. */
+export interface Buyer {
+  category: string;
+  lead: string;
+  why: string;
 }
 
 export interface Vertical {
@@ -71,7 +80,20 @@ export interface PaidSections {
   signature: string;
   placements: Placement[];
   throughline: string;
-  comparable: string;
+  /**
+   * RETIRED. "Comparable context" was the weakest movement in the report —
+   * generic emotional-territory prose, and the section most prone to naming
+   * a genre nobody measured. Replaced by `audience`, which answers a
+   * question the creator actually has. Optional so persisted reports still
+   * render it.
+   */
+  comparable?: string;
+  /** Buyer map. Optional: absent on reports generated before this contract. */
+  buyers?: Buyer[];
+  /** Audience state, use context and emotional job. Never demographics. */
+  audience?: string;
+  /** Usable positioning language for outreach and promotion. */
+  pitch?: { sync: string; promotion: string };
   /**
    * The decision advantage — what the creator should consider, and what stays
    * their call. Optional ONLY for backward compatibility: reports persisted

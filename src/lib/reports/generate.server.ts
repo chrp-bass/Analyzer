@@ -159,8 +159,16 @@ export async function generatePaidSections(
     );
   }
 
-  const { signature, rhodes, placements, throughline, comparable, consider } =
-    result.sections;
+  const {
+    signature,
+    rhodes,
+    placements,
+    buyers,
+    audience,
+    throughline,
+    pitch,
+    consider,
+  } = result.sections;
 
   return {
     ok: true,
@@ -168,8 +176,10 @@ export async function generatePaidSections(
       rhodes,
       signature,
       placements,
+      buyers,
+      audience,
       throughline,
-      comparable,
+      pitch,
       consider,
       // Brief counts, vertical percentages and sample briefs are demand claims
       // the scoring cannot support. Empty is the only honest production value.

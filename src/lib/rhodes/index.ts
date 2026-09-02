@@ -51,15 +51,28 @@ export { RHODES_CORE } from "./core";
 export interface Placement {
   title: string;
   body: string;
+  family?: string;
+}
+
+export interface Buyer {
+  category: string;
+  lead: string;
+  why: string;
 }
 
 /** What one governed generation returns. Matches the persisted report shape. */
 export interface SongIntelligenceSections {
   signature: string;
   rhodes: string;
+  /** Placement map: where the measured function could be useful. */
   placements: Placement[];
+  /** Buyer map: who could value that function, and what to lead with. */
+  buyers: Buyer[];
+  /** Audience map: state, use context and emotional job. Never demographics. */
+  audience: string;
   throughline: string;
-  comparable: string;
+  /** Usable positioning language for outreach and for promotion. */
+  pitch: { sync: string; promotion: string };
   consider: string;
 }
 
@@ -275,14 +288,54 @@ function validateShape(value: unknown): SongIntelligenceSections {
     ) {
       throw new Error(`Rhodes response placement ${i} is incomplete`);
     }
-    return { title: pl.title.trim(), body: pl.body.trim() };
+    return {
+      title: pl.title.trim(),
+      body: pl.body.trim(),
+      ...(typeof pl.family === "string" && pl.family.trim()
+        ? { family: pl.family.trim() }
+        : {}),
+    };
   });
+  if (!Array.isArray(p.buyers) || p.buyers.length < 1) {
+    throw new Error("Rhodes response missing required field: buyers");
+  }
+  const buyers = p.buyers.map((b, i) => {
+    if (
+      !b ||
+      typeof b.category !== "string" ||
+      typeof b.lead !== "string" ||
+      typeof b.why !== "string" ||
+      !b.category.trim() ||
+      !b.lead.trim() ||
+      !b.why.trim()
+    ) {
+      throw new Error(`Rhodes response buyer ${i} is incomplete`);
+    }
+    return {
+      category: b.category.trim(),
+      lead: b.lead.trim(),
+      why: b.why.trim(),
+    };
+  });
+  const pitch = p.pitch;
+  if (
+    !pitch ||
+    typeof pitch.sync !== "string" ||
+    typeof pitch.promotion !== "string" ||
+    !pitch.sync.trim() ||
+    !pitch.promotion.trim()
+  ) {
+    throw new Error("Rhodes response missing required field: pitch");
+  }
+
   return {
     signature: stringField("signature"),
     rhodes: stringField("rhodes"),
     placements,
+    buyers,
+    audience: stringField("audience"),
     throughline: stringField("throughline"),
-    comparable: stringField("comparable"),
+    pitch: { sync: pitch.sync.trim(), promotion: pitch.promotion.trim() },
     consider: stringField("consider"),
   };
 }
