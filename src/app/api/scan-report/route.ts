@@ -4,11 +4,8 @@ import {
   getFullReport,
   fixtureReportsPermitted,
 } from "@/lib/fixtures/report.server";
-import { payloadToTrackData } from "@/lib/data-source";
-import {
-  generateReport,
-  generateChrpReading,
-} from "@/lib/prompts/report";
+import { payloadToRhodesInput } from "@/lib/data-source";
+import { generateSongIntelligence } from "@/lib/rhodes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,13 +51,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const trackData = payloadToTrackData(fixture);
-    const sections = await generateReport(trackData);
-    const rhodes = await generateChrpReading(
-      trackData,
-      JSON.stringify(sections, null, 2),
-    );
-    return NextResponse.json({ sections, rhodes });
+    const result = await generateSongIntelligence(payloadToRhodesInput(fixture));
+    if (!result.ok) {
+      return NextResponse.json({ error: result.detail }, { status: 502 });
+    }
+    // Same single governed generation the production path uses; `rhodes` is
+    // split out only because this dev bridge's response shape predates it.
+    const { rhodes, ...sections } = result.sections;
+    return NextResponse.json({ sections, rhodes, violations: result.violations });
   } catch (err) {
     console.error("[api/scan-report] generation failed:", err);
     return NextResponse.json(

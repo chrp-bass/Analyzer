@@ -37,3 +37,4 @@ next-env.d.ts
 
 # local archive snapshots (accidental exports, never versioned)
 SongAnalyzer.zip
+.env*

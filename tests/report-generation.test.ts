@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  factsToTrackData,
+  factsToRhodesInput,
   generatePaidSections,
   type AnalysisFacts,
 } from "@/lib/reports/generate.server";
+import { buildUserMessage, auditContextFor } from "@/lib/rhodes";
 
 /**
  * The honesty rules around paid intelligence: production never serves a
@@ -15,7 +16,7 @@ const FACTS: AnalysisFacts = {
   artist: "Voss Black",
   mode: "Ready",
   epiScore: 91,
-  bpm: 152,
+  dimensions: { focus: 84, calm: 21, motivation: 96, balance: 52 },
   valence: 0.62,
   arousal: 0.94,
 };
@@ -77,31 +78,42 @@ describe("paid prose is server-only", () => {
 
 describe("generator inputs", () => {
   it("omits facts upstream did not supply rather than inventing them", () => {
-    const data = factsToTrackData(FACTS);
+    const input = factsToRhodesInput(FACTS);
 
-    expect(data.track).toBe("Redline");
-    expect(data.epi_score).toBe(91);
-    expect(data.bpm).toBe(152);
+    expect(input.identity.title).toBe("Redline");
+    expect(input.engine.epiScore).toBe(91);
+    expect(input.engine.dimensions.motivation).toBe(96);
 
-    // The engine produces no corpus percentiles, key, popularity, release
-    // date, genres, duration or demand signal. None may appear.
-    for (const absent of [
-      "percentile_corpus",
-      "percentile_mode",
-      "demand_signal",
-      "key",
-      "spotify_popularity",
-      "release_date",
-      "genres",
-      "duration_seconds",
-    ] as const) {
-      expect(data[absent]).toBeUndefined();
-    }
+    // The engine produces no tempo, key, genre, corpus percentile or
+    // comparable artists. With none supplied there is no context block AT
+    // ALL — absence is what the evidence governor reads to lock its rules.
+    expect(input.context).toBeUndefined();
+    expect(input.userTruth).toBeUndefined();
 
-    // And they must not survive serialization into the prompt payload.
-    const serialized = JSON.parse(JSON.stringify(data));
-    expect(Object.keys(serialized)).not.toContain("demand_signal");
-    expect(Object.keys(serialized)).not.toContain("percentile_corpus");
+    const ctx = auditContextFor(input);
+    expect(ctx.hasTempo).toBe(false);
+    expect(ctx.hasKey).toBe(false);
+    expect(ctx.hasGenre).toBe(false);
+    expect(ctx.hasComparableArtists).toBe(false);
+    expect(ctx.hasCorpusRanking).toBe(false);
+    // The engine supplies neither behavioural events nor temporal structure.
+    expect(ctx.hasObservedBehaviour).toBe(false);
+    expect(ctx.hasStructure).toBe(false);
+  });
+
+  it("tells the model, in words, that nothing else was supplied", () => {
+    const message = buildUserMessage(factsToRhodesInput(FACTS));
+    expect(message).toContain("AVAILABLE CONTEXT — none");
+    expect(message).toMatch(/No tempo, key, genre/);
+    // Identity ownership is stated on the same line as the identity itself.
+    expect(message).toContain("CANONICAL IDENTITY — owned by Spotify");
+  });
+
+  it("passes only supplied context through, never a stand-in", () => {
+    const input = factsToRhodesInput({ ...FACTS, bpm: 152 });
+    expect(input.context).toEqual({ bpm: 152 });
+    expect(auditContextFor(input).hasTempo).toBe(true);
+    expect(auditContextFor(input).hasKey).toBe(false);
   });
 });
 
@@ -112,4 +124,12 @@ describe("generation fails closed", () => {
     expect(result).toMatchObject({ ok: false, reason: "no_api_key" });
   });
 
+  it("refuses when the analysis carries no dimension profile", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-used");
+    // Rhodes reasons from relationships. With no dimensions there are no
+    // relationships — only a mode label — so there is nothing honest to
+    // interpret and no request is made.
+    const result = await generatePaidSections({ ...FACTS, dimensions: null });
+    expect(result).toMatchObject({ ok: false, reason: "generation_failed" });
+  });
 });

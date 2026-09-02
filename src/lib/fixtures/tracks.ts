@@ -72,6 +72,14 @@ export interface PaidSections {
   placements: Placement[];
   throughline: string;
   comparable: string;
+  /**
+   * The decision advantage — what the creator should consider, and what stays
+   * their call. Optional ONLY for backward compatibility: reports persisted
+   * before the Rhodes v2 contract have no such field, and an authorized
+   * re-read of one must not break. Every new generation produces it, and the
+   * generator refuses a response that omits it.
+   */
+  consider?: string;
   where_this_music_lives: {
     verticals: Vertical[];
     confidence: "high" | "moderate" | "preliminary" | null;

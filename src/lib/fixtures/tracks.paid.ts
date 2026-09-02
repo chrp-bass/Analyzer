@@ -9,12 +9,27 @@ import type { PaidSections } from "@/lib/fixtures/tracks";
  * Nothing in this file may be referenced from a "use client" module.
  *
  * These are development fixtures. In production the paid sections are
- * generated per scan; see @/lib/prompts/report. They exist here so the
- * report path is runnable without an ANTHROPIC_API_KEY in development.
+ * generated per scan; see @/lib/rhodes. They exist here so the report path is
+ * runnable without an ANTHROPIC_API_KEY in development.
+ *
+ * DO NOT READ THIS PROSE AS A STYLE REFERENCE. It predates the evidence
+ * governor and would not survive it: it names instrumentation and structure
+ * nobody measured ("the riff architecture escalates through volume and
+ * layering"), asserts a population it was never shown ("rare conviction"),
+ * and claims behaviour over time the engine has no axis for. Generated output
+ * is audited by @/lib/rhodes/governor before it ships; this text is not, and
+ * it never reaches a real creator — fixtureReportsPermitted() refuses it in
+ * production. It is kept only so the render path runs offline.
+ *
+ * These entries also predate the `consider` field, which is why that field is
+ * optional on PaidSections. A fixture with no sixth movement simply does not
+ * render one.
  */
 
 export const PAID_SECTIONS: Record<string, PaidSections> = {
   redline: {
+    consider:
+      "The distance between Motivation and Calm is the whole positioning question here. Put this where someone needs to settle and the profile works against you. Worth deciding whether you want it to meet people who are already keyed up, or to be the thing that gets them there — it does the second more readily than the first.",
     rhodes:
       "A Ready-mode track operating at the extreme end of the catalog. Motivation at its ceiling, Calm at its floor — there is no ambiguity about what this song is for. It is a launch sequence. Built for the ten seconds before everything changes. Lead exclusively with apex performance moments: esports broadcast opens, championship fight-night entrances, performance vehicle reveals. The riff architecture escalates through volume and layering rather than chord progression, which means it holds intensity across extended cuts without telegraphing its ceiling. Do not hand this to anything requiring nuance, emotional complexity, or descent. It does one thing, and does it with rare conviction.",
     signature:
@@ -51,6 +66,8 @@ export const PAID_SECTIONS: Record<string, PaidSections> = {
     },
   },
   "sea-glass": {
+    consider:
+      "Balance leads, with Calm close behind it, and that pairing does more work than either value alone. Worth testing whether the moments you have in mind want evenness or want restfulness; those are different requests. The distinction is yours to settle before you place it.",
     rhodes:
       "A Recharge-mode track with exceptional structural balance. Balance and Calm both sit high — this is a song built to restore without sedating. It operates in the restorative register without crossing into recovery territory: present, warm, unhurried. Lead with wellness brand films, luxury travel, and milestone celebrations where the music is asked to hold a feeling rather than move one. The acoustic arrangement remains accessible across demographic ranges from twenty to seventy-five, which makes it commercially flexible in a way most Recharge tracks are not. Hold this back from athletic, action, and high-tempo contexts where its intimate scale will be crushed. It earns its placement by being the right temperature, not the loudest signal.",
     signature:
@@ -87,6 +104,8 @@ export const PAID_SECTIONS: Record<string, PaidSections> = {
     },
   },
   "after-the-fire": {
+    consider:
+      "Calm leads while Motivation sits well below everything else, which points to staying rather than moving. If you aim this at a moment that needs someone to act, the profile is not on your side. Worth asking whether the scene you are picturing wants resolution or wants company.",
     rhodes:
       "A Recover-mode track operating in the upper register. Recovery and Rest both high, Motivation withdrawn to its lowest register — this song is built for the aftermath. Not grief exactly, but the long exhale after. Lead with third-act dramatic resolution, end-of-season memorial segments, and long-form brand films that have earned an emotional landing. The string-and-piano arrangement carries sufficient weight to work beneath dialogue and voiceover without competing. What makes this unusual within the Recover mode is the Balance score: it holds emotional complexity without becoming heavy or punishing. That makes it more commercially flexible than most deep-Recover tracks. Hold it back from sport, action, and product-launch contexts — its gravity will read as deflation in those placements.",
     signature:
@@ -123,6 +142,8 @@ export const PAID_SECTIONS: Record<string, PaidSections> = {
     },
   },
   "copper-static": {
+    consider:
+      "Balance and Focus both sit well clear of Motivation, so this is centred and immersive at once rather than either on its own. Consider whether the use you have in mind needs evenness it can rely on or attention it can hold. This profile offers both, and it will not supply the push.",
     rhodes:
       "A Flow-mode track with unusually high structural balance and a refined sense of rhythmic self-possession. Balance and Flow both sit high — this song moves without rushing. It creates momentum through patience rather than propulsion. Lead with premium lifestyle brand films, tech product launches, and fashion editorial where the music is asked to carry cool without broadcasting it. The neo-soul arrangement sits outside genre clichés, extending its commercial range. The mid-range Motivation is intentional: this is not a performance anthem, it is ambient intelligence — it makes the room smarter without making it louder. Hold it back from athletic and action contexts where its subtle authority will read as passivity.",
     signature:
@@ -159,6 +180,8 @@ export const PAID_SECTIONS: Record<string, PaidSections> = {
     },
   },
   "white-heat": {
+    consider:
+      "Motivation leads and Calm trails by a wide margin, but Focus sits high enough that this is not drive alone. Worth testing whether the moment needs momentum or momentum with somewhere to point it — the profile supports the second, which is the less obvious use.",
     rhodes:
       "A Ready-mode track with strong Motivation and a higher Calm than most in its mode — which is the distinguishing commercial feature. With Motivation high and Calm mid-range, this is not an apex-performance anthem; it is a social-energy track. The difference matters for placement. Where extreme-Ready tracks are built for competition, this is built for the first hour of a night that hasn't peaked yet. Lead with fashion-week content, club-culture brand campaigns, and summer-season retail activation. The contemporary synth architecture gives it commercial longevity that harder-edged Ready tracks lack. The mid-range Calm specifically opens doors in beauty and fragrance campaigns that avoid low-Calm aggression. This is versatile Ready, not singular Ready.",
     signature:
@@ -195,6 +218,8 @@ export const PAID_SECTIONS: Record<string, PaidSections> = {
     },
   },
   "hollow-meridian": {
+    consider:
+      "Focus and Balance sit close together above the rest, and that pairing is the interesting part: immersion that does not tip into intensity. Consider where you need attention held without the room changing temperature. That is a narrower ask than it sounds, and it is what this profile is built to do.",
     rhodes:
       "A Flow-mode track with exceptional Focus and a cinematic quality that separates it from standard grooves in the mode. Focus and Flow both high, with Motivation at mid-range — this is a song with inner stillness rather than outward energy. The result is a track that creates an atmosphere rather than a feeling, which is a specific and valuable commercial quality. Lead with nature documentary, luxury automotive, and architecture brand films where the music must sustain a visual world without directing it. Mid-range Motivation narrows the moments it fits. Pair with a higher-Motivation track on pitches to supervisors who need both atmosphere and forward movement. The track earns its placement when it has context alongside it.",
     signature:

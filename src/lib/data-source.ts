@@ -28,7 +28,7 @@ import {
   type AnalyzePayload,
   type SongSearchResult,
 } from "@/lib/engine/analysis-mapping";
-import type { TrackData } from "@/lib/prompts/report";
+import type { SongIntelligenceInput } from "@/lib/rhodes";
 
 export type { ReportPayload, CreatorProfilePayload, SongSearchResult };
 
@@ -350,45 +350,36 @@ export async function fetchEntitledReport(
 // ─── Generator input ───────────────────────────────────────────────────────
 
 /**
- * Fixture -> TrackData mapping, used only by the development-only
- * /api/scan-report bridge. The production paid path builds its generator
- * input from real analysis facts in @/lib/reports/generate.server instead,
- * which reads no paid field and invents nothing.
+ * Fixture -> Rhodes input, used only by the development-only /api/scan-report
+ * bridge. The production paid path builds its input from real analysis facts
+ * in @/lib/reports/generate.server instead.
+ *
+ * This function used to fabricate a per-mode table of Spotify metadata — a
+ * BPM, a key, a valence, an energy, a popularity, a release date, a genre
+ * list and a duration — none of which the engine had measured, and all of
+ * which went straight into the prompt. It was development scaffolding, but it
+ * taught the generator that those facts exist, and it made every local sample
+ * an unreliable guide to what production would actually say.
+ *
+ * Nothing is invented now. A fixture supplies what a fixture has: identity,
+ * the four dimensions, the EPI score and the mode. Everything the engine did
+ * not measure is simply absent, which is exactly what the evidence governor
+ * needs to see in order to enforce its rules.
  */
-const SPOTIFY_STUBS = {
-  Ready:    { bpm: 152, key: "E minor",  spotify_valence: 0.62, spotify_energy: 0.94, spotify_instrumentalness: 0.18 },
-  Flow:     { bpm: 118, key: "F# minor", spotify_valence: 0.55, spotify_energy: 0.72, spotify_instrumentalness: 0.42 },
-  Recharge: { bpm: 92,  key: "G major",  spotify_valence: 0.78, spotify_energy: 0.44, spotify_instrumentalness: 0.28 },
-  Recover:  { bpm: 74,  key: "A minor",  spotify_valence: 0.31, spotify_energy: 0.36, spotify_instrumentalness: 0.55 },
-} as const;
-
-export function payloadToTrackData(rl: ReportPayload): TrackData {
-  const stub = SPOTIFY_STUBS[rl.epi.mode];
-  const parts = rl.comparable.split(/'s '/);
-  const extracted = parts
-    .slice(0, -1)
-    .map((chunk) => {
-      const m = chunk.match(/([A-Z][\w.]*(?:\s+[A-Z][\w.]*)*)\s*$/);
-      return m?.[1]?.trim();
-    })
-    .filter((s): s is string => !!s);
-  const comparable_artists =
-    extracted.length > 0 ? extracted.slice(0, 2) : [rl.creator.name];
-  const top = rl.where_this_music_lives.verticals[0];
+export function payloadToRhodesInput(rl: ReportPayload): SongIntelligenceInput {
+  const byName = new Map(rl.chrp_scores.map((r) => [r.name, r.score]));
   return {
-    track: rl.track.title,
-    artist: rl.track.artist,
-    mode: rl.epi.mode,
-    epi_score: rl.epi.score,
-    percentile_corpus: rl.epi.rank_overall,
-    percentile_mode: rl.epi.rank_in_mode,
-    comparable_artists,
-    demand_signal: top?.name,
-    ...stub,
-    spotify_popularity: 42,
-    release_date: rl.report_meta.scanned_at.slice(0, 10),
-    genres: [rl.epi.mode.toLowerCase(), "cinematic", "editorial"],
-    duration_seconds: 218,
+    identity: { title: rl.track.title, artist: rl.track.artist, isrc: rl.track.isrc },
+    engine: {
+      epiScore: rl.epi.score,
+      mode: rl.epi.mode,
+      dimensions: {
+        focus: byName.get("Focus") ?? 0,
+        calm: byName.get("Calm") ?? 0,
+        motivation: byName.get("Motivation") ?? 0,
+        balance: byName.get("Balance") ?? 0,
+      },
+    },
   };
 }
 

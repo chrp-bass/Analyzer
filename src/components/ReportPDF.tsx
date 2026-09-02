@@ -548,18 +548,23 @@ export function ReportPDF({
               <ScoreRowView key={r.name} row={r} />
             ))}
           </View>
-          <View style={styles.col}>
-            <View style={styles.colHeaderRow}>
-              <Text style={styles.colHeader}>Human Performance Variables</Text>
-              <Text style={styles.colCaption}>
-                the states this music supports
-              </Text>
+          {/* The engine computes no human performance variables today, so
+              this is empty for every real song. A captioned column over
+              nothing is a promise the report cannot keep. */}
+          {report.hpv.length > 0 ? (
+            <View style={styles.col}>
+              <View style={styles.colHeaderRow}>
+                <Text style={styles.colHeader}>Human Performance Variables</Text>
+                <Text style={styles.colCaption}>
+                  the states this music supports
+                </Text>
+              </View>
+              <View style={styles.rule} />
+              {report.hpv.map((r) => (
+                <ScoreRowView key={r.name} row={r} />
+              ))}
             </View>
-            <View style={styles.rule} />
-            {report.hpv.map((r) => (
-              <ScoreRowView key={r.name} row={r} />
-            ))}
-          </View>
+          ) : null}
         </View>
 
         {/* 03 — What it's built for. */}
@@ -597,6 +602,18 @@ export function ReportPDF({
             {report.comparable}
           </Text>
         </View>
+
+        {/* 06 — the decision advantage. Absent on reports persisted before
+            the Rhodes v2 contract; those still render. */}
+        {report.consider ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>06 &middot; Worth considering</Text>
+            <View style={styles.rule} />
+            <Text style={[styles.compText, { marginTop: 4 }]}>
+              {report.consider}
+            </Text>
+          </View>
+        ) : null}
 
         {/* The brief-signal block ("Where this music lives") is removed until
             verified data exists. It rested on brief counts and demand

@@ -7,11 +7,14 @@ import { polygonFromChrpScores } from "@/lib/polygon";
  *
  * A dossier in movements. Three rules govern this file:
  *
- *   1. The position precedes the interpretation. The polygon, mode and pitch
- *      readiness sit above the prose, so the reading is read as a conclusion
- *      drawn from a coordinate rather than an opinion offered first.
- *   2. The interpretation is CHRP, not a person. There is no named analyst,
- *      no invented credential and no methodology exposed to compensate.
+ *   1. The measurement precedes the interpretation. The polygon and mode sit
+ *      above the prose, so the reading is read as something drawn from a
+ *      coordinate rather than an opinion offered first. There is no verdict
+ *      here and no readiness call — CHRP does not judge the song.
+ *   2. One intelligence, not a persona bolted on. Every interpretive string
+ *      below comes from a single governed Rhodes generation, so the report
+ *      reads as one mind rather than charts alternating with commentary.
+ *      Rhodes is never named on the page; he is the voice, not a byline.
  *   3. Nothing here may state a percentile, a brief, a demand signal or a
  *      commercial outcome. The payload still carries rank/brief fields from
  *      the scoring layer; they are deliberately not rendered.
@@ -19,10 +22,11 @@ import { polygonFromChrpScores } from "@/lib/polygon";
  * Movements shipped, mapped to real generated outputs:
  *   01 Emotional signature  <- report.signature
  *      The CHRP reading     <- report.rhodes
- *   02 EPI profile          <- report.chrp_scores + report.hpv
+ *   02 EPI profile          <- report.chrp_scores (+ report.hpv when present)
  *   03 What it's built for  <- report.placements
  *   04 Pitch throughline    <- report.throughline
  *   05 Comparable context   <- report.comparable
+ *   06 Worth considering    <- report.consider
  *
  * "Positioning language" from the approved hierarchy has no backing output in
  * the engine today. Per the implementation doctrine it is left unshipped
@@ -103,6 +107,21 @@ export function ReportBody({
         {report.comparable}
       </p>
 
+      {/* 06 — the decision advantage, and where it hands back. Absent on
+          reports persisted before the Rhodes v2 contract; those still read. */}
+      {report.consider ? (
+        <>
+          <MovementHeading
+            n="06"
+            title="Worth considering"
+            caption="your call"
+          />
+          <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[62ch]">
+            {report.consider}
+          </p>
+        </>
+      ) : null}
+
       <Footer id={report.report_meta.id} reportId={id} />
     </article>
   );
@@ -143,8 +162,8 @@ export function HeroTitleBlock({ report }: { report: ReportPayload }) {
 }
 
 /**
- * Track identity, pitch readiness and the polygon as one bonded artifact.
- * This is the coordinate the rest of the report interprets.
+ * Track identity, mode and the polygon as one bonded artifact. This is the
+ * coordinate the rest of the report interprets — not a judgement of it.
  */
 function PositionBlock({ report }: { report: ReportPayload }) {
   return (
@@ -206,8 +225,9 @@ function MovementHeading({
 }
 
 /**
- * The interpretation. CHRP is the voice — no named analyst, no persona, no
- * invented credential. This replaces the retired Dr. Rhodes treatment.
+ * The interpretation. One governed voice, never introduced by name: the
+ * authority is the CHRP system and the evidence, not a byline or a
+ * credential. Placed after the coordinate so it reads as a reading of it.
  */
 export function CHRPReading({ text }: { text: string }) {
   return (
@@ -233,14 +253,27 @@ export function CHRPReading({ text }: { text: string }) {
   );
 }
 
+/**
+ * The four dimensions, and the human performance variables when the engine
+ * has them. It does not compute them today, so `hpv` is empty for every real
+ * song — and a captioned column over nothing is a promise the report cannot
+ * keep. The column appears only when there is something in it.
+ */
 export function ScoresGrid({ report }: { report: ReportPayload }) {
+  const hasHpv = report.hpv.length > 0;
   return (
-    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
+    <div
+      className={`mt-3 grid grid-cols-1 gap-8 md:gap-10 ${
+        hasHpv ? "md:grid-cols-2" : ""
+      }`}
+    >
       <ScoreCol caption="the song’s signature" rows={report.chrp_scores} />
-      <ScoreCol
-        caption="the states this music supports"
-        rows={report.hpv}
-      />
+      {hasHpv ? (
+        <ScoreCol
+          caption="the states this music supports"
+          rows={report.hpv}
+        />
+      ) : null}
     </div>
   );
 }

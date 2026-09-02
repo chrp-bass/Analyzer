@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:report": "tsx scripts/test-report.mts",
+    "rhodes": "tsx scripts/rhodes-canonical.mts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
