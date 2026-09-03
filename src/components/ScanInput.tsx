@@ -111,7 +111,15 @@ export function ScanInput() {
     setError(null);
     try {
       const { scanId } = await beginScanForSong(song);
-      router.push(`/scan/${scanId}/processing`);
+      // The song's identity travels with it, purely so The Reading can show
+      // the record while the analysis runs. Display only — never authority:
+      // once the real report lands it replaces these entirely, and nothing
+      // downstream reads them.
+      const id = new URLSearchParams();
+      if (song.songName) id.set("t", song.songName);
+      if (song.artistName) id.set("a", song.artistName);
+      const tail = id.toString();
+      router.push(`/scan/${scanId}/processing${tail ? `?${tail}` : ""}`);
     } catch (err) {
       setError(
         err instanceof ScanError

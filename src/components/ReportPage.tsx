@@ -1,5 +1,5 @@
-import { ReportPayload, ScoreRow, MODE_COLORS } from "@/lib/fixtures/tracks";
-import { PolygonRadar } from "@/components/PolygonRadar";
+import { ReportPayload, ScoreRow } from "@/lib/fixtures/tracks";
+import { EpiPlate } from "@/components/EpiPlate";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportOwnership } from "@/components/report/ReportOwnership";
 
@@ -100,6 +100,8 @@ export function ReportBody({
         n="03"
         title="Where this could live"
         caption="placement territory"
+        altitude="open"
+        hinge="Everything above is measured. Everything below is what the measurement makes possible."
       />
       <BuiltForSection placements={report.placements} />
 
@@ -200,6 +202,23 @@ export function HeaderBand({ id, version }: { id: string; version: string }) {
 export function HeroTitleBlock({ report }: { report: ReportPayload }) {
   return (
     <>
+      {/* The record, as provenance rather than as decoration.
+          The engine already resolves cover art with the song and the free
+          reveal shows it; the paid document — the thing the creator keeps —
+          showed no image at all. It enters here the way a plate enters a
+          printed page: squared, small, credited by the title beneath it,
+          sitting on the same left edge as everything else. Deliberately not
+          a hero image. The song's portrait in this document is its shape,
+          and an 800px cover would outrank the measurement the report is
+          built on. Absent artwork renders nothing — never a placeholder. */}
+      {report.track.artworkUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          className="rp-hero-art"
+          src={report.track.artworkUrl}
+          alt={`Cover art for ${report.track.title} by ${report.track.artist}`}
+        />
+      ) : null}
       <h1 className="font-display text-[44px] md:text-[64px] display-tight">
         {report.track.title}
       </h1>
@@ -220,7 +239,12 @@ export function HeroTitleBlock({ report }: { report: ReportPayload }) {
  */
 function PositionBlock({ report }: { report: ReportPayload }) {
   return (
-    <section className="chrp-aura flex flex-col md:flex-row gap-8 md:gap-10 items-start mt-6 md:mt-8">
+    /* Bottom-aligned, not top-aligned. Two blocks hung from one baseline
+       read as a composition; two blocks starting at the same ceiling read
+       as a row of components, which is what this was. The title sits on
+       the document's left edge and the plate closes the measure on the
+       right, so the hero has two edges and one shared floor. */
+    <section className="chrp-aura flex flex-col md:flex-row gap-10 md:gap-12 items-start md:items-end mt-6 md:mt-10">
       <div className="flex-1 min-w-0">
         <HeroTitleBlock report={report} />
       </div>
@@ -231,28 +255,18 @@ function PositionBlock({ report }: { report: ReportPayload }) {
 
 
 export function HeroPolygonAside({ report }: { report: ReportPayload }) {
-  const chip = MODE_COLORS[report.epi.mode];
   return (
-    /* The SVG scales entirely through its viewBox, so the presentation size
-       is a CSS concern and no geometry in PolygonRadar changes. At 200 the
-       axis labels rendered at 5.9px and the EPI label at 4.4px — below any
-       legible floor — while the song title beside them ran at 64px. 390 is
-       left exactly as it was; it already reads. */
-    <aside className="flex flex-col items-center w-full md:w-[320px] lg:w-[360px] shrink-0 md:[&>svg]:w-[320px] md:[&>svg]:h-[320px] lg:[&>svg]:w-[360px] lg:[&>svg]:h-[360px]">
-      <PolygonRadar
+    /* The plate sizes itself in CSS; the SVG scales entirely through its
+       viewBox, so no geometry in PolygonRadar changes. The mode pill that
+       used to float under the chart is gone — the mode is set as type
+       inside the plate, which removes the only 999px-radius object from a
+       document that is otherwise squared off. */
+    <aside className="w-full md:w-[300px] lg:w-[320px] shrink-0">
+      <EpiPlate
         vertices={polygonFromChrpScores(report.chrp_scores)}
         mode={report.epi.mode}
         epiScore={report.epi.score}
-        size={200}
       />
-      <div
-        className="mode-pill mt-3"
-        style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
-      >
-        <span className="font-sans font-bold text-[12px]">
-          {report.epi.mode} mode
-        </span>
-      </div>
     </aside>
   );
 }
@@ -272,11 +286,24 @@ export function HeroPolygonAside({ report }: { report: ReportPayload }) {
  *            by subtraction — the lowercase caption is dropped rather than
  *            restyled, because it is the least informative line in the block.
  */
-type Altitude = "measure" | "apply" | "close";
+type Altitude = "measure" | "open" | "apply" | "close";
 
 const ALTITUDE = {
   measure: {
     section: "mt-14 md:mt-16",
+    label: "text-[11px] text-chrp-black",
+  },
+  /**
+   * The turn. Movement 03 is where the document stops describing the song
+   * and starts describing what the song makes possible, and it was arriving
+   * with LESS air than the measurement sections before it — the altitude
+   * air decayed from mt-16 to mt-12 to mt-10, so the report's single most
+   * important hinge was its quietest transition. It now carries the widest
+   * gap in the document, and it is the only movement allowed to state its
+   * own turn (see `hinge`). Everything after it settles back down.
+   */
+  open: {
+    section: "mt-20 md:mt-28",
     label: "text-[11px] text-chrp-black",
   },
   apply: {
@@ -294,16 +321,25 @@ function MovementHeading({
   title,
   caption,
   altitude = "apply",
+  hinge,
 }: {
   n?: string;
   title: string;
   caption?: string;
   altitude?: Altitude;
+  /** One line, at the turn only. The document naming its own change of
+      subject — not a section subtitle, and never more than once. */
+  hinge?: string;
 }) {
   const a = ALTITUDE[altitude];
   const showCaption = altitude !== "close" && caption;
   return (
     <section className={a.section}>
+      {hinge ? (
+        <p className="font-display italic text-[15px] md:text-[17px] leading-[1.45] text-ink-soft max-w-[420px] mb-8 md:mb-10">
+          {hinge}
+        </p>
+      ) : null}
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div
           className={`font-sans font-bold tracking-wider uppercase ${a.label}`}

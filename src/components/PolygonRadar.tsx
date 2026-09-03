@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Mode, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { PolygonVertices } from "@/lib/polygon";
 
@@ -12,6 +12,16 @@ export interface PolygonRadarProps {
   animated?: boolean;
   showLabels?: boolean;
   showCenter?: boolean;
+  /**
+   * The measurement grid — concentric rings and the axis crosshair.
+   *
+   * On every teaching surface this stays on: it is what tells a first-time
+   * reader that the shape is plotted rather than drawn. In the report hero
+   * it comes off. There the shape is not explaining itself, it is being
+   * the song's signature, and the grid is the difference between a chart
+   * and a mark. See EpiPlate.
+   */
+  showGrid?: boolean;
 }
 
 // Colors come from CSS variables so the radar adapts to its container.
@@ -31,8 +41,14 @@ export function PolygonRadar({
   animated = false,
   showLabels = true,
   showCenter = true,
+  showGrid = true,
 }: PolygonRadarProps) {
   const v = vertices;
+  // The drawing is choreography, never the only way the shape is stated.
+  // Under reduced motion the polygon is painted whole and immediately —
+  // callers may still pass `animated`, and this is the last word on it.
+  const prefersReduced = useReducedMotion();
+  const animate = animated && !prefersReduced;
   const fill = MODE_COLORS[mode].polygonFill;
   // The polygon outline and vertex dots pick up a per-mode stroke so the
   // shape reads as one color. Inside .chrp-report this variable scope-
@@ -70,14 +86,18 @@ export function PolygonRadar({
       overflow="visible"
       aria-label={`Emotional fingerprint, EPI ${epiScore}, ${mode} mode`}
     >
-      <circle cx="0" cy="0" r="25" fill="none" stroke={RING} strokeWidth="0.4" />
-      <circle cx="0" cy="0" r="50" fill="none" stroke={RING} strokeWidth="0.4" />
-      <circle cx="0" cy="0" r="75" fill="none" stroke={RING} strokeWidth="0.4" />
-      <circle cx="0" cy="0" r="90" fill="none" stroke={RING_OUTER} strokeWidth="0.7" />
-      <line x1="0" y1="-90" x2="0" y2="90" stroke={AXIS} strokeWidth="0.4" />
-      <line x1="-90" y1="0" x2="90" y2="0" stroke={AXIS} strokeWidth="0.4" />
+      {showGrid && (
+        <g>
+          <circle cx="0" cy="0" r="25" fill="none" stroke={RING} strokeWidth="0.4" />
+          <circle cx="0" cy="0" r="50" fill="none" stroke={RING} strokeWidth="0.4" />
+          <circle cx="0" cy="0" r="75" fill="none" stroke={RING} strokeWidth="0.4" />
+          <circle cx="0" cy="0" r="90" fill="none" stroke={RING_OUTER} strokeWidth="0.7" />
+          <line x1="0" y1="-90" x2="0" y2="90" stroke={AXIS} strokeWidth="0.4" />
+          <line x1="-90" y1="0" x2="90" y2="0" stroke={AXIS} strokeWidth="0.4" />
+        </g>
+      )}
 
-      {animated ? (
+      {animate ? (
         <AnimatedShape
           top={top}
           right={right}
@@ -101,7 +121,7 @@ export function PolygonRadar({
       {showCenter && (
         <CenterReadout
           epiScore={epiScore}
-          animated={animated}
+          animated={animate}
           yOffset={shapeMidY}
           availableWidth={availableWidth}
         />

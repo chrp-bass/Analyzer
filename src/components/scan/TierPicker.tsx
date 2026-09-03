@@ -2,31 +2,33 @@
 
 import { useRouter } from "next/navigation";
 import { TIERS } from "@/lib/payments";
-import { ProductId } from "@/lib/accounts";
 import { FreeReport } from "@/lib/fixtures/tracks";
+import { PolygonRadar } from "@/components/PolygonRadar";
+import { polygonFromChrpScores } from "@/lib/polygon";
 
-const ORDER: ProductId[] = ["artist_catalog"];
-
-const PER_TRACK_MATH: Partial<
-  Record<ProductId, { perTrack: string; savingsPct: number }>
-> = {
-  artist_catalog: { perTrack: "$14.90", savingsPct: 22 },
-};
-
-function PerTrackMath({ productId }: { productId: ProductId }) {
-  const data = PER_TRACK_MATH[productId];
-  if (!data) return null;
-  return (
-    <div
-      className="mt-2 font-sans font-bold text-[10px] text-kelly-green"
-      style={{ letterSpacing: "0.2px" }}
-    >
-      {data.perTrack} per track &nbsp;·&nbsp; save {data.savingsPct}% vs single
-      scans
-    </div>
-  );
-}
-
+/**
+ * THE CATALOG — the $149 surface.
+ *
+ * This was a pricing card: a bordered box holding "$149", a green
+ * "save 22% vs single scans" line, and a four-item spec list (10 tracks /
+ * 1 artist / 12 months / creator profile at 8 scans) above a black CHOOSE
+ * button, stranded at the left of a 1100px container. A SaaS tier chooser
+ * with one tier — for a product whose own argument is that a catalog is
+ * not a volume discount but a different kind of knowledge.
+ *
+ * The offer is drawn instead of listed. The creator has just had one song
+ * measured, so that song's real shape is placed first and the nine slots it
+ * could become are drawn beside it, empty. "10 tracks" stops being a line
+ * item and becomes the picture: one shape you have, nine you don't. That is
+ * the whole argument — one song tells you something, a catalog tells you
+ * who you are — made with the product's own intelligence rather than with
+ * an illustration or a bullet.
+ *
+ * Nothing here is invented. The filled mark is the scan's real EPI
+ * geometry; the empty marks are empty because those songs have not been
+ * scanned. There is no scarcity, no countdown, no social proof, no
+ * discount framing, and no claim about what the catalog will conclude.
+ */
 export function TierPicker({
   scanId,
   report,
@@ -35,99 +37,98 @@ export function TierPicker({
   report: FreeReport;
 }) {
   const router = useRouter();
+  const tier = TIERS.artist_catalog;
+  const limit = tier.trackLimit ?? 10;
+  const empties = Math.max(0, limit - 1);
+  const vertices = polygonFromChrpScores(report.chrp_scores);
+  const perTrack = (tier.priceUsd / limit).toFixed(2);
+
   return (
-    <div className="min-h-screen px-6 md:px-10 py-10 md:py-16 max-w-[1100px] mx-auto w-full">
-      <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
-        Choose a catalog tier
+    <div className="tp">
+      <div className="tp-head">
+        <p className="tp-eyebrow">Creator Intelligence</p>
+        <h1 className="tp-title">
+          One song tells you something.
+          <br />A catalog tells you who you are.
+        </h1>
+        <p className="tp-sub">
+          You have one shape. The pattern across a body of work is a
+          different kind of knowledge — and it is the one people buy an
+          artist for.
+        </p>
       </div>
-      <h1 className="font-display text-[32px] md:text-[48px] leading-[1.0] text-chrp-black display-tight">
-        Unlock your catalog.
-      </h1>
-      <p className="font-display italic text-[16px] md:text-[18px] text-ink-soft mt-3 max-w-[52ch]">
-        Your first scan unlocks with the tier. Scan eight tracks within any
-        catalog tier and the creator profile unlocks automatically.
+
+      {/* The offer, drawn. One real shape, nine waiting. */}
+      <div className="tp-catalog" aria-hidden>
+        <div className="tp-slot tp-slot-filled">
+          <PolygonRadar
+            vertices={vertices}
+            mode={report.epi.mode}
+            epiScore={report.epi.score}
+            size={80}
+            showGrid={false}
+            showLabels={false}
+            showCenter={false}
+          />
+        </div>
+        {Array.from({ length: empties }).map((_, i) => (
+          <div className="tp-slot" key={i}>
+            {/* Same viewBox and same plotted radius as PolygonRadar, so an
+                empty slot is exactly the measurement field a scanned song
+                would fill — not a decorative dot at an unrelated scale. */}
+            <svg viewBox="-132 -120 270 240" width={80} height={80}>
+              <circle
+                cx="0"
+                cy="0"
+                r="90"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeDasharray="4 7"
+              />
+            </svg>
+          </div>
+        ))}
+      </div>
+      <p className="tp-catalog-caption">
+        <span className="tp-caption-strong">{report.track.title}</span>, scanned.
+        &nbsp;{empties} more tracks by {report.track.artist} in the same
+        catalog.
       </p>
 
-      <div className="mt-8 font-sans text-[11px] text-ink-light">
-        Starting from this scan: &nbsp;
-        <span className="text-chrp-black">{report.track.title}</span>
-        &nbsp;&mdash;&nbsp;{report.track.artist}
-      </div>
-
-      {/* One offer, sized like one offer. The four-column grid this used to
-          sit in was scaffolding for a comparison that no longer exists. */}
-      <div className="mt-6 max-w-[420px]">
-        {ORDER.map((id) => {
-          const tier = TIERS[id];
-          return (
-            <button
-              key={id}
-              disabled={tier.comingSoon}
-              onClick={() =>
-                router.push(
-                  `/scan/${scanId}/checkout-tier?product=${id}`,
-                )
-              }
-              className="relative flex flex-col items-stretch text-left w-full p-5 rounded-[var(--r-card)] border border-rule bg-chrp-white hover:bg-oat disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {/* No "Most popular" / "Most chosen" badge. The catalog tier is a
-                  different product, not a volume discount, and social-proof
-                  badges are prohibited by the locked sales architecture. */}
-              {tier.comingSoon && (
-                <div className="absolute -top-3 right-5 px-2 py-0.5 font-sans font-black text-[10px] tracking-wider uppercase bg-ink-soft text-chrp-white">
-                  Coming soon
-                </div>
-              )}
-              <div className="font-sans font-black text-[11px] tracking-wider uppercase text-ink-soft">
-                {tier.label}
-              </div>
-              <div className="font-display text-[38px] leading-none mt-2 text-chrp-black">
-                ${tier.priceUsd.toLocaleString()}
-              </div>
-              <PerTrackMath productId={id} />
-              <div className="hairline my-4" />
-              <ul className="flex flex-col gap-1.5 font-sans text-[12.5px] text-ink-soft">
-                <li>
-                  <span className="font-bold text-chrp-black">
-                    {tier.trackLimit === null
-                      ? "Unlimited"
-                      : `${tier.trackLimit} tracks`}
-                  </span>
-                </li>
-                <li>
-                  <span className="font-bold text-chrp-black">
-                    {tier.artistLimit === null
-                      ? "Unlimited artists"
-                      : tier.artistLimit === 1
-                      ? "1 artist"
-                      : `${tier.artistLimit} artists`}
-                  </span>
-                </li>
-                <li>{tier.durationDays === 365 ? "12 months" : `${tier.durationDays} days`}</li>
-                <li>Creator profile at 8 scans</li>
-              </ul>
-              <div
-                className={`mt-5 font-sans font-bold text-[12px] tracking-wider uppercase text-center px-4 py-2.5 ${
-                  tier.comingSoon
-                    ? "bg-ink-light text-chrp-white"
-                    : "bg-chrp-black text-chrp-white"
-                }`}
-              >
-                {tier.comingSoon ? "Coming soon" : "Choose"}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-8">
+      <div className="tp-offer">
+        <div className="tp-price">
+          <span className="tp-price-num">${tier.priceUsd.toLocaleString()}</span>
+          <span className="tp-price-meta">
+            <span>${perTrack} a track</span>
+            <span>12 months of access</span>
+          </span>
+        </div>
+        {/* The comingSoon guard is kept deliberately. checkout-tier redirects
+            a comingSoon product to ?product=artist_catalog — the same URL —
+            so reaching it with the flag set is an infinite redirect. This
+            button is the only thing standing in front of that. */}
         <button
-          onClick={() => router.back()}
-          className="font-sans text-[11px] tracking-wider uppercase text-ink-light hover:text-chrp-black"
+          type="button"
+          className="tp-cta"
+          disabled={tier.comingSoon}
+          onClick={() =>
+            router.push(`/scan/${scanId}/checkout-tier?product=artist_catalog`)
+          }
         >
-          ← Back
+          {tier.comingSoon ? "Coming soon" : "Unlock the catalog"}
         </button>
       </div>
+
+      <p className="tp-fine">
+        This scan unlocks with it. Up to {limit} tracks by one artist. Scan
+        eight and the creator profile — what the catalog says about you as a
+        writer — unlocks automatically.
+      </p>
+
+      <button onClick={() => router.back()} className="tp-back">
+        ← Back
+      </button>
     </div>
   );
 }

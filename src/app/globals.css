@@ -1667,6 +1667,372 @@ em { font-style: italic; }
   font-family: var(--font-cormorant), Georgia, serif;
 }
 
+/* ── The Catalog — the $149 surface ──────────────────────────────────────
+ * Editorial, not a card. One column, one left edge, and the offer drawn as
+ * shapes rather than listed as features. No border box: the page itself is
+ * the product surface, so nothing needs a container to look purchasable.
+ * ───────────────────────────────────────────────────────────────────── */
+.tp {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+}
+@media (min-width: 768px) { .tp { padding: 88px 40px 120px; } }
+.tp-eyebrow {
+  margin: 0;
+  font-family: var(--s);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.tp-title {
+  margin: 16px 0 0;
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(30px, 5vw, 52px);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  color: var(--on-light);
+}
+.tp-sub {
+  margin: 20px 0 0;
+  font-family: var(--d);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(16px, 2vw, 19px);
+  line-height: 1.45;
+  color: var(--on-light-2);
+  max-width: 46ch;
+}
+
+/* One shape held, nine waiting. The gap is the argument. */
+.tp-catalog {
+  /* A fixed grid, never a wrapping flex row: the catalog is one line of ten
+     on desktop and two of five on mobile. Left to wrap it orphaned a single
+     slot onto a second row, which read as a layout accident rather than as
+     the shape of the offer. The slots scale; the count never changes. */
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: clamp(40px, 6vw, 64px);
+  color: rgba(26, 23, 20, 0.22);
+  max-width: 820px;
+}
+@media (min-width: 768px) {
+  .tp-catalog { grid-template-columns: repeat(10, 1fr); gap: 6px; }
+}
+.tp-slot {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+.tp-slot svg { width: 100%; height: auto; }
+.tp-slot-filled { color: var(--on-light); }
+.tp-slot svg { display: block; }
+.tp-catalog-caption {
+  margin: 18px 0 0;
+  font-family: var(--s);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--on-light-2);
+  max-width: 44ch;
+}
+.tp-caption-strong { color: var(--on-light); font-weight: 700; }
+
+/* Price and action share a baseline. The number is set in the display face
+   at document scale, not shrunk into a card. */
+.tp-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: clamp(20px, 4vw, 44px);
+  margin-top: clamp(44px, 6vw, 68px);
+  padding-top: 22px;
+  border-top: 1px solid var(--line-light);
+}
+.tp-price { display: flex; align-items: baseline; gap: 14px; }
+.tp-price-num {
+  font-family: var(--d);
+  font-weight: 400;
+  font-size: clamp(46px, 7vw, 68px);
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  color: var(--on-light);
+  font-variant-numeric: tabular-nums;
+}
+.tp-price-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 3px;
+  font-family: var(--s);
+  font-size: 11.5px;
+  color: var(--on-light-2);
+}
+.tp-cta {
+  font-family: var(--s);
+  font-weight: 900;
+  font-size: 13.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--yellow);
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 0 28px;
+  height: 52px;
+  cursor: pointer;
+}
+.tp-cta:hover { filter: brightness(0.96); }
+.tp-fine {
+  margin: 22px 0 0;
+  font-family: var(--s);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--on-light-2);
+  max-width: 56ch;
+}
+.tp-back {
+  margin-top: 40px;
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  font-family: var(--s);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-light-2);
+  cursor: pointer;
+}
+.tp-back:hover { color: var(--on-light); }
+
+/* ── The Reading — the journey's signature moment ────────────────────────
+ * One centred column: the song, the instrument, the measurement arriving.
+ * The song block holds its height from the first frame so nothing below it
+ * jumps when the reveal starts — the composition is fixed and the content
+ * fills into it, rather than the page reflowing four times.
+ * ───────────────────────────────────────────────────────────────────── */
+.rd-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+.rd-stage {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.rd-eyebrow {
+  font-family: var(--s);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-light-2);
+}
+.rd-song {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 22px;
+  min-height: 118px;
+}
+.rd-art {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border: 1px solid var(--line-light);
+  margin-bottom: 12px;
+}
+.rd-title {
+  margin: 0;
+  font-family: var(--d);
+  font-weight: 300;
+  font-size: clamp(26px, 5vw, 32px);
+  line-height: 1.06;
+  color: var(--on-light);
+}
+.rd-artist {
+  margin: 4px 0 0;
+  font-family: var(--d);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 15px;
+  color: var(--on-light-2);
+}
+.rd-instrument {
+  margin-top: 18px;
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+}
+.rd-instrument-hold { width: 260px; height: 260px; }
+
+/* The measurement, arriving. Fixed four-row height so the EPI line below
+   never moves as values land. */
+.rd-readout {
+  margin-top: 14px;
+  width: 100%;
+  max-width: 240px;
+}
+.rd-waiting {
+  margin: 0;
+  text-align: center;
+  font-family: var(--d);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--on-light-2);
+}
+.rd-axis {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  height: 26px;
+  border-bottom: 1px solid var(--line-light);
+}
+.rd-axis-empty { border-bottom-color: transparent; }
+.rd-axis-name {
+  font-family: var(--s);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-light-2);
+}
+.rd-axis-score {
+  font-family: var(--d);
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--on-light);
+  font-variant-numeric: tabular-nums;
+}
+/* The same lockup the report closes with, so the number the creator meets
+   here is the number they recognise there. */
+.rd-epi {
+  margin-top: 22px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.rd-epi-score {
+  font-size: 56px;
+  font-weight: 600;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  color: var(--on-light);
+  font-variant-numeric: tabular-nums;
+}
+.rd-epi-meta { display: flex; flex-direction: column; gap: 3px; padding-bottom: 2px; }
+.rd-epi-label {
+  font-family: var(--s);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-light);
+}
+.rd-epi-mode {
+  font-family: var(--s);
+  font-size: 11px;
+  color: var(--on-light-2);
+}
+
+/* ── The EPI plate ───────────────────────────────────────────────────────
+ * The report's signature lockup: the song's shape, a rule, and the score.
+ *
+ * Everything here is flush to one left edge, including the SVG, which does
+ * NOT centre itself the way the instrument does elsewhere. The plate is a
+ * printed plate — it hangs off the same edge as its caption, so the mark
+ * and the number read as one object rather than a chart with a legend
+ * parked underneath it.
+ *
+ * The axis names stay, quieter: at this size they are the legend on a
+ * plate, not labels on a chart. They are the only thing that still says
+ * which arm is which once the grid is gone.
+ * ───────────────────────────────────────────────────────────────────── */
+.chrp-report .epi-plate {
+  --polygon-label: var(--ink-light);
+  max-width: 100%;
+}
+.chrp-report .epi-plate > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  /* The viewBox is wider than the plotted circle (it reserves room for the
+     Balance label on the right), so the shape's optical centre sits left of
+     the box centre. Pulling left seats the mark on the caption's edge. */
+  margin-left: -4%;
+  /* The viewBox also reserves ~20 units above the Focus label and ~10 below
+     Motivation for a centre readout that mark mode does not draw. Left in,
+     it becomes ~40px of dead air inside the lockup and pushes the score
+     away from the shape it belongs to. Reclaimed, not re-authored — the
+     geometry in PolygonRadar is shared with eleven other call sites. */
+  margin-top: -7%;
+  margin-bottom: -3%;
+}
+
+/* The record, as a plate. Squared — the report's radius tokens are for the
+   app's soft geometry, and this document is printed. It is sized to be
+   provenance, not spectacle: the measurement stays the largest object in
+   the hero. */
+.chrp-report .rp-hero-art {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  margin-bottom: 20px;
+  border: 1px solid var(--rule);
+}
+.chrp-report .epi-plate-rule {
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+}
+.chrp-report .epi-plate-read {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 10px;
+}
+/* The score is fixed, not fitted. It is the largest numeral in the report
+   on purpose: this is a measurement product, and the measurement had been
+   its smallest element. Tabular figures so a 7 and a 91 hold the same left
+   edge across songs — the lockup must not reflow per track. */
+.chrp-report .epi-plate-score {
+  font-size: clamp(64px, 7vw, 88px);
+  font-weight: 600;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  color: var(--chrp-black);
+  font-variant-numeric: tabular-nums;
+}
+.chrp-report .epi-plate-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 2px;
+}
+.chrp-report .epi-plate-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chrp-black);
+}
+.chrp-report .epi-plate-mode {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
 .chrp-report input,
 .chrp-report textarea,
 .chrp-report select {

@@ -144,6 +144,7 @@ function CatalogShape({
           mode={mode}
           epiScore={epi}
           size={80}
+          showGrid={false}
           showLabels={false}
           showCenter={false}
         />
@@ -193,6 +194,7 @@ export function PolygonCluster({ scans }: { scans: ScanRecordOnAccount[] }) {
               mode={r.epi.mode}
               epiScore={r.epi.score}
               size={48}
+              showGrid={false}
               showLabels={false}
               showCenter={false}
             />

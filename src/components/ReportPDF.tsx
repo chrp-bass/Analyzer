@@ -7,7 +7,6 @@ import {
   Font,
   Svg,
   Circle,
-  Line,
   Polygon,
   G,
   Text as SvgText,
@@ -20,28 +19,33 @@ const INK = "#0F0E0E";
 const INK_SOFT = "#4A4540";
 const INK_LIGHT = "#8A8278";
 const YELLOW = "#E6D74F";
-const PLUM = "#591739";
-const PISTACHIO = "#BEE2A8";
-const FRENCH_BLUE = "#406BD6";
 const KELLY = "#008054";
 const OAT = "#F7F3EA";
-const RULE = "rgba(15, 14, 14, 0.18)";
-const BAR_BG = "rgba(15, 14, 14, 0.08)";
+/**
+ * Every colour in this file is an opaque hex, deliberately.
+ *
+ * @react-pdf does not parse `rgba()` strings the way the browser does: the
+ * mode fills authored as rgba were rendering as colours that are not in the
+ * CHRP palette at all — Flow came out gold (255,214,115), Recover hot pink
+ * (255,57,115), Recharge teal (0,168,166) — measured off the rasterised
+ * PDF. That put a wrong-coloured EPI mark on the one artefact the creator
+ * keeps and forwards.
+ *
+ * These are the exact composites of the report's own tokens over the paper,
+ * at the same alphas the screen report uses (--mode-*-fill in globals.css),
+ * so print and screen now resolve to the same colour. The mark carries no
+ * measurement grid behind it, so it only ever composites against the paper
+ * and the flattening is lossless rather than an approximation.
+ */
+const RULE = "#D1D0CB"; // #0F0E0E @ 0.18 over paper
+const BAR_BG = "#E8E8E2"; // #0F0E0E @ 0.08 over paper
 
 const MODE_FILL: Record<Mode, string> = {
-  Ready: "rgba(230,215,79,0.55)",
-  Recover: "rgba(89,23,57,0.45)",
-  Recharge: "rgba(190,226,168,0.65)",
-  Flow: "rgba(64,107,214,0.45)",
+  Ready: "#F0E89E", // #E6D74F @ 0.52
+  Recover: "#AD8E9A", // #591739 @ 0.48
+  Recharge: "#DBEECC", // #BEE2A8 @ 0.52
+  Flow: "#9EB3E5", // #406BD6 @ 0.50
 };
-
-const MODE_CHIP: Record<Mode, { bg: string; text: string }> = {
-  Ready: { bg: YELLOW, text: INK },
-  Recover: { bg: PLUM, text: PAPER },
-  Recharge: { bg: PISTACHIO, text: INK },
-  Flow: { bg: FRENCH_BLUE, text: PAPER },
-};
-
 
 let fontsRegistered = false;
 export function registerFonts(fonts: Record<string, Buffer>) {
@@ -104,7 +108,9 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    /* Bottom-aligned, matching the on-screen hero: the title and the
+       plate hang from one floor rather than from one ceiling. */
+    alignItems: "flex-end",
     marginTop: 8,
   },
   heroLeft: { flex: 1, paddingRight: 14 },
@@ -130,16 +136,39 @@ const styles = StyleSheet.create({
     color: INK_LIGHT,
     marginTop: 6,
   },
-  heroRight: { alignItems: "center", width: 170 },
-  modeChip: {
-    marginTop: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  /* The plate hangs off one left edge, like its on-screen counterpart —
+     it is no longer a centred chart with a chip under it. */
+  heroRight: { alignItems: "flex-start", width: 170 },
+  epiPlateRule: {
+    borderTopWidth: 0.5,
+    borderTopColor: RULE,
+    /* Matches the mark's rendered width exactly. The rule and the shape
+       sharing one edge is the whole alignment the plate is built on. */
+    width: 158,
+    marginTop: 2,
   },
-  modeChipText: {
+  epiPlateRead: { flexDirection: "row", alignItems: "flex-end", marginTop: 6 },
+  epiPlateScore: {
+    fontFamily: "Cormorant",
+    fontWeight: 700,
+    fontSize: 44,
+    lineHeight: 0.9,
+    color: INK,
+  },
+  epiPlateMeta: { marginLeft: 8, paddingBottom: 3 },
+  epiPlateLabel: {
     fontFamily: "Lato",
     fontWeight: 700,
-    fontSize: 9,
+    fontSize: 7,
+    letterSpacing: 1.2,
+    color: INK,
+  },
+  epiPlateMode: {
+    fontFamily: "Lato",
+    fontWeight: 400,
+    fontSize: 8,
+    color: INK_SOFT,
+    marginTop: 2,
   },
   rankUnder: {
     fontFamily: "Lato",
@@ -372,14 +401,14 @@ function PdfPolygon({ report }: { report: ReportPayload }) {
   const points = polygonPoints(v);
   const fill = MODE_FILL[report.epi.mode];
   return (
-    <Svg viewBox="-128 -120 256 240" width="130" height="130">
+    /* The printed mark. Same three departures from the on-screen instrument
+       as EpiPlate: no measurement grid, no score inside the shape, and the
+       mode set as type rather than as a chip. The PDF is the copy the
+       creator keeps, so it has to carry the same signature as the report it
+       was exported from — a chart here and a mark on screen would be two
+       different products. */
+    <Svg viewBox="-132 -120 270 240" width="158" height="150">
       <G>
-        <Circle cx="0" cy="0" r="25" stroke="rgba(15,14,14,0.18)" strokeWidth={0.4} fill="none" />
-        <Circle cx="0" cy="0" r="50" stroke="rgba(15,14,14,0.18)" strokeWidth={0.4} fill="none" />
-        <Circle cx="0" cy="0" r="75" stroke="rgba(15,14,14,0.18)" strokeWidth={0.4} fill="none" />
-        <Circle cx="0" cy="0" r="90" stroke="rgba(15,14,14,0.3)" strokeWidth={0.7} fill="none" />
-        <Line x1="0" y1="-90" x2="0" y2="90" stroke="rgba(15,14,14,0.1)" strokeWidth={0.4} />
-        <Line x1="-90" y1="0" x2="90" y2="0" stroke="rgba(15,14,14,0.1)" strokeWidth={0.4} />
         <Polygon points={points} fill={fill} stroke={INK} strokeWidth={1.2} />
         <Circle cx="0" cy={-v.focus * 0.9} r="2.6" fill={INK} />
         <Circle cx={v.balance * 0.9} cy="0" r="2.6" fill={INK} />
@@ -421,24 +450,6 @@ function PdfPolygon({ report }: { report: ReportPayload }) {
         >
           Calm
         </SvgText>
-        <SvgText
-          x="0"
-          y="-4"
-          textAnchor="middle"
-          fill={INK_SOFT}
-          style={{ fontFamily: "Lato", fontSize: 6, fontWeight: 700 }}
-        >
-          EPI SCORE
-        </SvgText>
-        <SvgText
-          x="0"
-          y="26"
-          textAnchor="middle"
-          fill={INK}
-          style={{ fontFamily: "Cormorant", fontSize: 38, fontWeight: 700 }}
-        >
-          {String(report.epi.score)}
-        </SvgText>
       </G>
     </Svg>
   );
@@ -474,8 +485,6 @@ export function ReportPDF({
 }) {
   registerFonts(fonts);
 
-  const chip = MODE_CHIP[report.epi.mode];
-
   return (
     <Document
       title={`CHRP Song Intelligence Report — ${report.track.title}`}
@@ -504,10 +513,15 @@ export function ReportPDF({
 
           <View style={styles.heroRight}>
             <PdfPolygon report={report} />
-            <View style={[styles.modeChip, { backgroundColor: chip.bg }]}>
-              <Text style={[styles.modeChipText, { color: chip.text }]}>
-                {report.epi.mode} mode
+            <View style={styles.epiPlateRule} />
+            <View style={styles.epiPlateRead}>
+              <Text style={styles.epiPlateScore}>
+                {String(report.epi.score)}
               </Text>
+              <View style={styles.epiPlateMeta}>
+                <Text style={styles.epiPlateLabel}>EPI</Text>
+                <Text style={styles.epiPlateMode}>{report.epi.mode} mode</Text>
+              </View>
             </View>
           </View>
         </View>

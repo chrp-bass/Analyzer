@@ -16,8 +16,10 @@ export const dynamic = "force-dynamic";
  */
 export default function Processing({
   params,
+  searchParams,
 }: {
   params: { scanId: string };
+  searchParams: { t?: string; a?: string };
 }) {
   const trackSlug = decodeScanId(params.scanId);
   if (!trackSlug) notFound();
@@ -36,6 +38,8 @@ export default function Processing({
           report={fixture}
           scanId={params.scanId}
           trackSlug={trackSlug}
+          pendingTitle={searchParams.t}
+          pendingArtist={searchParams.a}
         />
       </main>
     </div>

@@ -441,6 +441,7 @@ function PriorityRow({
           mode={priority.mode}
           epiScore={priority.epi_score}
           size={64}
+          showGrid={false}
           showLabels={false}
           showCenter={false}
         />

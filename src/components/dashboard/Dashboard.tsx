@@ -454,6 +454,7 @@ function ProgressCell({
         mode={report.epi.mode}
         epiScore={report.epi.score}
         size={56}
+        showGrid={false}
         showLabels={false}
         showCenter={false}
       />
@@ -490,6 +491,7 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
                     mode={r.epi.mode}
                     epiScore={r.epi.score}
                     size={44}
+                    showGrid={false}
                     showLabels={false}
                     showCenter={false}
                   />
