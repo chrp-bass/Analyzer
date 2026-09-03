@@ -128,11 +128,7 @@ export function ScanInput() {
         onSubmit={submit}
         style={{ display: "flex", flexDirection: "column", gap: 12 }}
       >
-        <label
-          htmlFor="scan-input"
-          className="eyebrow"
-          style={{ display: "block", marginBottom: 4 }}
-        >
+        <label htmlFor="scan-input" className="sr-only">
           Song title or artist
         </label>
         <input

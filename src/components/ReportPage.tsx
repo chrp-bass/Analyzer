@@ -73,8 +73,13 @@ export function ReportBody({
       <PositionBlock report={report} />
 
       {/* 01 — what the song is doing. */}
-      <MovementHeading n="01" title="Emotional signature" caption="what the song is doing" />
-      <p className="font-display italic text-[20px] md:text-[26px] leading-[1.35] mt-3 max-w-[46ch]">
+      <MovementHeading
+        n="01"
+        title="Emotional signature"
+        caption="what the song is doing"
+        altitude="measure"
+      />
+      <p className="font-display italic text-[20px] md:text-[26px] leading-[1.35] mt-3 max-w-[480px]">
         {report.signature}
       </p>
 
@@ -82,11 +87,20 @@ export function ReportBody({
       <CHRPReading text={report.rhodes} />
 
       {/* 02 — the coordinate in full. */}
-      <MovementHeading n="02" title="EPI profile" caption="the four dimensions" />
+      <MovementHeading
+        n="02"
+        title="EPI profile"
+        caption="the four dimensions"
+        altitude="measure"
+      />
       <ScoresGrid report={report} />
 
       {/* 03 — the placement map. Where the measured function could work. */}
-      <MovementHeading n="03" title="Where this could live" caption="placement territory" />
+      <MovementHeading
+        n="03"
+        title="Where this could live"
+        caption="placement territory"
+      />
       <BuiltForSection placements={report.placements} />
 
       {/* 04 — the buyer map. Who could value that function. */}
@@ -103,7 +117,7 @@ export function ReportBody({
 
       {/* 05 — language to carry into a pitch. */}
       <MovementHeading n="05" title="Pitch throughline" caption="paste this anywhere" />
-      <p className="font-display italic text-[17px] md:text-[19px] leading-[1.5] mt-3 max-w-[56ch] relative">
+      <p className="font-display italic text-[17px] md:text-[19px] leading-[1.5] mt-3 max-w-[480px] relative">
         <span
           aria-hidden
           className="font-display text-[36px] leading-none"
@@ -126,16 +140,16 @@ export function ReportBody({
           <MovementHeading
             n="06"
             title="Who responds, and when"
-            caption="state and context"
+            altitude="close"
           />
-          <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[62ch]">
+          <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[480px]">
             {report.audience}
           </p>
         </>
       ) : report.comparable ? (
         <>
-          <MovementHeading n="06" title="Comparable context" caption="emotional territory" />
-          <p className="font-sans text-[14px] md:text-[15px] leading-[1.6] mt-3 max-w-[62ch] text-ink-soft">
+          <MovementHeading n="06" title="Comparable context" altitude="close" />
+          <p className="font-sans text-[14px] md:text-[15px] leading-[1.6] mt-3 max-w-[480px] text-ink-soft">
             {report.comparable}
           </p>
         </>
@@ -148,9 +162,9 @@ export function ReportBody({
           <MovementHeading
             n="07"
             title="Worth considering"
-            caption="your call"
+            altitude="close"
           />
-          <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[62ch]">
+          <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[480px]">
             {report.consider}
           </p>
         </>
@@ -219,7 +233,12 @@ function PositionBlock({ report }: { report: ReportPayload }) {
 export function HeroPolygonAside({ report }: { report: ReportPayload }) {
   const chip = MODE_COLORS[report.epi.mode];
   return (
-    <aside className="flex flex-col items-center w-full md:w-[220px] shrink-0">
+    /* The SVG scales entirely through its viewBox, so the presentation size
+       is a CSS concern and no geometry in PolygonRadar changes. At 200 the
+       axis labels rendered at 5.9px and the EPI label at 4.4px — below any
+       legible floor — while the song title beside them ran at 64px. 390 is
+       left exactly as it was; it already reads. */
+    <aside className="flex flex-col items-center w-full md:w-[320px] lg:w-[360px] shrink-0 md:[&>svg]:w-[320px] md:[&>svg]:h-[320px] lg:[&>svg]:w-[360px] lg:[&>svg]:h-[360px]">
       <PolygonRadar
         vertices={polygonFromChrpScores(report.chrp_scores)}
         mode={report.epi.mode}
@@ -238,25 +257,65 @@ export function HeroPolygonAside({ report }: { report: ReportPayload }) {
   );
 }
 
-/** Section rule + number + name, shared by every movement. */
+/**
+ * Section rule + number + name, shared by every movement.
+ *
+ * The report moves MEASUREMENT -> MEANING -> COMMERCIAL APPLICATION -> ACTION,
+ * and until now announced all four in one voice. Altitude is carried by type
+ * and space only — no new element, no container, no rule of its own:
+ *
+ *   measure  the coordinate and the reading drawn from it. Full ink, a wider
+ *            label, and the most air above it.
+ *   apply    where the measured function could work and who to tell. The
+ *            document's working register; unchanged from before.
+ *   close    what the creator does with it. The quietest altitude, reached
+ *            by subtraction — the lowercase caption is dropped rather than
+ *            restyled, because it is the least informative line in the block.
+ */
+type Altitude = "measure" | "apply" | "close";
+
+const ALTITUDE = {
+  measure: {
+    section: "mt-14 md:mt-16",
+    label: "text-[11px] text-chrp-black",
+  },
+  apply: {
+    section: "mt-12",
+    label: "text-[10px] text-ink-soft",
+  },
+  close: {
+    section: "mt-10",
+    label: "text-[10px] text-ink-soft",
+  },
+} as const;
+
 function MovementHeading({
   n,
   title,
   caption,
+  altitude = "apply",
 }: {
-  n: string;
+  n?: string;
   title: string;
-  caption: string;
+  caption?: string;
+  altitude?: Altitude;
 }) {
+  const a = ALTITUDE[altitude];
+  const showCaption = altitude !== "close" && caption;
   return (
-    <section className="mt-10">
+    <section className={a.section}>
       <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
-          {n} &middot; {title}
+        <div
+          className={`font-sans font-bold tracking-wider uppercase ${a.label}`}
+        >
+          {n ? `${n} \u00b7 ` : ""}
+          {title}
         </div>
-        <div className="font-display italic text-[12px] text-ink-soft">
-          {caption}
-        </div>
+        {showCaption ? (
+          <div className="font-display italic text-[12px] text-ink-soft">
+            {caption}
+          </div>
+        ) : null}
       </div>
       <div className="hairline mt-1" />
     </section>
@@ -270,25 +329,25 @@ function MovementHeading({
  */
 export function CHRPReading({ text }: { text: string }) {
   return (
-    <section className="mt-10">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
-          The CHRP reading
-        </div>
-        <div className="font-display italic text-[12px] text-ink-soft">
-          interpretation
-        </div>
-      </div>
-      <div className="hairline mt-1" />
+    <>
+      <MovementHeading
+        title="The CHRP reading"
+        caption="interpretation"
+        altitude="measure"
+      />
+      {/* The one tinted, rule-marked surface in the document. Its content sits
+          at the report's 40px structural indent (3px rule + 37px), the same
+          indent the placement list uses, with matching air on the right — so
+          the block reads as a deliberate inset rather than stray padding. */}
       <div
-        className="mt-2 bg-oat border-l-[3px] py-5 md:py-6 px-5 md:px-6"
+        className="mt-2 bg-oat border-l-[3px] py-5 md:py-6 pl-[37px] pr-10 max-w-[520px]"
         style={{ borderLeftColor: "var(--chrp-black)" }}
       >
-        <p className="font-display text-[15px] md:text-[17px] leading-[1.55] text-chrp-black max-w-[64ch]">
+        <p className="font-display text-[15px] md:text-[17px] leading-[1.55] text-chrp-black">
           {text}
         </p>
       </div>
-    </section>
+    </>
   );
 }
 
@@ -302,8 +361,11 @@ export function ScoresGrid({ report }: { report: ReportPayload }) {
   const hasHpv = report.hpv.length > 0;
   return (
     <div
+      /* With no human-performance column — the real case today — the
+         measurement sits in the report's prose column like everything
+         else, rather than running a lone 660px bar across the page. */
       className={`mt-3 grid grid-cols-1 gap-8 md:gap-10 ${
-        hasHpv ? "md:grid-cols-2" : ""
+        hasHpv ? "md:grid-cols-2" : "max-w-[480px]"
       }`}
     >
       <ScoreCol caption="the song’s signature" rows={report.chrp_scores} />
@@ -340,7 +402,7 @@ function ScoreCol({ caption, rows }: { caption: string; rows: ScoreRow[] }) {
  */
 function ScoreRowView({ row }: { row: ScoreRow }) {
   return (
-    <div className="grid grid-cols-[76px_1fr_32px] items-center gap-3 mt-3">
+    <div className="grid grid-cols-[76px_1fr_50px] items-center gap-3 mt-4">
       <div className="font-sans font-bold text-[12px]">{row.name}</div>
       <div className="h-[5px] bg-bar-bg w-full rounded-full overflow-hidden">
         <div
@@ -348,7 +410,9 @@ function ScoreRowView({ row }: { row: ScoreRow }) {
           style={{ width: `${row.score}%` }}
         />
       </div>
-      <div className="font-display text-[18px] text-right">{row.score}</div>
+      <div className="font-display text-[24px] md:text-[28px] leading-none text-right">
+        {row.score}
+      </div>
       <div className="col-start-2 col-span-2 -mt-1.5 font-sans text-[10.5px] leading-tight text-ink-soft">
         {row.anchor}
       </div>
@@ -376,7 +440,7 @@ export function BuiltForSection({
   placements: ReportPayload["placements"];
 }) {
   return (
-    <div className="mt-2 flex flex-col">
+    <div className="mt-2 flex flex-col max-w-[480px]">
       {placements.map((p, i) => (
         <div key={i} className="grid grid-cols-[28px_1fr] gap-3 mt-4">
           <div
@@ -394,10 +458,10 @@ export function BuiltForSection({
                 {p.family}
               </div>
             ) : null}
-            <div className="font-display text-[18px] md:text-[20px] leading-tight max-w-[62ch]">
+            <div className="font-display text-[18px] md:text-[20px] leading-tight">
               {p.title}
             </div>
-            <p className="font-sans text-[13px] text-ink-soft leading-[1.5] mt-1.5 max-w-[62ch]">
+            <p className="font-sans text-[13px] text-ink-soft leading-[1.5] mt-1.5">
               {p.body}
             </p>
           </div>
@@ -417,14 +481,14 @@ export function BuyerSection({
   buyers: NonNullable<ReportPayload["buyers"]>;
 }) {
   return (
-    <div className="mt-2 flex flex-col">
+    <div className="mt-2 flex flex-col max-w-[480px]">
       {buyers.map((b, i) => (
         <div key={i} className="mt-4">
           <div className="font-sans font-bold text-[12px]">{b.category}</div>
           <div className="font-sans text-[10.5px] tracking-wider uppercase text-ink-soft mt-1">
             Lead with &middot; {b.lead}
           </div>
-          <p className="font-sans text-[13px] text-ink-soft leading-[1.5] mt-1.5 max-w-[62ch]">
+          <p className="font-sans text-[13px] text-ink-soft leading-[1.5] mt-1.5">
             {b.why}
           </p>
         </div>
@@ -440,12 +504,12 @@ export function PitchSection({
   pitch: NonNullable<ReportPayload["pitch"]>;
 }) {
   return (
-    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+    <div className="mt-6 flex flex-col gap-6 max-w-[480px]">
       <div>
         <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
           For sync
         </div>
-        <p className="font-sans text-[13.5px] leading-[1.6] mt-2 max-w-[52ch]">
+        <p className="font-sans text-[13.5px] leading-[1.6] mt-2">
           {pitch.sync}
         </p>
       </div>
@@ -453,7 +517,7 @@ export function PitchSection({
         <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
           For positioning
         </div>
-        <p className="font-sans text-[13.5px] leading-[1.6] mt-2 max-w-[52ch]">
+        <p className="font-sans text-[13.5px] leading-[1.6] mt-2">
           {pitch.promotion}
         </p>
       </div>
@@ -472,9 +536,10 @@ export function Footer({ id, reportId }: { id: string; reportId: string }) {
         </span>
       </div>
       <div className="flex items-center gap-4 text-[11px]">
+        {/* 44px touch target. The type stays 11px; only the box grows. */}
         <a
           href={`/api/report/${reportId}/pdf`}
-          className="font-sans font-bold text-chrp-black underline underline-offset-4 hover:text-magenta"
+          className="inline-flex items-center min-h-[44px] font-sans font-bold text-chrp-black underline underline-offset-4 hover:text-magenta"
         >
           ↓ Download PDF
         </a>

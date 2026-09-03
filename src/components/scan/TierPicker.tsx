@@ -7,8 +7,6 @@ import { FreeReport } from "@/lib/fixtures/tracks";
 
 const ORDER: ProductId[] = ["artist_catalog"];
 
-const MOST_POPULAR: ProductId = "artist_catalog";
-
 const PER_TRACK_MATH: Partial<
   Record<ProductId, { perTrack: string; savingsPct: number }>
 > = {
@@ -42,7 +40,7 @@ export function TierPicker({
       <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
         Choose a catalog tier
       </div>
-      <h1 className="font-display font-bold text-[32px] md:text-[48px] leading-[1.0] text-chrp-black display-tight">
+      <h1 className="font-display text-[32px] md:text-[48px] leading-[1.0] text-chrp-black display-tight">
         Unlock your catalog.
       </h1>
       <p className="font-display italic text-[16px] md:text-[18px] text-ink-soft mt-3 max-w-[52ch]">
@@ -56,10 +54,11 @@ export function TierPicker({
         &nbsp;&mdash;&nbsp;{report.track.artist}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* One offer, sized like one offer. The four-column grid this used to
+          sit in was scaffolding for a comparison that no longer exists. */}
+      <div className="mt-6 max-w-[420px]">
         {ORDER.map((id) => {
           const tier = TIERS[id];
-          const popular = id === MOST_POPULAR;
           return (
             <button
               key={id}
@@ -69,14 +68,7 @@ export function TierPicker({
                   `/scan/${scanId}/checkout-tier?product=${id}`,
                 )
               }
-              className={`relative flex flex-col items-stretch text-left p-5 rounded ${
-                popular ? "border" : "border border-rule"
-              } bg-chrp-white hover:bg-oat disabled:opacity-60 disabled:cursor-not-allowed`}
-              style={
-                popular
-                  ? { borderColor: "rgba(230, 215, 79, 0.30)" }
-                  : undefined
-              }
+              className="relative flex flex-col items-stretch text-left w-full p-5 rounded-[var(--r-card)] border border-rule bg-chrp-white hover:bg-oat disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {/* No "Most popular" / "Most chosen" badge. The catalog tier is a
                   different product, not a volume discount, and social-proof
@@ -89,7 +81,7 @@ export function TierPicker({
               <div className="font-sans font-black text-[11px] tracking-wider uppercase text-ink-soft">
                 {tier.label}
               </div>
-              <div className="font-display font-bold text-[38px] leading-none mt-2 text-chrp-black">
+              <div className="font-display text-[38px] leading-none mt-2 text-chrp-black">
                 ${tier.priceUsd.toLocaleString()}
               </div>
               <PerTrackMath productId={id} />

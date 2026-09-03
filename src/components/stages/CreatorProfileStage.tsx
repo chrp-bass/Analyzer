@@ -268,7 +268,7 @@ function Hero({
 }) {
   return (
     <section className="mt-6 md:mt-8">
-      <h1 className="font-display font-bold text-[40px] md:text-[56px] display-tight">
+      <h1 className="font-display text-[40px] md:text-[56px] display-tight">
         Creator Profile
       </h1>
       <p className="font-display italic text-[16px] md:text-[20px] text-ink-soft mt-1">
@@ -331,7 +331,7 @@ function MetricBlock({
       <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
         {name}
       </div>
-      <div className="font-display font-bold text-[40px] md:text-[48px] leading-none text-chrp-black">
+      <div className="font-display text-[40px] md:text-[48px] leading-none text-chrp-black">
         {score}
       </div>
       <div className="font-display italic text-[14px] md:text-[15px] text-ink-soft">
@@ -446,7 +446,7 @@ function PriorityRow({
         />
       </div>
       <div className="min-w-0">
-        <div className="font-display font-bold text-[16px] md:text-[18px] leading-tight">
+        <div className="font-display text-[16px] md:text-[18px] leading-tight">
           {priority.track_title}
         </div>
         <div className="font-sans text-[11.5px] text-ink-soft mt-0.5 leading-snug">
@@ -454,7 +454,7 @@ function PriorityRow({
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">
-        <div className="font-display font-bold text-[20px] md:text-[24px] leading-none">
+        <div className="font-display text-[20px] md:text-[24px] leading-none">
           {priority.epi_score}
         </div>
         <span
@@ -489,7 +489,7 @@ function CatalogComparableSection({
           <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
             Closest signature
           </div>
-          <div className="font-display font-bold text-[28px] md:text-[32px] leading-none mt-1 text-chrp-black">
+          <div className="font-display text-[28px] md:text-[32px] leading-none mt-1 text-chrp-black">
             {comparable.artist}
           </div>
           {/* The market-demand readout is removed. Demand level and vertical

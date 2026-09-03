@@ -253,19 +253,9 @@ export function SignInForm() {
         bought on another device, sign in there or reset to start fresh.
       </p>
 
-      <div style={{ marginTop: 20 }}>
-        <Link
-          href="/scan"
-          style={{
-            fontFamily: "var(--s)",
-            fontSize: 12,
-            color: "var(--on-light-2)",
-            textDecoration: "underline",
-          }}
-        >
-          Not a customer yet? Scan a track &rarr;
-        </Link>
-      </div>
+      {/* One free-scan door, not two. "New to CHRP? Start with a free scan"
+          sits above the form, where someone who does not have an account
+          reaches it before spending anything on the sign-in path. */}
     </div>
   );
 }

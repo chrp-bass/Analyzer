@@ -12,7 +12,9 @@
  *
  * V8 report stays cream + Cormorant via .chrp-report scope-restore.
  *
- * Restraint: #E6D74F (signal) only on primary CTA / EPI number / Ready chip.
+ * Restraint: #E6D74F (signal) on primary CTA / EPI number / Ready chip, plus
+ * the deliberate full-bleed brand moments (.si-yellow). Yellow is never
+ * decoration; it is either a signal or a whole editorial ground.
  * Editorial gold #D4A853 (--gold-2) elsewhere.
  */
 
@@ -45,6 +47,19 @@
   /* Rules */
   --line-dark:  rgba(239, 234, 224, 0.13);
   --line-light: rgba(26,  23,  20,  0.12);
+
+  /* ── Micro-labels ───────────────────────────────────────────────────
+   * Two tiers, one job each. --label-1 announces a section; --label-2
+   * names an object inside one. Everything uppercase and small on the
+   * landing resolves to one of these two sizes and one of these two inks
+   * (yellow stays only where it is already doing signal work), which is
+   * what replaced six sizes, eleven colours and seven near-duplicate
+   * opacities all competing at the same volume.
+   */
+  --label-1:       0.7rem;   /* section eyebrow */
+  --label-2:       0.64rem;  /* in-card / local kicker */
+  --label-on-light: rgba(15, 14, 14, 0.68);   /* >=4.5:1 on paper, oat, yellow */
+  --label-on-dark:  rgba(251, 251, 244, 0.72); /* >=4.5:1 on ink, plum */
 
   /* ── Geometry ───────────────────────────────────────────────────────
    * The app's objects are soft. Nothing interactive is hard-edged unless
@@ -207,6 +222,9 @@ em { font-style: italic; }
   background: transparent;
   color: var(--on-light);
   border: 1px solid var(--line-light);
+  /* .btn is border:none at 15px/26px. The border here adds outside that box,
+   * so the padding gives the 1px back and the ghost matches .btn-y exactly. */
+  padding: 14px 25px;
 }
 .btn-ghost:hover { background: rgba(26, 23, 20, 0.05); }
 .btn-nav {
@@ -270,15 +288,14 @@ em { font-style: italic; }
 .si-kicker {
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.72rem;
+  font-size: var(--label-1);
   letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--yellow);
   margin: 0 0 clamp(16px, 2vw, 24px);
 }
-.si-paper .si-kicker { color: rgba(15, 14, 14, 0.6); }
-.si-yellow .si-kicker { color: rgba(15, 14, 14, 0.68); }
-.si-plum .si-kicker { color: rgba(251, 251, 244, 0.72); }
+.si-paper .si-kicker,
+.si-yellow .si-kicker { color: var(--label-on-light); }
 
 .si-h2 {
   margin: 0;
@@ -315,7 +332,14 @@ em { font-style: italic; }
 .si-paper .si-quote { border-left-color: var(--ink); color: var(--ink); }
 
 /* ── Hero ───────────────────────────────────────────────────────────── */
-.si-hero { padding: clamp(48px, 7vw, 104px) 0 clamp(44px, 6vw, 92px); }
+.si-hero {
+  padding: clamp(48px, 7vw, 104px) 0 clamp(44px, 6vw, 92px);
+  /* The atmosphere and horizon bleed by percentage, so below ~840px —
+   * where the art column goes full width — they escape the viewport.
+   * `clip` bounds them without creating a scroll container, so the
+   * sticky nav is unaffected and the aura is unchanged at 1440. */
+  overflow-x: clip;
+}
 .si-hero .wrap {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
@@ -556,10 +580,10 @@ em { font-style: italic; }
   margin: 4px 0 0;
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.64rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(15, 14, 14, 0.55);
+  color: var(--label-on-light);
 }
 .si-dim-body { margin: 0; grid-column: span 2; max-width: 62ch; }
 .si-dims-note {
@@ -586,10 +610,10 @@ em { font-style: italic; }
   border-bottom: 1px solid rgba(15, 14, 14, 0.3);
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.7rem;
+  font-size: var(--label-1);
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgba(15, 14, 14, 0.62);
+  color: var(--label-on-light);
 }
 .si-colhead-strong { border-bottom-color: var(--ink); color: var(--ink); }
 .si-plainlist { display: flex; flex-direction: column; gap: 9px; }
@@ -643,10 +667,10 @@ em { font-style: italic; }
   border: 1px dashed rgba(251, 251, 244, 0.3);
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.56rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(251, 251, 244, 0.45);
+  color: var(--label-on-dark);
   text-align: center;
   overflow: hidden;
 }
@@ -671,7 +695,7 @@ em { font-style: italic; }
   margin: 8px 0 0;
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.64rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--yellow);
@@ -717,10 +741,10 @@ em { font-style: italic; }
   border-bottom: 1px solid var(--line-dark);
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.66rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(251, 251, 244, 0.6);
+  color: var(--label-on-dark);
 }
 .si-boundary-head-y { color: var(--yellow); border-bottom-color: rgba(230, 215, 79, 0.5); }
 .si-boundary ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
@@ -766,9 +790,9 @@ em { font-style: italic; }
   margin: 0;
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.66rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
-  color: rgba(15, 14, 14, 0.45);
+  color: var(--label-on-light);
 }
 .si-move-title {
   margin: 8px 0 0;
@@ -810,10 +834,10 @@ em { font-style: italic; }
   margin: 0;
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.64rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(251, 251, 244, 0.55);
+  color: var(--label-on-dark);
 }
 .si-stage-name {
   margin: 10px 0 0;
@@ -842,15 +866,27 @@ em { font-style: italic; }
   gap: clamp(24px, 3vw, 48px);
   align-items: start;
 }
-.si-tier { border-top: 3px solid var(--ink); padding-top: 22px; }
+/* The two tiers are one pair. The dark tier is a filled card, so its inner
+ * padding narrows everything inside it; the light tier is a rule-topped
+ * column sitting on the .wrap edge, which must not move. Reserving the dark
+ * card's two paddings on the light column's right gives both tiers the same
+ * inner measure — and therefore two CTAs of identical width — without
+ * shifting a single left edge. */
+.si-tier {
+  border-top: 3px solid var(--ink);
+  padding-top: 22px;
+}
+.si-tier:not(.si-tier-dark) {
+  padding-right: calc(2 * clamp(20px, 2.4vw, 30px));
+}
 .si-tier-kicker {
   margin: 0;
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.66rem;
+  font-size: var(--label-2);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(15, 14, 14, 0.6);
+  color: var(--label-on-light);
 }
 .si-tier-name {
   margin: 10px 0 0;
@@ -904,7 +940,7 @@ em { font-style: italic; }
   border-top-color: var(--yellow);
   padding: 22px clamp(20px, 2.4vw, 30px) clamp(24px, 2.8vw, 32px);
 }
-.si-tier-dark .si-tier-kicker { color: rgba(251, 251, 244, 0.6); }
+.si-tier-dark .si-tier-kicker { color: var(--label-on-dark); }
 .si-tier-dark .si-tier-name,
 .si-tier-dark .si-tier-price { color: var(--paper); }
 .si-tier-dark .si-tier-unit { color: rgba(251, 251, 244, 0.6); }
@@ -935,10 +971,10 @@ em { font-style: italic; }
   margin: 0 0 clamp(18px, 2.2vw, 28px);
   font-family: var(--s);
   font-weight: 900;
-  font-size: 0.72rem;
+  font-size: var(--label-1);
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: rgba(251, 251, 244, 0.5);
+  color: var(--label-on-dark);
 }
 .si-closing h2 {
   margin: 0 auto;
@@ -990,10 +1026,15 @@ em { font-style: italic; }
   font-weight: 700;
   font-size: 0.78rem;
   color: rgba(251, 251, 244, 0.7);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .si-nav nav a:hover { color: var(--paper); }
 .si-nav .si-quiet { color: rgba(251, 251, 244, 0.55); }
-.si-nav-cta {
+/* Scoped past `.si-nav nav a`, which otherwise wins on specificity and
+ * repaints this near-white at 70% on yellow. */
+.si-nav nav a.si-nav-cta {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -1010,7 +1051,7 @@ em { font-style: italic; }
    * search field, which is what made the rule read as cutting into it. */
   border-radius: var(--r-btn);
 }
-.si-nav-cta:hover { color: var(--ink); background: #efe270; }
+.si-nav nav a.si-nav-cta:hover { color: var(--ink); background: #efe270; }
 
 @media (max-width: 720px) {
   .si-nav nav a.si-desk { display: none; }
@@ -1026,8 +1067,10 @@ em { font-style: italic; }
   .si-nav .wrap { gap: 10px; }
   .si-nav nav { gap: 12px; }
   .si-nav nav a { font-size: 0.72rem; white-space: nowrap; }
-  .si-nav-cta {
-    min-height: 40px;
+  .si-nav nav a.si-nav-cta {
+    /* 44px, matching the nav links either side of it — and free, because
+       they now set the row height anyway. */
+    min-height: 44px;
     padding: 0 12px;
     font-size: 0.62rem;
     letter-spacing: 0.06em;
@@ -1068,6 +1111,12 @@ em { font-style: italic; }
   display: flex;
   gap: 26px;
   font-size: 13px;
+}
+/* 44px touch targets. The links keep their 13px type; only the box grows. */
+.foot .links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .foot .links a:hover { color: var(--on-dark); }
 .foot .cr { font-size: 12px; }
@@ -1282,7 +1331,8 @@ em { font-style: italic; }
   background: var(--oat);
   border: 1px solid var(--line-light);
   border-radius: var(--r-card);
-  padding: clamp(22px, 3vw, 34px);
+  /* 1px border + 39px = the report's 40px structural indent. */
+  padding: clamp(22px, 3vw, 39px);
 }
 .rp-own-eyebrow {
   margin: 0 0 6px;
@@ -1307,7 +1357,8 @@ em { font-style: italic; }
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--ink-soft);
-  max-width: 56ch;
+  /* 480 column minus the module's own 40px inset. */
+  max-width: 440px;
 }
 .rp-own-actions {
   display: flex;
@@ -1609,6 +1660,13 @@ em { font-style: italic; }
 .chrp-report .font-sans {
   font-family: var(--font-lato), system-ui, sans-serif;
 }
+/* The ownership close is built in the marketing type system; inside the
+ * report it takes the report's display face so the document's final and
+ * most emotional heading is not its one serif seam. */
+.chrp-report .rp-own-title {
+  font-family: var(--font-cormorant), Georgia, serif;
+}
+
 .chrp-report input,
 .chrp-report textarea,
 .chrp-report select {

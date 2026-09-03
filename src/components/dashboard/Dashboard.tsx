@@ -202,7 +202,7 @@ export function Dashboard() {
 
         <div className="flex items-end justify-between flex-wrap gap-3">
           <div>
-            <h1 className="font-display font-bold text-[32px] md:text-[44px] leading-[1.0] text-chrp-black display-tight">
+            <h1 className="font-display text-[32px] md:text-[44px] leading-[1.0] text-chrp-black display-tight">
               Your scans
             </h1>
             <p className="font-sans text-[12px] text-ink-soft mt-1 flex items-center gap-2 flex-wrap">
@@ -349,7 +349,7 @@ function CreditsCard({
         Active catalog
       </div>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <div className="font-display font-bold text-[20px] text-chrp-black">
+        <div className="font-display text-[20px] text-chrp-black">
           ${tier.priceUsd.toLocaleString()} {tier.label}
         </div>
         <div className="font-sans text-[12px] text-ink-soft">
@@ -379,7 +379,7 @@ function ProgressMeter({
       <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft">
         Progress to Creator Profile
       </div>
-      <div className="mt-2 font-display font-bold text-[24px] md:text-[28px] text-chrp-black">
+      <div className="mt-2 font-display text-[24px] md:text-[28px] text-chrp-black">
         {filled} of {threshold} tracks until your creator profile unlocks
       </div>
       <div className="mt-4 flex gap-2 md:gap-3">
@@ -495,7 +495,7 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
                   />
                 </div>
                 <div className="min-w-0">
-                  <div className="font-display font-bold text-[16px] md:text-[18px] leading-tight">
+                  <div className="font-display text-[16px] md:text-[18px] leading-tight">
                     {r.track.title}
                   </div>
                   <div className="font-sans text-[11.5px] text-ink-soft mt-0.5">
@@ -504,7 +504,7 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <div className="font-display font-bold text-[18px] md:text-[20px] leading-none">
+                  <div className="font-display text-[18px] md:text-[20px] leading-none">
                     {r.epi.score}
                   </div>
                   <span
@@ -545,7 +545,7 @@ function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
           <div className="font-sans font-black text-[10px] tracking-wider uppercase">
             Catalog complete
           </div>
-          <p className="mt-1.5 font-display font-bold text-[20px] md:text-[24px] leading-[1.15]">
+          <p className="mt-1.5 font-display text-[20px] md:text-[24px] leading-[1.15]">
             Your full Artist Catalog has been read.
           </p>
           <p className="mt-2 font-sans text-[12.5px] md:text-[13px] leading-[1.55] max-w-[60ch]">

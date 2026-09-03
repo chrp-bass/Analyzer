@@ -290,9 +290,12 @@ function FreeReveal({
           </div>
         </div>
 
+        {/* The <h2> below the boundary is "The full report tells you what to
+            do with it." — the transition used to say it first, verbatim, at
+            30px, 236px above the 54px heading. It states the half the
+            heading does not. */}
         <p className="rv-transition">
-          That tells you what the song is doing. The full report tells you what
-          to do with it.
+          That tells you what the song is doing.
         </p>
       </div>
     </section>
