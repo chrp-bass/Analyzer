@@ -1,7 +1,8 @@
 # CHRP SONG INTELLIGENCE — ART DIRECTION
 
 **Concept:** THE SONG HAS A SHAPE.
-**Date:** 2026-09-02 · **Baseline audited:** `f6a1cc2` (post anti-slop repair)
+**Date:** 2026-09-02, landing pass 2026-09-03
+**Baseline audited:** `f6a1cc2` (post anti-slop repair) · **Journey shipped:** `ad7fa4e`
 
 ---
 
@@ -286,3 +287,153 @@ the flattening is lossless. All four modes verified pixel-exact.
 
 **"Balance" was clipped to "Balanc"** in the PDF, whose viewBox was narrower
 than the web instrument's. Widened to match.
+
+
+---
+
+# LANDING PASS — 2026-09-03
+
+**Baseline:** `ad7fa4e`. The journey shipped, and its own closing review named
+the remaining gap: *"The landing is the one major surface I left alone — it's
+coherent, but it was authored before this concept existed and doesn't yet
+promise the shape."* This pass closes that, and only that.
+
+## THE SCOPE DECISION
+
+Eleven sections were inspected in production before anything was touched. Two
+findings governed the pass:
+
+1. **Sections 2 and 3 are already right.** "You know what the song feels like"
+   is an asymmetric editorial split with a pull-quote; the statement band is a
+   full-bleed vinyl photograph carrying one yellow serif line. Neither collapses
+   into cards or a feature grid — the exact failure the brief warned about — so
+   both were left untouched.
+2. **The catalog argument already exists** on the landing ("One song tells you
+   something. A catalog tells you who you are."), which is the line the $149
+   surface now reuses verbatim. The setup was there; it did not need adding.
+
+So the gap was the hero, and the hero alone. One component, one CSS block, one
+deletion. No new sections, no added copy.
+
+## THE HERO
+
+**Before:** a treated portrait of a person, with an empty dashed dial floating
+over it, captioned *"Your song's shape appears here. It takes about ten
+seconds."*
+
+Two things were wrong. There was **no song anywhere** in a hero whose entire
+claim is that a song has a shape — the composition's subject was a face and a
+gauge. And a gradient-lit portrait beside a dark circular dial is the single
+most generic composition available to a landing page: it is what an AI
+landing-page generator produces, and it is what the brief's own tests #10 and
+#11 exist to catch. The caption was doing work the composition should have done.
+
+**After:** THE SPECIMEN. Real songs, one at a time, in the instrument.
+
+```
+Redline                    <- the song, first
+by Voss Black
+   [ instrument, grid on, real geometry, mode colour ]
+91  EPI · Ready mode       <- the plate lockup
+Six songs. Six shapes. Yours takes about ten seconds.
+Example output — illustrative values, not live scans.
+```
+
+**Why plurality.** One song beside one shape proves nothing — the shape could be
+decoration. Six songs cycling through the same instrument, each resolving to a
+visibly different geometry (Redline's narrow yellow kite; Hollow Meridian's
+broad blue diamond), proves the shape is **derived**. That is the argument, and
+it cannot be made with a single specimen.
+
+**Why it is not a duplicate of The Reading.** Downstream, one song — *yours* —
+is drawn once, with its values landing as it draws. Here, many songs are drawn
+in turn. The landing promises *songs differ*; the product delivers *yours*.
+Related promise, not the same moment.
+
+**Reading order is the thesis:** title and artist above, shape below. SONG →
+SHAPE, top to bottom. Nothing is absolutely positioned over anything else, which
+is what the portrait composition had been doing.
+
+## UIZZE — LANDING PASS
+
+### 6 — YouTube Music · Catalog Page
+
+- **DESIGN QUESTION:** How does a music product make a song read as a distinct
+  object before any interaction?
+- **WHAT IT TAUGHT US:** Song identity survives as **title loud, artist quiet**,
+  one line each — and *plurality* is what makes each entry legible as its own
+  object. The artwork thumbnails are incidental; the type pairing carries it.
+- **WHAT WE REJECTED:** The list furniture entirely — rank numbers, view counts,
+  overflow menus. CHRP has no popularity data and must never imply it.
+- **CHRP TRANSLATION:** The hero specimen needed no cover art (demo tracks have
+  none, and inventing it would be a fabrication). Title in the display face,
+  artist in quiet italic beneath, and the plurality supplied by cycling.
+- **WHAT CHANGED:** `HeroSpecimen.tsx` — `.si-spec-title` / `.si-spec-by` as the
+  song identity, six specimens rotating.
+
+### 7 — Apple Music · hero states (category: *music product theater*)
+
+- **DESIGN QUESTION:** How does a music surface hold a subject without a card?
+- **WHAT IT TAUGHT US:** The subject sits in an atmospheric field, not in a
+  container; the field does the framing.
+- **WHAT WE REJECTED:** Player chrome and the album-art-as-wallpaper hero.
+- **CHRP TRANSLATION:** Keep the existing aura layers (`si-hero-atmos`,
+  `si-hero-horizon`) as the field and let the specimen sit *in* it with no box,
+  no border, no panel.
+- **WHAT CHANGED:** The portrait, its two tint passes and its vignette were
+  removed; the aura layers were kept untouched.
+
+## WHAT WAS REMOVED
+
+- The hero portrait `chrp-aura-portrait.png` and its `tint-a` / `tint-b` /
+  `vignette` treatment layers.
+- `EmptyInstrument` — 83 lines of SVG drawing a dashed placeholder shape that
+  existed only to say "no song yet." A real song says it better.
+- `.si-portrait` and `.si-instrument` CSS, and the mobile override that
+  repositioned the absolutely-placed dial.
+- One clause of caption copy, replaced by a shorter line that names the thesis.
+
+**This overrides one earlier lock.** The anti-slop audit's do-not-touch list
+said *"The hero aura and treated portrait — clip it; do not restyle, recolour,
+or reduce it."* The aura is preserved exactly. The portrait is not: it was the
+element making the hero indistinguishable from a generated landing page, and
+this brief's stated priority — make the landing promise the shape — cannot be
+met while a stock-feeling headshot is the hero's subject. Flagged deliberately
+rather than done quietly; it is a one-line revert if the call is wrong.
+
+## SIGNATURE LANDING MOMENT
+
+**What happens:** every 4.6 seconds the hero's song changes — title, artist,
+geometry, mode colour and EPI score all resolve to a different real specimen,
+through a single 420ms opacity crossfade.
+
+**What it communicates:** songs are not all the same shape. The measurement is
+derived from the song, not applied to it.
+
+**Why it is memorable:** it is describable — *"it kept showing different songs
+and each one had a different shape."* It is not "things fade in": the *content*
+changes, and the change is the argument.
+
+**Reduced motion:** the interval never starts and the first specimen stands. The
+composition is complete and correct at rest, so no-JS, slow-first-paint and
+reduced-motion visitors all see a finished specimen rather than an empty frame.
+The CSS transition is also disabled under `prefers-reduced-motion`.
+
+**Cost:** no animation library — one CSS opacity transition and one interval.
+The specimen data is computed in the server component and passed as plain props,
+so the fixture module is never imported by the client component (both its
+imports are `import type`).
+
+## MARK vs INSTRUMENT ON THE LANDING
+
+The landing hero is an **instrument**: grid, crosshair, axis labels and per-axis
+colours all retained. This is a first-time visitor's first encounter with the
+shape, and the grid is what makes it read as plotted rather than drawn — the
+credibility the brief asks for. The score lockup beneath it is set in the
+**plate's** typographic form, so the number met here is the number recognised in
+the report. The landing therefore introduces both halves: measured, and ownable.
+
+## STILL DELIBERATELY UNCHANGED
+
+Sections 2–11 of the landing, all downstream `ad7fa4e` work, the $149 surface,
+all copy governed by the locked sales architecture, and every functional lock.

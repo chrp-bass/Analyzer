@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { HeroScanField } from "@/components/HeroScanField";
+import { HeroSpecimen, type Specimen } from "@/components/HeroSpecimen";
+import { TRACK_SLUGS, getFreeReportById } from "@/lib/fixtures/tracks";
+import { polygonFromChrpScores } from "@/lib/polygon";
 
 /**
  * scan.chrp.ai landing — CHRP Song Intelligence, locked design (Deliverable 05).
@@ -186,6 +189,27 @@ function Header() {
   );
 }
 
+/**
+ * The six bundled demo tracks, reduced to only what the hero draws. Built
+ * here — in a server component — so the fixture module never reaches the
+ * browser. These are illustrative demo songs, labelled as such on the page;
+ * no real artist is represented and no value is invented, the geometry is
+ * the engine's own output format.
+ */
+function heroSpecimens(): Specimen[] {
+  return TRACK_SLUGS.map((slug) => {
+    const r = getFreeReportById(slug);
+    if (!r) return null;
+    return {
+      title: r.track.title,
+      artist: r.track.artist,
+      vertices: polygonFromChrpScores(r.chrp_scores),
+      score: r.epi.score,
+      mode: r.epi.mode,
+    };
+  }).filter((x): x is Specimen => x !== null);
+}
+
 // ─── Hero ────────────────────────────────────────────────────────────────────
 function Hero() {
   return (
@@ -209,108 +233,24 @@ function Hero() {
           <HeroScanField />
         </div>
 
+        {/* The aura stays — it is the brand's emotional field. What sat in
+            front of it was a portrait of a person and an empty dial, on a
+            page whose claim is that a SONG has a shape. Real songs sit
+            there now, in turn, so the relationship is demonstrated rather
+            than captioned. */}
         <div className="si-hero-art">
           <div aria-hidden className="si-hero-atmos" />
           <div aria-hidden className="si-hero-horizon" />
-          <div className="si-portrait">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/graphics/chrp-aura-portrait.png" alt="" aria-hidden />
-            <div aria-hidden className="tint-a" />
-            <div aria-hidden className="tint-b" />
-            <div aria-hidden className="vignette" />
-            <div className="si-instrument">
-              <EmptyInstrument />
-            </div>
-          </div>
+          <HeroSpecimen specimens={heroSpecimens()} />
           <p className="si-hero-caption">
-            Your song&rsquo;s shape appears here. It takes about ten seconds.
+            Six songs. Six shapes. Yours takes about ten seconds.
+          </p>
+          <p className="si-hero-note">
+            Example output &mdash; illustrative values, not live scans.
           </p>
         </div>
       </div>
     </section>
-  );
-}
-
-/**
- * The EPI instrument in its resting state — rings, axes and a dashed
- * four-axis outline with no song in it yet. Deliberately not a filled
- * polygon: nothing here should read as a result before a scan has run.
- */
-function EmptyInstrument() {
-  return (
-    <svg
-      viewBox="-196 -156 392 312"
-      overflow="visible"
-      role="img"
-      aria-label="EPI position instrument, awaiting a song"
-    >
-      <defs>
-        <radialGradient id="si-atmos" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#0F0E0E" stopOpacity="0.86" />
-          <stop offset="52%" stopColor="#0F0E0E" stopOpacity="0.62" />
-          <stop offset="100%" stopColor="#0F0E0E" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="si-atmos-tint" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#E6D74F" stopOpacity="0.16" />
-          <stop offset="48%" stopColor="#C12C79" stopOpacity="0.12" />
-          <stop offset="80%" stopColor="#406BD6" stopOpacity="0.08" />
-          <stop offset="100%" stopColor="#0F0E0E" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <circle cx="0" cy="0" r="168" fill="url(#si-atmos)" />
-      <circle cx="0" cy="0" r="156" fill="url(#si-atmos-tint)" />
-      {[28, 56, 84].map((r) => (
-        <circle
-          key={r}
-          cx="0"
-          cy="0"
-          r={r}
-          fill="none"
-          stroke="rgba(251,251,244,0.16)"
-          strokeWidth="0.5"
-        />
-      ))}
-      <circle
-        cx="0"
-        cy="0"
-        r="102"
-        fill="none"
-        stroke="rgba(251,251,244,0.38)"
-        strokeWidth="0.9"
-      />
-      <line x1="0" y1="-102" x2="0" y2="102" stroke="rgba(251,251,244,0.2)" strokeWidth="0.5" />
-      <line x1="-102" y1="0" x2="102" y2="0" stroke="rgba(251,251,244,0.2)" strokeWidth="0.5" />
-      <polygon
-        points="0,-72 62,0 0,66 -58,0"
-        fill="none"
-        stroke="rgba(251,251,244,0.34)"
-        strokeWidth="1"
-        strokeDasharray="3 6"
-        strokeLinejoin="round"
-      />
-      <circle cx="0" cy="-72" r="3.4" fill="#7A9FE8" />
-      <circle cx="62" cy="0" r="3.4" fill="#C990B8" />
-      <circle cx="0" cy="66" r="3.4" fill="#E6D74F" />
-      <circle cx="-58" cy="0" r="3.4" fill="#A8D990" />
-      <text x="0" y="-118" textAnchor="middle" fontFamily="var(--s)" fontWeight="900" fontSize="9" letterSpacing="1" fill="#7A9FE8">
-        FOCUS
-      </text>
-      <text x="120" y="3" textAnchor="start" fontFamily="var(--s)" fontWeight="900" fontSize="9" letterSpacing="1" fill="#C990B8">
-        BALANCE
-      </text>
-      <text x="0" y="128" textAnchor="middle" fontFamily="var(--s)" fontWeight="900" fontSize="9" letterSpacing="1" fill="#E6D74F">
-        MOTIVATION
-      </text>
-      <text x="-120" y="3" textAnchor="end" fontFamily="var(--s)" fontWeight="900" fontSize="9" letterSpacing="1" fill="#A8D990">
-        CALM
-      </text>
-      <text x="0" y="-6" textAnchor="middle" fontFamily="var(--s)" fontWeight="700" fontSize="7" letterSpacing="1.4" fill="rgba(251,251,244,0.55)">
-        EPI SCORE
-      </text>
-      <text x="0" y="28" textAnchor="middle" fontFamily="var(--d)" fontWeight="300" fontSize="38" fill="rgba(251,251,244,0.3)">
-        &mdash;
-      </text>
-    </svg>
   );
 }
 
