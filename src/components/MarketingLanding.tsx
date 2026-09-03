@@ -66,7 +66,6 @@ const PAID_ITEMS = [
   "Complete EPI profile",
   "What it’s built for",
   "Pitch throughline",
-  "Comparable context",
 ];
 
 const MOVEMENTS = [
@@ -94,11 +93,6 @@ const MOVEMENTS = [
     n: "04",
     title: "Pitch throughline",
     body: "Language you can adapt for a pitch, deck, metadata, campaign or conversation.",
-  },
-  {
-    n: "05",
-    title: "Comparable context",
-    body: "Where supportable, references that help explain the emotional territory.",
   },
 ];
 

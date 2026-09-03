@@ -1876,6 +1876,35 @@ em { font-style: italic; }
 }
 .tp-back:hover { color: var(--on-light); }
 
+/* ── The unresolved field ────────────────────────────────────────────────
+ * The waiting state of the instrument. A real scan is one opaque call, so
+ * there is no progress to report — the motion says "working", never "this
+ * far along". Both properties here are genuinely CSS-animatable, so this
+ * needs no animation library, no rAF loop and no SMIL timeline, and it is
+ * disabled by the media query below rather than by JS.
+ * ───────────────────────────────────────────────────────────────────── */
+.uf-pulse {
+  transform-origin: 0 0;
+  transform-box: view-box;
+  animation: uf-breathe 4.8s ease-in-out infinite;
+}
+.uf-outline {
+  animation: uf-travel 3.2s linear infinite;
+}
+@keyframes uf-breathe {
+  0%, 100% { transform: scale(0.74); opacity: 0.72; }
+  50%      { transform: scale(1.04); opacity: 1; }
+}
+@keyframes uf-travel {
+  to { stroke-dashoffset: -22; }
+}
+/* Reduced motion: the outline simply rests. The status line carries the
+   alive state instead, and it changes on its own timer. */
+@media (prefers-reduced-motion: reduce) {
+  .uf-pulse { animation: none; transform: scale(0.9); }
+  .uf-outline { animation: none; }
+}
+
 /* ── The Reading — the journey's signature moment ────────────────────────
  * One centred column: the song, the instrument, the measurement arriving.
  * The song block holds its height from the first frame so nothing below it

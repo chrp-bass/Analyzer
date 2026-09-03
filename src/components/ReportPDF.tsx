@@ -608,20 +608,19 @@ export function ReportPDF({
           </Text>
         </View>
 
-        {/* 05 — Comparable context. */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>05 &middot; Comparable context</Text>
-          <View style={styles.rule} />
-          <Text style={[styles.compText, { marginTop: 4 }]}>
-            {report.comparable}
-          </Text>
-        </View>
+        {/* Comparable context is not shipped. It named an emotional
+            territory by comparison, which is prohibited customer-facing
+            output, and this section rendered its heading and rule
+            UNCONDITIONALLY — so a report generated without a `comparable`
+            field printed a bare "05 · Comparable context" over nothing at
+            all. Removed rather than renamed: the concept goes, not the
+            label. Nothing replaces it. */}
 
-        {/* 06 — the decision advantage. Absent on reports persisted before
+        {/* 05 — the decision advantage. Absent on reports persisted before
             the Rhodes v2 contract; those still render. */}
         {report.consider ? (
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>06 &middot; Worth considering</Text>
+            <Text style={styles.sectionHeader}>05 &middot; Worth considering</Text>
             <View style={styles.rule} />
             <Text style={[styles.compText, { marginTop: 4 }]}>
               {report.consider}

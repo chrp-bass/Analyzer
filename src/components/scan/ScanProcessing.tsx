@@ -7,6 +7,7 @@ import { FreeReport, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { getScanReport, ScanError } from "@/lib/data-source";
+import { UnresolvedField } from "@/components/scan/UnresolvedField";
 
 /**
  * THE READING — the journey's signature moment.
@@ -53,6 +54,28 @@ const REVEAL_ENDS = 3800;
 /** A short beat so a cached fixture does not snap past the "before". */
 const MIN_BEAT = 1600;
 
+/**
+ * The wait, honestly.
+ *
+ * A real scan is one opaque server call — the client knows it started and
+ * that it has not finished, and nothing else. There are no stage boundaries
+ * to report, so there is no countdown, no percentage, and no line claiming
+ * a step has completed. What there is instead is a status that PROGRESSES
+ * and then settles, because a line that loops forever reads as "we started
+ * over" and a line that never changes reads as "this is stuck".
+ *
+ * Each line describes the operation as a whole in the present continuous.
+ * None asserts a finished stage; all are true for the entire window.
+ */
+const STATUS = [
+  { at: 0, line: "Reading your song." },
+  { at: 7000, line: "Finding the pattern." },
+  { at: 15000, line: "Your song is taking shape." },
+  // Past the point where a normal scan would have landed, say so plainly
+  // rather than apologising or implying failure.
+  { at: 35000, line: "Still working on your song." },
+] as const;
+
 export function ScanProcessing({
   report: initialReport,
   scanId,
@@ -76,6 +99,7 @@ export function ScanProcessing({
   const [report, setReport] = useState<FreeReport | null>(initialReport);
   const [error, setError] = useState<string | null>(null);
   const [beatDone, setBeatDone] = useState(false);
+  const [statusIndex, setStatusIndex] = useState(0);
   const [axesShown, setAxesShown] = useState(0);
   const [epiShown, setEpiShown] = useState(false);
   const [revealDone, setRevealDone] = useState(false);
@@ -113,6 +137,16 @@ export function ScanProcessing({
     const t = setTimeout(() => setBeatDone(true), MIN_BEAT);
     return () => clearTimeout(t);
   }, []);
+
+  // Status advances on its own clock and holds at the last line. Cleared the
+  // moment the report lands, so a fast scan never shows a wait message.
+  useEffect(() => {
+    if (report) return;
+    const timers = STATUS.map((sVal, i) =>
+      setTimeout(() => setStatusIndex(i), sVal.at),
+    ).filter(Boolean);
+    return () => timers.forEach(clearTimeout);
+  }, [report]);
 
   // The reveal starts when there is something real to reveal.
   const revealing = beatDone && !!report && !error;
@@ -216,7 +250,9 @@ export function ScanProcessing({
               animated={!reduced}
             />
           ) : (
-            <div className="rd-instrument-hold" aria-hidden />
+            /* Not a placeholder and not a spinner — the real measurement
+               field, with the shape still unresolved. */
+            <UnresolvedField />
           )}
         </div>
 
@@ -224,7 +260,7 @@ export function ScanProcessing({
             other. Each line is a real number the engine produced. */}
         <div className="rd-readout" aria-live="polite">
           {!revealing ? (
-            <p className="rd-waiting">Reading the signal&hellip;</p>
+            <p className="rd-waiting">{STATUS[statusIndex].line}</p>
           ) : (
             <>
               {rows.map((r, i) =>

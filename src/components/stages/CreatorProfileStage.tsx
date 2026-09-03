@@ -10,7 +10,6 @@ import {
   getCatalogIntelligence,
   getCatalogIntelligenceFromProfile,
   CatalogIntelligence,
-  CatalogComparable,
 } from "@/lib/catalog-progression";
 
 const MODE_BG: Record<Mode, string> = {
@@ -209,9 +208,11 @@ export function CreatorProfileStage({
         <PitchPriorities priorities={profile.pitch_priorities} />
       </FadeStage>
 
-      <FadeStage visible={visible(STEP.COMPARABLE)}>
-        <CatalogComparableSection comparable={intel.comparable} />
-      </FadeStage>
+      {/* The catalog comparable is not shipped. It named a real recording
+          artist as the creator's "closest signature" — Sia, Norah Jones,
+          Sufjan Stevens — which is an artist comparison, and artist
+          comparison is prohibited customer-facing output. Removed rather
+          than relabelled; nothing replaces it. */}
 
       <CreatorTease artist={artist} tracksScanned={tracksScanned} />
       <Footer reportId={`PRF-${report.report_meta.id.slice(0, 6)}`} />
@@ -474,40 +475,6 @@ function PriorityRow({
   );
 }
 
-function CatalogComparableSection({
-  comparable,
-}: {
-  comparable: CatalogComparable;
-}) {
-  return (
-    <section className="mt-10">
-      <div className="font-sans font-bold text-[10px] tracking-wider uppercase text-ink-soft">
-        Your catalog comparable
-      </div>
-      <div className="hairline mt-1" />
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 md:gap-10">
-        <div>
-          <div className="font-sans font-black text-[10px] tracking-wider uppercase text-ink-soft">
-            Closest signature
-          </div>
-          <div className="font-display text-[28px] md:text-[32px] leading-none mt-1 text-chrp-black">
-            {comparable.artist}
-          </div>
-          {/* The market-demand readout is removed. Demand level and vertical
-              are not signals the product can currently source, so stating them
-              would be an unsupported claim. The comparison stays descriptive:
-              it names an emotional territory, not a market position. */}
-        </div>
-        <p className="font-sans text-[12.5px] text-ink-soft leading-[1.55] max-w-[60ch]">
-          {comparable.artist}&rsquo;s catalog sits in{" "}
-          <span className="text-chrp-black">{comparable.placements}</span>. Your
-          catalog keeps returning to the same emotional territory, which makes
-          that a useful reference point when you describe the work.
-        </p>
-      </div>
-    </section>
-  );
-}
 
 function CreatorTease({
   artist,

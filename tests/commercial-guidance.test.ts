@@ -17,6 +17,10 @@ import {
 
 const contract = readFileSync("src/lib/rhodes/song-intelligence.ts", "utf8");
 const report = readFileSync("src/components/ReportPage.tsx", "utf8");
+const pdf = readFileSync("src/components/ReportPDF.tsx", "utf8");
+const boundary = readFileSync("src/components/scan/ScanPreview.tsx", "utf8");
+const landing = readFileSync("src/components/MarketingLanding.tsx", "utf8");
+const methodology = readFileSync("src/app/methodology/page.tsx", "utf8");
 
 describe("the four commercial outputs are contracted", () => {
   it("placement map, buyer map, audience map and pitch language", () => {
@@ -33,8 +37,26 @@ describe("the four commercial outputs are contracted", () => {
     expect(report).toContain("Who to put it in front of");
     expect(report).toContain("Who responds, and when");
     expect(report).toContain("PitchSection");
-    // "Comparable context" survives only as a fallback for persisted reports.
     expect(report).toMatch(/report\.audience \? \(/);
+  });
+
+  it("never ships Comparable to a customer, on screen or in the PDF", () => {
+    // Comparable named an emotional territory by comparison, which is
+    // prohibited customer-facing output. It used to survive as a fallback
+    // for reports persisted before `audience` existed, and the PDF rendered
+    // its heading UNCONDITIONALLY — so a report without the field printed a
+    // bare "05 · Comparable context" over nothing. Both are gone. A report
+    // with no audience map omits the movement rather than substituting a
+    // comparison for it.
+    for (const source of [report, pdf]) {
+      expect(source).not.toMatch(/title="Comparable context"/);
+      expect(source).not.toMatch(/Comparable context<\/Text>/);
+      expect(source).not.toMatch(/\{report\.comparable\}/);
+    }
+    // Nor is it promised anywhere a visitor is told what they get.
+    for (const source of [boundary, landing, methodology]) {
+      expect(source).not.toContain("Comparable context");
+    }
   });
 
   it("derives from the song rather than running a fixed taxonomy", () => {

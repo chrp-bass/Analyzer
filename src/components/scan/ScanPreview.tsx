@@ -38,7 +38,6 @@ const PAID_HIERARCHY = [
   { n: "02", title: "EPI profile" },
   { n: "03", title: "What it’s built for" },
   { n: "04", title: "Pitch throughline" },
-  { n: "05", title: "Comparable context" },
 ];
 
 const FREE_ITEMS = [

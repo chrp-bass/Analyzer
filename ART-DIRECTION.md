@@ -437,3 +437,103 @@ the report. The landing therefore introduces both halves: measured, and ownable.
 
 Sections 2–11 of the landing, all downstream `ad7fa4e` work, the $149 surface,
 all copy governed by the locked sales architecture, and every functional lock.
+
+
+---
+
+# PROCESSING ANTICIPATION — 2026-09-03
+
+**Baseline:** `b125311`. Found in real mobile use: a live scan took 40+ seconds
+and the screen read as broken.
+
+## WHAT IT ACTUALLY DID
+
+The Reading was built against fixtures, which resolve almost instantly. On a
+real scan the reveal cannot start until scoring lands, so for the whole 40
+seconds the visitor saw the song title, **a blank 260px box**, and one static
+line. Nothing moved and nothing changed. "Is this broken? Should I refresh?"
+is the correct reaction to that screen.
+
+## WHAT THE ARCHITECTURE ACTUALLY KNOWS
+
+Inspected before designing. `realFreeReport` is a single `await` around one
+POST to `/api/song-api/analyze`. Server-side that is two sequential
+third-party calls — Soundcharts `getSongByIsrc`, then `resolveSpotifyIdentity`
+— plus pure-CPU scoring. **The client is told "started" and then "finished",
+and nothing in between.** There are no stage boundaries, no progress events,
+and no basis for predicting completion.
+
+So: **no countdown, no percentage, no "signal read ✓".** A countdown that
+reaches zero while the scan continues is worse than the blank box. What is
+built instead is honest indeterminate anticipation.
+
+## UIZZE — Shazam · "Listening for music"
+
+- **DESIGN PROBLEM:** How do the best products turn a 20–60 second computation
+  into anticipation rather than uncertainty?
+- **WHAT IT TAUGHT US:** Shazam does not know how long recognition takes, so it
+  claims nothing. There is no bar, no percentage, no countdown. Aliveness comes
+  from the product's *own object* pulsing — the mark itself breathing, not a
+  spinner bolted on. Language is two short lines in the present continuous
+  ("Listening for music"), and the object that waits is the same object that
+  will carry the result.
+- **WHAT WE REJECTED:** The literal ripple rings and the saturated blue field —
+  that is Shazam's identity, not ours. Also its framing: CHRP is not
+  "listening", it is analysing an already-identified recording, and saying
+  otherwise would misdescribe the operation.
+- **CHRP TRANSLATION:** CHRP's own object is the instrument. The waiting state
+  is the measurement field, drawn immediately and truthfully — rings and
+  crosshair are the coordinate space, true of every song, so drawing them
+  claims nothing about this one — with the shape inside it unresolved and in
+  motion.
+- **BUILD CHANGE:** New `UnresolvedField.tsx` replaces the blank box.
+
+## THE UNRESOLVED FIELD
+
+A dashed, unfilled outline that breathes and whose dashes travel. Three
+decisions keep it honest:
+
+- **It is a regular diamond, deliberately.** Four independently drifting
+  vertices would have read as a measurement settling toward a value, and no
+  value is known. A symmetrical shape scaling in place cannot be mistaken for
+  this song's geometry.
+- **No fill, no score, no mode.** Those arrive only with real data.
+- **Motion is pure CSS** — a `transform` and a `stroke-dashoffset`, both
+  genuinely animatable properties. No animation library, no rAF loop, no SMIL
+  timeline. `prefers-reduced-motion` is handled in the stylesheet, so it works
+  with JS disabled and never flashes on hydration.
+
+## THE STATUS LINE
+
+One line at a time, progressing and then settling:
+
+| At | Line |
+|---|---|
+| 0s | Reading your song. |
+| 7s | Finding the pattern. |
+| 15s | Your song is taking shape. |
+| 35s | Still working on your song. |
+
+Each describes the operation *as a whole* in the present continuous, and each
+is true for the entire window — none asserts a finished stage. It progresses
+and then holds, because a line that loops forever reads as "we started over"
+and a line that never changes reads as "this is stuck". `aria-live="polite"`,
+and only four announcements across a 60-second wait.
+
+## COMPLETION AND FAILURE
+
+Completion hands off to the existing Reading choreography: the unresolved
+outline is replaced by the real geometry, the four measured values land in
+order, then the EPI lockup. The wait ends because the answer arrived.
+
+Failure stops pretending. The error path returns early to a clear message and
+a "Try another song" action — it never leaves someone watching an eternal
+"taking shape".
+
+## PERFORMANCE NOTE, NOT FIXED HERE
+
+The 40 seconds is two **sequential** third-party calls. `resolveSpotifyIdentity`
+depends only on the ISRC, which is known before the Soundcharts call begins, so
+the two could in principle overlap. Deliberately not changed: it alters engine
+error ordering (today a Soundcharts 404 means Spotify is never called) and this
+was a UX task. Recorded for a separate, properly tested change.

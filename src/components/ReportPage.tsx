@@ -26,7 +26,6 @@ import { ReportOwnership } from "@/components/report/ReportOwnership";
  *   02 EPI profile          <- report.chrp_scores (+ report.hpv when present)
  *   03 What it's built for  <- report.placements
  *   04 Pitch throughline    <- report.throughline
- *   05 Comparable context   <- report.comparable
  *   06 Worth considering    <- report.consider
  *
  * "Positioning language" from the approved hierarchy has no backing output in
@@ -135,8 +134,12 @@ export function ReportBody({
 
       {/* 06 — the audience map. State, context, emotional job. This replaced
           "Comparable context", which was generic territory prose and the
-          section most prone to naming a genre nobody measured. Persisted
-          reports that still carry `comparable` keep rendering it. */}
+          section most prone to naming a genre nobody measured.
+          Reports persisted before `audience` existed used to fall back to
+          rendering `comparable`; that fallback is gone. Comparable is
+          prohibited customer-facing output, so a report without an audience
+          map simply omits the movement rather than substituting a
+          comparison for it. */}
       {report.audience ? (
         <>
           <MovementHeading
@@ -146,13 +149,6 @@ export function ReportBody({
           />
           <p className="font-sans text-[14px] md:text-[15px] leading-[1.65] mt-3 max-w-[480px]">
             {report.audience}
-          </p>
-        </>
-      ) : report.comparable ? (
-        <>
-          <MovementHeading n="06" title="Comparable context" altitude="close" />
-          <p className="font-sans text-[14px] md:text-[15px] leading-[1.6] mt-3 max-w-[480px] text-ink-soft">
-            {report.comparable}
           </p>
         </>
       ) : null}
