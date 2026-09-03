@@ -670,8 +670,10 @@ function Footer() {
           <img src="/brand/logo/chrp-logo.svg" alt="CHRP" />
         </Link>
         <div className="links">
-          <Link href="/privacy">Privacy</Link>
-          <Link href="/terms">Terms</Link>
+          {/* Canonical chrp.ai destinations — see SiteFooter.tsx and
+              chrp-footer-legal-governance.md. Methodology stays local. */}
+          <a href="https://chrp.ai/privacy">Privacy</a>
+          <a href="https://chrp.ai/terms">Terms</a>
           <Link href="/methodology">Methodology</Link>
         </div>
         <span className="cr">

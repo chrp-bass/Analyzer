@@ -1,55 +1,26 @@
-import Link from "next/link";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "CHRP // Terms",
-};
+// See src/app/privacy/page.tsx — without this, the static build loses the
+// Location header and a real visitor lands on a broken 307.
+export const dynamic = "force-dynamic";
 
-export default function TermsPage() {
-  return (
-    <div className="product-shell">
-      <SiteHeader />
-      <main>
-        <section className="page-hero">
-          <div className="wrap">
-            <span className="eyebrow">Terms</span>
-            <h1>The short version.</h1>
-            <p className="sub">
-              CHRP&rsquo;s formal terms of service are in review. This page
-              will be updated before general availability.
-            </p>
-          </div>
-        </section>
-
-        <section className="page-band">
-          <div className="wrap" style={{ maxWidth: 720 }}>
-            <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 18 }}>
-              CHRP is a behavioral scoring tool for working musicians and the
-              professionals around them. Reports describe how a track behaves
-              relative to the CHRP corpus and the live sync market. They are a
-              decision aid, not a forecast &mdash; market conditions shift and
-              a placement outcome depends on many things outside the score.
-            </p>
-            <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 18 }}>
-              Your first scan is free. Additional single scans are $19; the
-              catalog tier is $149 for up to ten tracks over twelve months.
-              See <Link href="/scan">/scan</Link> to start. Refund requests
-              within seven days of purchase are honored while beta is active.
-            </p>
-            <p style={{ fontSize: 16, lineHeight: 1.7 }}>
-              Questions?{" "}
-              <Link href="/contact">Get in touch</Link>.
-            </p>
-            <div style={{ marginTop: 36 }}>
-              <Link href="/" className="btn btn-ghost">
-                &larr; Back home
-              </Link>
-            </div>
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
-  );
+/**
+ * CHRP is one company with one legal source of truth. This route used to
+ * render a local page whose own copy said "CHRP's formal terms of service
+ * are in review" — a stub, not the real Terms of Service, reachable
+ * directly even after the footer stopped linking to it.
+ *
+ * FLAGGED, not silently dropped: that stub also carried the only
+ * customer-facing statement of this product's $19 / $149 pricing and its
+ * 7-day refund policy. chrp.ai/terms does not state a refund policy at
+ * all. Redirecting here removes that sentence from the product with
+ * nothing else stating it. Fixing the legal destination is correct
+ * regardless — a self-disclaimed "in review" stub was never the real
+ * Terms of Service — but the refund/pricing line is commercial copy, not
+ * legal boilerplate, and belongs restated somewhere in the product (the
+ * checkout or tier surfaces) as a deliberate decision, not invented here
+ * as a side effect of a footer fix. See chrp-footer-legal-governance.md.
+ */
+export default function TermsRedirect() {
+  redirect("https://chrp.ai/terms");
 }

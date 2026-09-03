@@ -1,55 +1,22 @@
-import Link from "next/link";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "CHRP // Privacy",
-};
+// Without this, Next statically prerenders the page at build time and the
+// resulting production response loses its Location header entirely — a
+// 307 with no destination, verified against a production `next start`
+// build. Dev mode never showed the bug because dev never statically
+// optimizes. Matches the existing redirect at src/app/report/[scanId].
+export const dynamic = "force-dynamic";
 
-export default function PrivacyPage() {
-  return (
-    <div className="product-shell">
-      <SiteHeader />
-      <main>
-        <section className="page-hero">
-          <div className="wrap">
-            <span className="eyebrow">Privacy</span>
-            <h1>What we hold, and what we don&rsquo;t.</h1>
-            <p className="sub">
-              CHRP&rsquo;s formal privacy policy is in review. This page will be
-              updated before general availability.
-            </p>
-          </div>
-        </section>
-
-        <section className="page-band">
-          <div className="wrap" style={{ maxWidth: 720 }}>
-            <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 18 }}>
-              While CHRP is in beta we collect only what&rsquo;s needed to
-              return your report: the track identifier you submit, the email
-              address you use to receive it, and the scan history tied to your
-              browser. We do not sell or share that data. We do not run
-              third-party analytics or ad trackers on the scan flow, the
-              paywall, or the report itself.
-            </p>
-            <p style={{ fontSize: 16, lineHeight: 1.7, marginBottom: 18 }}>
-              Scans live in your browser via localStorage until you clear them.
-              You can reset your demo state at any time from the dashboard
-              (&ldquo;Reset demo state&rdquo; at the bottom).
-            </p>
-            <p style={{ fontSize: 16, lineHeight: 1.7 }}>
-              Questions or requests?{" "}
-              <Link href="/contact">Get in touch</Link>.
-            </p>
-            <div style={{ marginTop: 36 }}>
-              <Link href="/" className="btn btn-ghost">
-                &larr; Back home
-              </Link>
-            </div>
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
-  );
+/**
+ * CHRP is one company with one legal source of truth. This route used to
+ * render a local page whose own copy said "CHRP's formal privacy policy is
+ * in review" — a stub, reachable directly even after the footer stopped
+ * linking to it. Redirected rather than deleted, so anything that already
+ * points here (a bookmark, an indexed search result, an old email) still
+ * lands on the real policy instead of a 404 or a page that undersells it.
+ *
+ * See chrp-footer-legal-governance.md.
+ */
+export default function PrivacyRedirect() {
+  redirect("https://chrp.ai/privacy");
 }
