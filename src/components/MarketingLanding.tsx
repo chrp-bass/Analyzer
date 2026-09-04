@@ -444,8 +444,14 @@ function Reveal() {
         <div className="si-reveal-grid">
           <div className="si-specimen">
             <div className="si-specimen-head">
-              <div className="si-artwork" aria-hidden>
-                Artwork
+              <div className="si-artwork">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/graphics/long-way-down-cover.jpg"
+                  alt="Long Way Down album artwork"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
               <div>
                 <p className="si-specimen-title">Long Way Down</p>

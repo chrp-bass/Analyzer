@@ -816,23 +816,17 @@ em { font-style: italic; }
   padding: clamp(20px, 2.6vw, 32px);
 }
 .si-specimen-head { display: flex; gap: 16px; align-items: center; }
+/* Square 1:1 artwork slot for the specimen card. Dimensions preserved —
+ * the placeholder text and dashed border have been retired now that the
+ * slot always carries a real cover image. */
 .si-artwork {
   width: clamp(56px, 6vw, 76px);
   height: clamp(56px, 6vw, 76px);
   flex: none;
-  display: grid;
-  place-items: center;
-  border: 1px dashed rgba(251, 251, 244, 0.3);
-  font-family: var(--s);
-  font-weight: 900;
-  font-size: var(--label-2);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--label-on-dark);
-  text-align: center;
   overflow: hidden;
+  background: rgba(251, 251, 244, 0.04);
 }
-.si-artwork img { width: 100%; height: 100%; object-fit: cover; }
+.si-artwork img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .si-specimen-title {
   margin: 0;
   font-family: var(--d);
