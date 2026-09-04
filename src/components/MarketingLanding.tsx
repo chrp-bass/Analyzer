@@ -46,24 +46,20 @@ const DIMENSIONS = [
   },
 ];
 
-const FREE_ITEMS = [
-  "EPI Score",
-  "Primary mode",
-  "Focus, Calm, Motivation, Balance",
-  "Your four-dimension performance profile",
-  "One emotional-signature statement",
-];
-
 /**
- * What the paid report actually contains today. Kept in lockstep with
- * ReportBody — the page must never promise a movement the report does not
- * ship. "Positioning language" from the approved hierarchy has no backing
- * engine output yet and is therefore not advertised.
+ * What the complete Song Intelligence report contains today. Kept in
+ * lockstep with ReportBody — the page must never promise a movement the
+ * report does not ship. "Positioning language" from the approved hierarchy
+ * has no backing engine output yet and is therefore not advertised.
+ *
+ * There is no separate "free" list here. The first complete report is
+ * included; the page does not sell a stripped preview against a paid
+ * version of the same report.
  */
-const PAID_ITEMS = [
+const REPORT_ITEMS = [
   "Emotional signature, in full",
   "The CHRP reading",
-  "Complete EPI profile",
+  "Complete EPI profile — Focus, Calm, Motivation, Balance",
   "What it’s built for",
   "Pitch throughline",
 ];
@@ -142,6 +138,7 @@ export function MarketingLanding() {
       <Statement />
       <Dimensions />
       <Difference />
+      <CreatorMoment />
       <Reveal />
       <Movements />
       <Sync />
@@ -175,7 +172,7 @@ function Header() {
             My songs
           </Link>
           <Link href="/scan" className="si-nav-cta">
-            Scan your song &mdash; free
+            Get my free report
           </Link>
         </nav>
       </div>
@@ -381,9 +378,54 @@ function Difference() {
   );
 }
 
-// ─── The free reveal ─────────────────────────────────────────────────────────
-// The specimen below is a labelled example, not a customer record. The free /
-// paid boundary is stated as two lists — never as blurred paid content.
+// ─── Human creator moment ────────────────────────────────────────────────────
+// The narrative bridge from measurement to action. The photograph is the
+// only human moment on the page — a creator sitting at their workstation
+// after the work is done, deciding what to do with it. Placed here on
+// purpose: measurement → human stake → curiosity → intelligence → action.
+function CreatorMoment() {
+  return (
+    <section className="si-creator" aria-labelledby="creator-h">
+      <div className="wrap si-creator-grid">
+        <figure className="si-creator-photo">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/graphics/creator-at-work.jpg"
+            alt="A songwriter at a home studio workstation, headphones on, guitar within reach — the moment the song is finished."
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+        <div className="si-creator-copy">
+          <p className="si-kicker">For finished songs that deserve a real chance</p>
+          <h2 id="creator-h" className="si-h2">
+            You made the song. Now give it a real chance.
+          </h2>
+          <p className="si-body">
+            You wrote it. Recorded it. Finished it. Now it has to enter a
+            world where attention is scarce and &ldquo;new music out
+            now&rdquo; sounds like everyone else.
+          </p>
+          <p className="si-body">
+            You can&rsquo;t control who says yes. You can control how well
+            you understand what you made — and how clearly you can advocate
+            for it.
+          </p>
+          <p className="si-quote">
+            See what your song is communicating &mdash; before you decide
+            what to do with it next.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── The reveal ──────────────────────────────────────────────────────────────
+// Your FIRST complete report is included. This section shows a labelled
+// example of a complete report and states what a complete report contains —
+// it does not stage a "free vs paid" split against itself. The mystery is
+// preserved: the specimen is a trailer, not the full report.
 function Reveal() {
   const axes = [
     { name: "Focus", score: 67, color: "#7A9FE8" },
@@ -394,9 +436,9 @@ function Reveal() {
   return (
     <section id="reveal" className="si-sec">
       <div className="wrap">
-        <p className="si-kicker">The first scan</p>
-        <h2 className="si-h2" style={{ color: "var(--paper)", maxWidth: "20ch" }}>
-          Meet your song&rsquo;s emotional signature.
+        <p className="si-kicker">Your first complete report is free</p>
+        <h2 className="si-h2" style={{ color: "var(--paper)", maxWidth: "22ch" }}>
+          Now the interesting part: what does yours do?
         </h2>
 
         <div className="si-reveal-grid">
@@ -433,38 +475,35 @@ function Reveal() {
               className="si-dims-note"
               style={{ color: "rgba(251,251,244,0.45)", fontSize: "0.76rem", marginTop: 18 }}
             >
-              Example output. Values shown are illustrative, not a real scan.
+              Illustrative preview of a complete report. Not a real scan.
             </p>
           </div>
 
           <div>
-            <div className="si-boundary">
-              <div>
-                <p className="si-boundary-head">Free, on the first scan</p>
-                <ul>
-                  {FREE_ITEMS.map((i) => (
-                    <li key={i}>{i}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="si-boundary-paid">
-                <p className="si-boundary-head si-boundary-head-y">
-                  In the full report
-                </p>
-                <ul>
-                  {PAID_ITEMS.map((i) => (
-                    <li key={i}>{i}</li>
-                  ))}
-                </ul>
-              </div>
+            <div className="si-report-card">
+              <p className="si-boundary-head si-boundary-head-y">
+                What&rsquo;s in a complete report
+              </p>
+              <ul>
+                {REPORT_ITEMS.map((i) => (
+                  <li key={i}>{i}</li>
+                ))}
+              </ul>
             </div>
             <p className="si-transition">
-              That tells you what the song is doing. The full report tells you
-              what to do with it.
+              A structured outside read on what your song is doing, the
+              moments it&rsquo;s built for, and language you can use to talk
+              about it &mdash; so the next decision is a clearer one.
             </p>
             <Link href="/scan" className="btn btn-y" style={{ marginTop: 26 }}>
-              Unlock the full Song Intelligence
+              Get my free Song Intelligence report
             </Link>
+            <p
+              className="si-hero-note"
+              style={{ marginTop: 14, color: "rgba(251,251,244,0.6)" }}
+            >
+              First complete report is on us. No credit card.
+            </p>
           </div>
         </div>
       </div>
@@ -498,8 +537,10 @@ function Movements() {
           ))}
         </div>
         <p className="si-moves-note">
-          It is built to be saved, screenshotted, and sent to someone who needs
-          to understand the song in thirty seconds.
+          Built to inform the next decision — how you describe the song, which
+          angle to lead with, which moments to pursue. Save it, screenshot it,
+          send it to someone who needs to understand the song in thirty
+          seconds.
         </p>
       </div>
     </section>
@@ -597,17 +638,17 @@ function Pricing() {
 
         <div className="si-tiers">
           <div className="si-tier">
-            <p className="si-tier-kicker">Single song</p>
+            <p className="si-tier-kicker">Your first song</p>
             <p className="si-tier-name">Full Song Intelligence</p>
-            <p className="si-tier-price">$19</p>
-            <p className="si-tier-unit">One song</p>
+            <p className="si-tier-price">Free</p>
+            <p className="si-tier-unit">Then $19 per additional song</p>
             <ul>
               {SINGLE_INCLUDES.map((s) => (
                 <li key={s}>{s}</li>
               ))}
             </ul>
             <Link href="/scan" className="btn btn-ghost">
-              Unlock this song
+              Get my free report
             </Link>
           </div>
 
@@ -628,9 +669,9 @@ function Pricing() {
         </div>
 
         <p className="si-terms">
-          First scan free. Report access runs 60 days on a single song and 12
-          months on a catalog. Creator profile unlocks at eight scans within a
-          catalog.
+          Your first complete report is free. Report access runs 60 days on a
+          single song and 12 months on a catalog. Creator profile unlocks at
+          eight scans within a catalog.
         </p>
       </div>
     </section>
@@ -652,9 +693,11 @@ function Closing() {
           Give the song every chance to find its moment.
         </p>
         <Link href="/scan" className="btn btn-y">
-          Scan your first song &mdash; free
+          Get my free Song Intelligence report
         </Link>
-        <p className="si-hero-note">No credit card.</p>
+        <p className="si-hero-note">
+          Your first complete report is on us. No credit card.
+        </p>
       </div>
     </section>
   );

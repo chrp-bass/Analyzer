@@ -713,6 +713,95 @@ em { font-style: italic; }
 .si-col-bottom { align-self: stretch; display: flex; align-items: flex-end; }
 .si-col-bottom .si-quote { margin: 0; max-width: 24ch; }
 
+/* ── Human creator moment ─────────────────────────────────────────────
+ * A single, editorial photograph paired with the post-creation copy.
+ * Paper ground so the human moment reads as a pause between the yellow
+ * "difference" band and the ink-ground reveal. The photograph is warm and
+ * uncropped by CSS filters — no rainbow overlay, no fake UI, no data
+ * decoration. The human is the point. */
+.si-creator {
+  background: var(--paper);
+  color: var(--ink);
+  padding: clamp(56px, 8vw, 120px) 0;
+  border-top: 1px solid rgba(15, 14, 14, 0.08);
+}
+.si-creator-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: clamp(28px, 4.4vw, 72px);
+  align-items: center;
+}
+.si-creator-photo {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(15, 14, 14, 0.04);
+  aspect-ratio: 3 / 2;
+}
+.si-creator-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  display: block;
+}
+.si-creator-copy .si-kicker { color: var(--label-on-light); }
+.si-creator-copy .si-h2 {
+  color: var(--ink);
+  font-weight: 400;
+  max-width: 20ch;
+  margin-top: 14px;
+}
+.si-creator-copy .si-body {
+  color: rgba(15, 14, 14, 0.82);
+  max-width: 46ch;
+  margin: clamp(16px, 2vw, 22px) 0 0;
+}
+.si-creator-copy .si-quote {
+  margin: clamp(24px, 3vw, 34px) 0 0;
+  border-left-color: var(--ink);
+  color: var(--ink);
+  max-width: 40ch;
+}
+@media (max-width: 860px) {
+  .si-creator-grid { grid-template-columns: 1fr; }
+  .si-creator-photo { aspect-ratio: 4 / 3; }
+}
+
+/* ── One-card report summary (replaces the old free/paid boundary) ─────
+ * The Reveal no longer splits itself into a "free" and a "paid" list.
+ * Your first complete report is included, so the section shows a single
+ * card describing what a complete report contains. */
+.si-report-card {
+  border: 1px solid var(--line-dark);
+  padding: clamp(20px, 2.6vw, 32px);
+  background: rgba(251, 251, 244, 0.03);
+}
+.si-report-card .si-boundary-head { margin-bottom: 14px; }
+.si-report-card ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+}
+.si-report-card li {
+  font-family: var(--s);
+  font-size: 0.94rem;
+  line-height: 1.4;
+  color: rgba(251, 251, 244, 0.86);
+  padding-left: 16px;
+  position: relative;
+}
+.si-report-card li::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0.62em;
+  width: 6px; height: 1px;
+  background: var(--yellow);
+}
+
 /* ── The reveal specimen ────────────────────────────────────────────── */
 .si-reveal-grid {
   margin: clamp(30px, 4vw, 56px) 0 0;
