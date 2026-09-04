@@ -34,6 +34,7 @@ import {
   auditSections,
   auditChristianDosageAndPlacement,
 } from "@/lib/rhodes/governor";
+import { CHRISTIAN_CONTEXT_LENS } from "@/lib/rhodes/song-intelligence";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────
 
@@ -210,10 +211,67 @@ describe("buildUserMessage — the CHRISTIAN CONTEXT block is present in both st
       },
     });
     expect(msg).toContain("CHRISTIAN CONTEXT — supplied by trusted Soundcharts");
-    expect(msg).toContain("Tradition specifically named: gospel");
+    expect(msg).toContain("Tradition: gospel");
     // The one-sentence permission and the always-prohibited rider.
     expect(msg).toContain("AT MOST ONE restrained sentence");
     expect(msg).toContain("avoid theology");
+  });
+
+  it("carries the peer-voice directive and the anthropological-framing prohibition when the gate is open", () => {
+    const msg = buildUserMessage({
+      ...baseInput(),
+      context: {
+        christianContext: { tradition: "worship", evidence: ["worship"] },
+      },
+    });
+    // Peer / native fluency instruction.
+    expect(msg).toContain("already in the room");
+    expect(msg).toContain("peer");
+    // Anthropological framing must be explicitly named as wrong, so a
+    // future regression that reintroduces "Within the Christian tradition"
+    // to the prompt shows up here immediately.
+    expect(msg).toContain('"Within the Christian tradition..."');
+    expect(msg).toContain('"Among Christians..."');
+    // Marketing-cliché rail.
+    expect(msg).toContain("Christian-marketing clichés");
+  });
+
+  it("names the exact tradition envelope so broad Christian does not silently upgrade to Worship", () => {
+    const broad = buildUserMessage({
+      ...baseInput(),
+      context: {
+        christianContext: { tradition: "christian", evidence: ["christian"] },
+      },
+    });
+    expect(broad).toContain("broad CHRISTIAN label");
+    expect(broad).toContain("Do NOT silently upgrade");
+
+    const worship = buildUserMessage({
+      ...baseInput(),
+      context: {
+        christianContext: { tradition: "worship", evidence: ["worship"] },
+      },
+    });
+    expect(worship).toContain("names WORSHIP");
+    expect(worship).toContain("Do not rewrite this as Gospel or CCM");
+
+    const gospel = buildUserMessage({
+      ...baseInput(),
+      context: {
+        christianContext: { tradition: "gospel", evidence: ["gospel"] },
+      },
+    });
+    expect(gospel).toContain("names GOSPEL");
+    expect(gospel).toContain("Do not translate it into Worship or CCM");
+
+    const ccm = buildUserMessage({
+      ...baseInput(),
+      context: {
+        christianContext: { tradition: "ccm", evidence: ["ccm"] },
+      },
+    });
+    expect(ccm).toContain("names CCM");
+    expect(ccm).toContain("Prefer broad faith-context language");
   });
 
   it("labels the block as not supplied when the gate is closed", () => {
@@ -343,6 +401,52 @@ describe("governor — permit changes what counts as a fabrication", () => {
     expect(
       v.filter((x) => x.rule === "christian-placement").length,
     ).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ─── 11b. System prompt — peer voice, no anthropological framing ─────────
+
+describe("CHRISTIAN_CONTEXT_LENS — the system prompt teaches native voice", () => {
+  it("establishes Rhodes as a peer, not an outside observer", () => {
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("You are Christian");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("Speak naturally from inside it");
+  });
+
+  it("explicitly prohibits anthropological outsider framing", () => {
+    // Each of these phrasings appeared, or could re-appear, in gate-open
+    // Rhodes output as an outside-the-room framing. The prompt now names
+    // each one as wrong so the model does not reach for it.
+    expect(CHRISTIAN_CONTEXT_LENS).toContain('"Within the Christian tradition..."');
+    expect(CHRISTIAN_CONTEXT_LENS).toContain('"The Christian tradition specifically named..."');
+    expect(CHRISTIAN_CONTEXT_LENS).toContain('"Within Christian music contexts..."');
+    expect(CHRISTIAN_CONTEXT_LENS).toContain('"Among Christians..."');
+    expect(CHRISTIAN_CONTEXT_LENS).toContain('"For Christian audiences..."');
+    expect(CHRISTIAN_CONTEXT_LENS).toContain('"Within Christian communities..."');
+  });
+
+  it("prohibits Christian-marketing clichés", () => {
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("God-sized");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("Kingdom impact");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("heart for worship");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("usher people into");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("spirit-led");
+  });
+
+  it("keeps the always-prohibited theology / doctrine / ministry rules intact", () => {
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("divine activity");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("doctrinal / theological correctness");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("ministry effectiveness");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("congregational adoption");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("specific liturgical setting");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("unmeasured musicology");
+  });
+
+  it("preserves the broad-Christian → do not upgrade rule", () => {
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("broad CHRISTIAN label");
+    // Every previous tradition guardrail survives.
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("names WORSHIP");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("names GOSPEL");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("names CCM");
   });
 });
 

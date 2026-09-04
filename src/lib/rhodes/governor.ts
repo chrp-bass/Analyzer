@@ -311,7 +311,7 @@ const RULES: Rule[] = [
     rule: "unsupported-christian-context",
     severity: "fabrication",
     pattern:
-      /\b(christian(\s+music)?|worship(\s+song|\s+leader|\s+set|\s+music)?|gospel(\s+music|\s+song)?|ccm|contemporary\s+christian|devotional|personal\s+devotion|ministry|congregational|faith[- ]forward|the\s+church(?:\s+will|\s+would|\s+can)?)\b/gi,
+      /\b(christian(\s+music)?|worship(\s+song|\s+leader|\s+set|\s+music)?|gospel(\s+music|\s+song)?|ccm|contemporary\s+christian|devotion(?:al)?|personal\s+devotion|ministry|congregational|faith[- ]?(?:based|forward)|prayer|the\s+church(?:\s+will|\s+would|\s+can)?)\b/gi,
     why: "Names Christian, Worship, Gospel or CCM context. No such context was supplied by trusted metadata — CHRP does not infer it from the emotional profile.",
     suppressedBy: "christianContextPermitted",
   },
@@ -598,9 +598,15 @@ export function hasFabrication(violations: Violation[]): boolean {
  * checks that run AFTER the gate is confirmed open. When the gate is closed,
  * the ordinary `unsupported-christian-context` rule catches these words
  * anywhere they appear.
+ *
+ * Wide enough to catch the natural language a fluent voice reaches for
+ * (personal devotion, faith-based storytelling, prayer, quiet reflection
+ * inside a worship setting), so those phrases can appear in the one
+ * permitted rhodes sentence but not spill into the signature, throughline,
+ * audience, consider, placements, buyers, or the external pitch.
  */
 const CHRISTIAN_VOCAB =
-  /\b(christian|worship|gospel|ccm|contemporary\s+christian|devotional|ministry|congregational|faith[- ]forward)\b/i;
+  /\b(christian|worship|gospel|ccm|contemporary\s+christian|devotion(?:al)?|ministry|congregational|faith[- ]?(?:based|forward)|prayer)\b/i;
 
 /** How many sentences in a body of text include Christian-context vocabulary. */
 function countChristianSentences(text: string): number {

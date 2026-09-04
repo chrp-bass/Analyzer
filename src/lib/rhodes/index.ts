@@ -261,16 +261,33 @@ export function buildUserMessage(input: SongIntelligenceInput): string {
   // false positive from generic reflective/settling posture is impossible.
   const cc = input.context?.christianContext;
   if (cc?.tradition) {
+    // The specificity envelope for the voice: when the metadata only named
+    // the broad "christian" root, Rhodes stays broad (prayer, reflection,
+    // devotion, celebration) and does not silently upgrade to Worship or
+    // Gospel; when the metadata specifically named Worship / Gospel / CCM,
+    // Rhodes may speak inside that specific setting.
+    const envelope =
+      cc.tradition === "worship"
+        ? `The block names WORSHIP. You may speak naturally about worship / praise / prayer / stillness where the measured profile supports it. Do not rewrite this as Gospel or CCM.`
+        : cc.tradition === "gospel"
+          ? `The block names GOSPEL. Speak inside Gospel context. Do not translate it into Worship or CCM. Do not invent Gospel musicology (call-and-response, choir architecture, vocal layering) that CHRP did not measure. No racial or church-tradition assumptions.`
+          : cc.tradition === "ccm"
+            ? `The block names CCM / CONTEMPORARY CHRISTIAN. Prefer broad faith-context language — prayer, reflection, devotion, celebration. Do not silently assume congregational worship.`
+            : `The block only establishes the broad CHRISTIAN label. Broad faith-context language is fine (prayer, reflection, devotion, faith, celebration). Do NOT silently upgrade the classification to Worship or Gospel — the metadata did not say that.`;
+
     blocks.push(
       [
         `CHRISTIAN CONTEXT — supplied by trusted Soundcharts genre metadata.`,
-        `Tradition specifically named: ${cc.tradition}`,
+        `Tradition: ${cc.tradition}`,
         `Evidence: ${cc.evidence.join(", ")}`,
         ``,
-        `You MAY include AT MOST ONE restrained sentence that reads the song's MEASURED emotional-performance posture within this already-established context. That sentence must:`,
+        `You are already in the room. Speak naturally from inside this context — as one peer to another, not as an outside observer of it. Do NOT open the sentence with "Within the Christian tradition...", "Within Christian music contexts...", "Among Christians...", "For Christian audiences...", "Within Christian communities...", or any phrase that reads as an anthropologist describing a group from the outside. The gate has already established the room; you do not need to keep pointing at it, and you do not need to say the words "Christian tradition" or "Christian context" to earn the sentence. Neither should you slip into Christian-marketing clichés (God-sized, Kingdom impact, heart for worship, usher people into, powerful ministry moment, spirit-led, take people deeper).`,
+        ``,
+        envelope,
+        ``,
+        `You MAY include AT MOST ONE restrained sentence that reads the song's MEASURED emotional-performance posture in this setting. That sentence must:`,
         `  - be woven into the existing 'rhodes' commentary, never a new heading, badge, section, callout or footer;`,
         `  - use only the CHRP measurements shown above (Focus / Calm / Motivation / Balance / EPI / mode / arousal / valence);`,
-        `  - stay inside the tradition the metadata specifically named — do not rewrite ${cc.tradition} as another tradition;`,
         `  - avoid predicting congregational adoption, ministry effectiveness, sync outcomes, or any specific liturgical setting;`,
         `  - avoid theology, doctrine, divine activity, lyric interpretation, and any claim about the artist's faith.`,
         ``,
