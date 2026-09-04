@@ -34,6 +34,7 @@ import {
   type FactSheet,
   type Violation,
 } from "./governor";
+import type { ChristianContext } from "./christian-context";
 
 export type RhodesMode = "Ready" | "Recover" | "Recharge" | "Flow";
 
@@ -119,6 +120,13 @@ export interface SongIntelligenceInput {
     percentileCorpus?: string;
     percentileMode?: string;
     instrumentalness?: number;
+    /**
+     * The Christian / Worship / Gospel / CCM context lens. Present ONLY when
+     * trusted Soundcharts genre metadata clearly established that context;
+     * otherwise omitted so the prompt block calls it out as unsupplied.
+     * Never derived from artist, title, audio, EPI, mode, or dimensions.
+     */
+    christianContext?: ChristianContext;
   };
 
   /** OPTIONAL USER TRUTH — what the creator said. Outranks any inference. */
@@ -161,6 +169,12 @@ export function auditContextFor(input: SongIntelligenceInput): AuditContext {
     // These stay false until a source actually provides them.
     hasObservedBehaviour: false,
     hasStructure: false,
+    // The Christian-context gate. True only when trusted Soundcharts genre
+    // metadata clearly named a Christian tradition; the governor uses this
+    // to permit AT MOST one restrained contextual sentence, and to reject
+    // any Christian terminology otherwise.
+    christianContextPermitted: Boolean(c?.christianContext?.tradition),
+    christianContextTradition: c?.christianContext?.tradition ?? null,
   };
 }
 
@@ -225,9 +239,11 @@ export function buildUserMessage(input: SongIntelligenceInput): string {
 
   const context = input.context ?? {};
   const suppliedContext = Object.fromEntries(
-    Object.entries(context).filter(([, v]) =>
-      Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== "",
-    ),
+    Object.entries(context).filter(([, v]) => {
+      if (Array.isArray(v)) return v.length > 0;
+      if (v && typeof v === "object") return true;
+      return v !== undefined && v !== null && v !== "";
+    }),
   );
   blocks.push(
     Object.keys(suppliedContext).length > 0
@@ -238,6 +254,42 @@ export function buildUserMessage(input: SongIntelligenceInput): string {
         )}`
       : `AVAILABLE CONTEXT — none. No tempo, key, genre, comparable artists, corpus ranking, structure, lyrics or market data was supplied for this song. Nothing in those categories may appear in your answer.`,
   );
+
+  // The Christian / Worship / Gospel / CCM lens. Only added when trusted
+  // Soundcharts genre metadata specifically named the tradition. When it did
+  // not, the block below TELLS the model to avoid Christian language — so a
+  // false positive from generic reflective/settling posture is impossible.
+  const cc = input.context?.christianContext;
+  if (cc?.tradition) {
+    blocks.push(
+      [
+        `CHRISTIAN CONTEXT — supplied by trusted Soundcharts genre metadata.`,
+        `Tradition specifically named: ${cc.tradition}`,
+        `Evidence: ${cc.evidence.join(", ")}`,
+        ``,
+        `You MAY include AT MOST ONE restrained sentence that reads the song's MEASURED emotional-performance posture within this already-established context. That sentence must:`,
+        `  - be woven into the existing 'rhodes' commentary, never a new heading, badge, section, callout or footer;`,
+        `  - use only the CHRP measurements shown above (Focus / Calm / Motivation / Balance / EPI / mode / arousal / valence);`,
+        `  - stay inside the tradition the metadata specifically named — do not rewrite ${cc.tradition} as another tradition;`,
+        `  - avoid predicting congregational adoption, ministry effectiveness, sync outcomes, or any specific liturgical setting;`,
+        `  - avoid theology, doctrine, divine activity, lyric interpretation, and any claim about the artist's faith.`,
+        ``,
+        `You MAY use interpretive posture words (reflective, activating, settling, energizing, contemplative, celebratory, personal, communal) IF the measured relationships actually support them; the sentence must be traceable to specific dimension values.`,
+        ``,
+        `You MUST NOT claim any of: repetition, singability, chorus architecture, ensemble structure, harmonic vocabulary, key range, congregational participation, or any other musicology CHRP did not measure.`,
+        ``,
+        `If you cannot ground a single sentence in the measurements you were given, add nothing.`,
+      ].join("\n"),
+    );
+  } else {
+    blocks.push(
+      [
+        `CHRISTIAN CONTEXT — not supplied by trusted metadata for this song.`,
+        ``,
+        `No sentence, phrase, adjective or noun that reads as Christian, Worship, Gospel, CCM, devotional, ministry, congregational, or faith-forward may appear anywhere in your answer. Do not infer Christian context from a reflective or contemplative emotional profile, from the artist name, from the song title, or from anything else. Silence is the only correct answer here.`,
+      ].join("\n"),
+    );
+  }
 
   if (input.userTruth && input.userTruth.length > 0) {
     blocks.push(

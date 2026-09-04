@@ -5,6 +5,7 @@ import {
   RHODES_VERSION,
   type SongIntelligenceInput,
 } from "@/lib/rhodes";
+import type { ChristianContext } from "@/lib/rhodes/christian-context";
 import type { Mode, PaidSections } from "@/lib/fixtures/tracks";
 
 /**
@@ -69,6 +70,13 @@ export interface AnalysisFacts {
   percentileMode?: string;
   comparableArtists?: string[];
 
+  /**
+   * The Christian / Worship / Gospel / CCM lens. Populated by the resolver
+   * from Soundcharts genre metadata only. Never inferred from artist name,
+   * song title, audio profile, or CHRP measurements.
+   */
+  christianContext?: ChristianContext;
+
   /** Anything the creator has explicitly told CHRP about this song. */
   userTruth?: string[];
 }
@@ -103,6 +111,7 @@ export function factsToRhodesInput(
   if (facts.percentileMode) context.percentileMode = facts.percentileMode;
   if (typeof facts.instrumentalness === "number")
     context.instrumentalness = facts.instrumentalness;
+  if (facts.christianContext) context.christianContext = facts.christianContext;
 
   return {
     identity: { title: facts.title, artist: facts.artist },

@@ -48,6 +48,21 @@ export interface AuditContext {
   hasCorpusRanking?: boolean;
   hasObservedBehaviour?: boolean;
   hasStructure?: boolean;
+  /**
+   * True only when trusted Soundcharts genre metadata specifically named a
+   * Christian tradition. When false, ANY new Christian-context vocabulary in
+   * the generated report is a fabrication. When true, prohibited theological
+   * / ministry / lyric / congregational-prediction language is still a
+   * fabrication.
+   */
+  christianContextPermitted?: boolean;
+  /**
+   * The specific tradition Soundcharts named (worship / gospel / ccm /
+   * christian). Present for future rules that could catch a rewrite between
+   * traditions; the current governor treats specificity as an author's
+   * responsibility once the gate is open.
+   */
+  christianContextTradition?: string | null;
 }
 
 interface Rule {
@@ -280,6 +295,75 @@ const RULES: Rule[] = [
       /(^|\.\s+)(Overall|Ultimately|In conclusion|At its core|It(’|')s important to note|It is important to note|Based on the data|Here are|Let(’|')s explore|In summary)\b/g,
     why: "Generic model construction. Lead with the observation instead.",
   },
+
+  // ── Fabrication: Christian-context vocabulary the metadata did NOT supply
+  //    When Soundcharts identified a Christian tradition, this rule is
+  //    suppressed so Rhodes can include the one restrained contextual
+  //    sentence he was permitted. When it did not, every one of these words
+  //    is a Christian-context inference from something other than metadata,
+  //    which is exactly what the lens is designed to prevent.
+  //
+  //    Words that have both an innocent musical meaning and a Christian one
+  //    (praise, communion) are deliberately not listed here — the listed
+  //    terms have no other reason to appear in a Song Intelligence report
+  //    that did not receive Christian metadata.
+  {
+    rule: "unsupported-christian-context",
+    severity: "fabrication",
+    pattern:
+      /\b(christian(\s+music)?|worship(\s+song|\s+leader|\s+set|\s+music)?|gospel(\s+music|\s+song)?|ccm|contemporary\s+christian|devotional|personal\s+devotion|ministry|congregational|faith[- ]forward|the\s+church(?:\s+will|\s+would|\s+can)?)\b/gi,
+    why: "Names Christian, Worship, Gospel or CCM context. No such context was supplied by trusted metadata — CHRP does not infer it from the emotional profile.",
+    suppressedBy: "christianContextPermitted",
+  },
+
+  // ── Fabrication: theology / divine activity / ministry effectiveness /
+  //    congregational adoption / lyric interpretation — ALWAYS prohibited,
+  //    even when the Christian gate opened. The gate permits ONE reading of
+  //    measured emotional posture; it never permits a doctrinal claim, a
+  //    prediction of what God will do, or a promise that the song will be
+  //    adopted congregationally or effective in ministry.
+  {
+    rule: "christian-divine-activity",
+    severity: "fabrication",
+    pattern:
+      /\b((god|the\s+lord|jesus)\s+will|holy\s+spirit|anointed|invite(?:s|d)?\s+the\s+holy)\b/gi,
+    why: "Predicts or invokes divine activity. CHRP does not.",
+  },
+  {
+    rule: "christian-doctrinal-claim",
+    severity: "fabrication",
+    pattern:
+      /\b(biblically\s+sound|theologically\s+(?:sound|correct|orthodox)|doctrinally\s+(?:sound|correct))\b/gi,
+    why: "Claims doctrinal correctness. CHRP measures emotional-performance posture, not doctrine.",
+  },
+  {
+    rule: "christian-spiritual-claim",
+    severity: "fabrication",
+    pattern:
+      /\b(spiritually\s+(?:powerful|anointed|effective)|(?:will|to)\s+minister\s+(?:to|deeply|powerfully|through)|this\s+will\s+minister)\b/gi,
+    why: "Predicts spiritual or ministry effect. CHRP does not measure either.",
+  },
+  {
+    rule: "christian-congregational-prediction",
+    severity: "fabrication",
+    pattern:
+      /\b((perfect|great|ideal)\s+for\s+(?:your\s+)?sunday(?:\s+(?:worship|service|set|morning))?|should\s+be\s+sung\s+(?:on|in|at)|this\s+belongs\s+in\s+church|will\s+lead\s+people\s+into\s+worship)\b/gi,
+    why: "Predicts congregational adoption or assigns a liturgical setting. CHRP does neither.",
+  },
+  {
+    rule: "christian-liturgical-setting",
+    severity: "fabrication",
+    pattern:
+      /\b(worship\s+set|altar\s+call|sunday\s+morning\s+service|megachurch|student\s+ministry|youth\s+group\s+worship)\b/gi,
+    why: "Assigns a specific liturgical or ministry setting. CHRP interprets emotional-performance posture, not liturgy.",
+  },
+  {
+    rule: "christian-named-organization",
+    severity: "fabrication",
+    pattern:
+      /\b(young\s+life|hillsong|bethel(?:\s+music)?|elevation(?:\s+worship)?|passion\s+city|maranatha)\b/gi,
+    why: "Names a specific ministry organisation. CHRP does not target ministries.",
+  },
 ];
 
 /**
@@ -510,6 +594,93 @@ export function hasFabrication(violations: Violation[]): boolean {
 }
 
 /**
+ * Any Christian-context vocabulary — used only for dosage and placement
+ * checks that run AFTER the gate is confirmed open. When the gate is closed,
+ * the ordinary `unsupported-christian-context` rule catches these words
+ * anywhere they appear.
+ */
+const CHRISTIAN_VOCAB =
+  /\b(christian|worship|gospel|ccm|contemporary\s+christian|devotional|ministry|congregational|faith[- ]forward)\b/i;
+
+/** How many sentences in a body of text include Christian-context vocabulary. */
+function countChristianSentences(text: string): number {
+  const sentences = text
+    .split(/(?<=[.!?])\s+(?=[A-Z"“])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return sentences.filter((s) => CHRISTIAN_VOCAB.test(s)).length;
+}
+
+/**
+ * When the Christian-context gate is open, Rhodes is permitted AT MOST ONE
+ * contextual sentence, woven into the `rhodes` field only — never the
+ * signature, throughline, placements, buyers, audience, pitch or consider
+ * fields. This audit runs only when the gate is open; when it is closed
+ * the ordinary vocab rule above catches any Christian language anywhere.
+ */
+export function auditChristianDosageAndPlacement(
+  sections: Record<string, unknown>,
+): Violation[] {
+  const found: Violation[] = [];
+  const rhodesText = typeof sections.rhodes === "string" ? sections.rhodes : "";
+  const count = countChristianSentences(rhodesText);
+  if (count > 1) {
+    found.push({
+      rule: "christian-dosage",
+      severity: "fabrication",
+      match: `${count} Christian-context sentences in rhodes`,
+      why: "At most ONE restrained Christian-context sentence is permitted in the rhodes commentary. Merge or remove the extras.",
+    });
+  }
+
+  // Any Christian vocab outside `rhodes` is a placement violation. The
+  // contextual sentence belongs in the existing narrative, not in an
+  // external pitch, a buyer summary, or a heading elsewhere.
+  const OTHER_KEYS = [
+    "signature",
+    "throughline",
+    "audience",
+    "consider",
+  ] as const;
+  for (const key of OTHER_KEYS) {
+    const v = sections[key];
+    if (typeof v === "string" && CHRISTIAN_VOCAB.test(v)) {
+      found.push({
+        rule: "christian-placement",
+        severity: "fabrication",
+        match: `${key}: "${(v.match(CHRISTIAN_VOCAB) ?? [""])[0]}"`,
+        why: "Christian context language belongs in the rhodes commentary only, not in a separate section, heading or external pitch.",
+      });
+    }
+  }
+  // Placements and buyers are arrays of objects; walk their strings.
+  const walkStrings = (value: unknown, out: string[]) => {
+    if (typeof value === "string") out.push(value);
+    else if (Array.isArray(value)) value.forEach((v) => walkStrings(v, out));
+    else if (value && typeof value === "object")
+      Object.values(value).forEach((v) => walkStrings(v, out));
+  };
+  for (const key of ["placements", "buyers", "pitch"] as const) {
+    const bag: string[] = [];
+    walkStrings(sections[key], bag);
+    for (const s of bag) {
+      const m = s.match(CHRISTIAN_VOCAB);
+      if (m) {
+        found.push({
+          rule: "christian-placement",
+          severity: "fabrication",
+          match: `${key}: "${m[0]}"`,
+          why: "Christian context language belongs in the rhodes commentary only, not in a placement, buyer entry, or external pitch.",
+        });
+        break;
+      }
+    }
+  }
+
+  return found;
+}
+
+/**
  * Audit every interpretive field of a generated report as one body of text,
  * so a fabrication cannot hide in a placement while the reading stays clean.
  */
@@ -526,7 +697,13 @@ export function auditSections(
       Object.values(value).forEach(walk);
   };
   walk(sections);
-  return auditInterpretation(parts.join("\n\n"), ctx, facts);
+  const base = auditInterpretation(parts.join("\n\n"), ctx, facts);
+  // Dosage + placement rules only make sense once the gate is open — the
+  // vocab rule above has already caught everything when it is closed.
+  if (ctx.christianContextPermitted) {
+    return [...base, ...auditChristianDosageAndPlacement(sections)];
+  }
+  return base;
 }
 
 /**

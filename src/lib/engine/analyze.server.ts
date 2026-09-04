@@ -27,6 +27,50 @@ import type { AnalyzePayload } from "@/lib/engine/analysis-mapping";
 const CACHE_MAX = 10_000;
 const cache = new Map<string, AnalyzePayload>();
 
+/**
+ * A separate ISRC → raw-song cache holding just the non-audio metadata the
+ * paid-report path may need (specifically `genres`). Keeping it distinct
+ * from the analyzed-payload cache means the audio scoring can't accidentally
+ * grow a dependency on metadata that was never part of the scoring contract,
+ * and a paid-report reader can pull the genre labels without re-fetching
+ * Soundcharts when the current process already has them.
+ */
+const RAW_SONG_CACHE_MAX = 10_000;
+const rawSongCache = new Map<string, Record<string, unknown>>();
+
+function rememberRawSong(isrc: string, song: Record<string, unknown>): void {
+  if (rawSongCache.size >= RAW_SONG_CACHE_MAX) {
+    const oldest = rawSongCache.keys().next().value;
+    if (oldest !== undefined) rawSongCache.delete(oldest);
+  }
+  rawSongCache.set(isrc, song);
+}
+
+/**
+ * Fetch the raw Soundcharts song object for an ISRC, safely — a network or
+ * upstream error is swallowed and `null` is returned. This is the source of
+ * genre metadata for the Christian context lens. It never throws, so the
+ * paid report can degrade gracefully to "no context lens" rather than
+ * failing when Soundcharts is briefly unavailable. The hot in-memory cache
+ * is honoured first so a report generated in the same serverless invocation
+ * as the scan pays no extra Soundcharts call.
+ */
+export async function soundchartsSongByIsrcSafe(
+  isrc: string,
+): Promise<Record<string, unknown> | null> {
+  const cached = rawSongCache.get(isrc);
+  if (cached) return cached;
+  try {
+    const song = await getSoundchartsClient().getSongByIsrc(isrc);
+    rememberRawSong(isrc, song);
+    return song;
+  } catch {
+    // The lens is defensive by design — any Soundcharts failure at report
+    // time closes the gate rather than blocking the paid report.
+    return null;
+  }
+}
+
 export class AnalyzeError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {
@@ -89,6 +133,9 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
       502,
     );
   }
+  // Cache the raw song so a same-process paid-report generation doesn't
+  // have to re-hit Soundcharts to read the genre metadata for the lens.
+  rememberRawSong(isrc, song);
 
   const audio = (song as { audio?: unknown }).audio;
   if (!audio || typeof audio !== "object") {

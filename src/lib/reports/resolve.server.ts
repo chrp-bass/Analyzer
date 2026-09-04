@@ -20,6 +20,11 @@ import {
   type AnalysisFacts,
 } from "@/lib/reports/generate.server";
 import type { FreeReport, Mode, ReportPayload } from "@/lib/fixtures/tracks";
+import {
+  cachedAnalysis,
+  soundchartsSongByIsrcSafe,
+} from "@/lib/engine/analyze.server";
+import { extractChristianContext } from "@/lib/rhodes/christian-context";
 
 /**
  * The single answer to "may this caller read this paid report, and what is
@@ -263,6 +268,46 @@ async function factsForAnalysis(
     | undefined;
   if (!row) return null;
 
+  // The Christian / Worship / Gospel / CCM context lens draws its evidence
+  // from Soundcharts genre metadata. The scoring pipeline does not persist
+  // that metadata (the engine only ever consumed audio features from the
+  // same payload), so this lookup fetches the raw song either from the hot
+  // per-process cache (populated during the original scan) or with one
+  // extra Soundcharts call. Failure is silent — no context lens is a
+  // better outcome than a blocked report.
+  let christianContext:
+    | { tradition: import("@/lib/rhodes/christian-context").ChristianTradition; evidence: string[] }
+    | null = null;
+  let genres: string[] | undefined;
+  const isrc = free.track.isrc;
+  if (isrc) {
+    // Prefer the cached analyzed payload's origin, but fall back to a fresh
+    // Soundcharts fetch — the raw cache honours both.
+    void cachedAnalysis(isrc);
+    const song = await soundchartsSongByIsrcSafe(isrc);
+    if (song) {
+      christianContext = extractChristianContext(song);
+      // If Soundcharts supplied any genre roots, forward them so the
+      // existing hasGenre governor rule unlocks. Only real string labels;
+      // nothing is invented.
+      const rawGenres = (song as { genres?: unknown }).genres;
+      if (Array.isArray(rawGenres)) {
+        const roots: string[] = [];
+        for (const g of rawGenres) {
+          if (g && typeof g === "object") {
+            const root = (g as { root?: unknown }).root;
+            if (typeof root === "string" && root.trim().length > 0) {
+              roots.push(root.trim());
+            }
+          } else if (typeof g === "string" && g.trim().length > 0) {
+            roots.push(g.trim());
+          }
+        }
+        if (roots.length > 0) genres = roots;
+      }
+    }
+  }
+
   return {
     title: free.track.title,
     artist: free.track.artist,
@@ -290,5 +335,7 @@ async function factsForAnalysis(
     // have Rhodes report a composite as a raw audio feature. Raw energy is
     // not persisted, so the field is omitted rather than approximated.
     arousal: row.circumplex?.arousal,
+    ...(genres ? { genres } : {}),
+    ...(christianContext ? { christianContext } : {}),
   };
 }
