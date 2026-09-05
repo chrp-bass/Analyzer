@@ -2142,21 +2142,21 @@ em { font-style: italic; }
   --polygon-label: var(--ink-light);
   max-width: 100%;
 }
-.chrp-report .epi-plate > svg {
+/* The instrument is the atmospheric radar — dark atmospheric field, rings,
+   crosshair, colored labels, colored nodes, polygon. It carries its own
+   dark ground via internal radialGradient defs, so on the cream report it
+   reads as a self-contained specimen plate rather than needing a page-
+   level background swap. The wrapper only sizes the SVG. */
+.chrp-report .epi-plate-instrument {
   display: block;
+  width: 100%;
+  line-height: 0;
+}
+.chrp-report .epi-plate-instrument > svg {
+  display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
-  /* The viewBox is wider than the plotted circle (it reserves room for the
-     Balance label on the right), so the shape's optical centre sits left of
-     the box centre. Pulling left seats the mark on the caption's edge. */
-  margin-left: -4%;
-  /* The viewBox also reserves ~20 units above the Focus label and ~10 below
-     Motivation for a centre readout that mark mode does not draw. Left in,
-     it becomes ~40px of dead air inside the lockup and pushes the score
-     away from the shape it belongs to. Reclaimed, not re-authored — the
-     geometry in PolygonRadar is shared with eleven other call sites. */
-  margin-top: -7%;
-  margin-bottom: -3%;
 }
 
 /* The record, as a plate. Squared — the report's radius tokens are for the
