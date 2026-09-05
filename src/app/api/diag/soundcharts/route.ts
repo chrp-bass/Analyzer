@@ -129,11 +129,29 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Rail 2 + 3: token gate with fail-closed if unset.
+  // Rail 2 + 3: token gate with fail-closed if unset. The `hint` field
+  // reveals ONLY length information (not values, prefixes, or any content).
+  // Present because the first attempt returned 401 and we need to know
+  // whether the env var reached the deploy or the value differs. Removed
+  // when the diagnostic is removed.
   const expected = process.env.DIAG_TOKEN;
   const provided = request.nextUrl.searchParams.get("token") ?? "";
-  if (!expected || !safeCompare(provided, expected)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!expected) {
+    return NextResponse.json(
+      { error: "unauthorized", hint: "env_missing" },
+      { status: 401 },
+    );
+  }
+  if (!safeCompare(provided, expected)) {
+    return NextResponse.json(
+      {
+        error: "unauthorized",
+        hint: "token_mismatch",
+        provided_len: provided.length,
+        expected_len: expected.length,
+      },
+      { status: 401 },
+    );
   }
 
   const appId = process.env.SOUNDCHARTS_APP_ID;
