@@ -49,6 +49,13 @@ export interface AuditContext {
   hasObservedBehaviour?: boolean;
   hasStructure?: boolean;
   /**
+   * True when the intelligence layer supplied a Finding tagged
+   * OBSERVED_MARKET (playlist / stream / audience / chart / radio evidence).
+   * Suppresses `market-claim` only — the "someone wants this" fabrications
+   * are still caught by the `claimed-demand` rule, which never suppresses.
+   */
+  hasMarketEvidence?: boolean;
+  /**
    * True only when trusted Soundcharts genre metadata specifically named a
    * Christian tradition. When false, ANY new Christian-context vocabulary in
    * the generated report is a fabrication. When true, prohibited theological
@@ -122,6 +129,11 @@ const RULES: Rule[] = [
     pattern:
       /\b(supervisors? (are|want|need|seek)|A&R (are|want|is looking)|playlist (interest|demand|acceptance|placement)|will (get|be) playlisted|active brief|live brief|briefs? (for|are|show)|placement probability|demand signal|(sync|market|placement|commercial) demand|brand interest|brands? (are|want|seek|seeking|look|looking|interested)|labels? (are|want)|radio (play|support)|will (place|land|get picked))\b/gi,
     why: "Claims market, demand or placement CHRP has no evidence for. Naming a buyer category to approach is fine; asserting that they want the song is not.",
+    // Suppressed only when a Finding of truth class OBSERVED_MARKET was
+    // supplied; in that case Rhodes is speaking about what the market
+    // enrichment layer actually returned. The `claimed-demand` rule below
+    // never suppresses, so "someone wants this song" still fabricates.
+    suppressedBy: "hasMarketEvidence",
   },
   {
     rule: "external-science-claim",

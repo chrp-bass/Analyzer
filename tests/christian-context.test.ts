@@ -471,6 +471,26 @@ describe("science regression — EPI / Focus / Calm / Motivation / Balance / Mod
     expect(extractChristianContext(reflective)).toBeNull();
   });
 
+  it("does not open the gate from Soundcharts lyrics-analysis themes or moods", () => {
+    // The new enrichment layer can hand Rhodes a lyricsAnalysis carrying
+    // themes like "faith" or moods like "worshipful". None of those may
+    // open the gate — only trusted GENRE metadata may. This regression
+    // pins that: the extractor only reads .genres.
+    const semanticButNoGenre = {
+      uuid: "sem-1",
+      isrc: "USSEM0000001",
+      audio: { energy: 0.3, valence: 0.5 },
+      // A lyricsAnalysis field on the SONG payload is not something the
+      // extractor is even wired to read — but pass it anyway to prove the
+      // negative.
+      lyricsAnalysis: {
+        themes: ["faith", "worship", "prayer"],
+        moods: ["worshipful", "reverent"],
+      },
+    };
+    expect(extractChristianContext(semanticButNoGenre)).toBeNull();
+  });
+
   it("Rhodes input flows through unchanged when no Christian context is supplied", () => {
     const input = baseInput();
     const ctx = auditContextFor(input);

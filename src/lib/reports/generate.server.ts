@@ -71,6 +71,42 @@ export interface AnalysisFacts {
   comparableArtists?: string[];
 
   /**
+   * Extra audio fields from the by-isrc payload that DO NOT influence
+   * scoring or EPI — they only widen what the intelligence layer can
+   * characterise. Every field optional; each is silently dropped upstream
+   * if absent, so nothing here is ever speculative.
+   */
+  audioExtras?: {
+    speechiness?: number;
+    acousticness?: number;
+    tempo?: number;
+    energy?: number;
+    liveness?: number;
+  };
+
+  /**
+   * Soundcharts /lyrics-analysis payload if the account tier returns it.
+   * Null / absent means "no lyric analysis was returned"; the intelligence
+   * layer emits no semantic finding in that case. Never inferred.
+   */
+  lyricsAnalysis?: {
+    themes?: string[];
+    moods?: string[];
+    emotionalIntensityScore?: number;
+    imageryScore?: number;
+    complexityScore?: number;
+    rhymeSchemeScore?: number;
+    repetitivenessScore?: number;
+    narrativeStyle?: string;
+  } | null;
+
+  /** Soundcharts /current/stats snapshot if the account tier returns it. */
+  marketStats?: Record<string, unknown> | null;
+
+  /** Soundcharts proprietary aggregate score if the account tier returns it. */
+  soundchartsScore?: Record<string, unknown> | null;
+
+  /**
    * The Christian / Worship / Gospel / CCM lens. Populated by the resolver
    * from Soundcharts genre metadata only. Never inferred from artist name,
    * song title, audio profile, or CHRP measurements.
@@ -112,6 +148,12 @@ export function factsToRhodesInput(
   if (typeof facts.instrumentalness === "number")
     context.instrumentalness = facts.instrumentalness;
   if (facts.christianContext) context.christianContext = facts.christianContext;
+  if (facts.audioExtras && Object.keys(facts.audioExtras).length > 0) {
+    context.audioExtras = facts.audioExtras;
+  }
+  if (facts.lyricsAnalysis) context.lyricsAnalysis = facts.lyricsAnalysis;
+  if (facts.marketStats) context.marketStats = facts.marketStats;
+  if (facts.soundchartsScore) context.soundchartsScore = facts.soundchartsScore;
 
   return {
     identity: { title: facts.title, artist: facts.artist },

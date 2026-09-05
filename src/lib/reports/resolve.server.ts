@@ -24,6 +24,7 @@ import {
   cachedAnalysis,
   soundchartsSongByIsrcSafe,
 } from "@/lib/engine/analyze.server";
+import { getSoundchartsClient } from "@/lib/engine/soundcharts";
 import { extractChristianContext } from "@/lib/rhodes/christian-context";
 
 /**
@@ -268,28 +269,28 @@ async function factsForAnalysis(
     | undefined;
   if (!row) return null;
 
-  // The Christian / Worship / Gospel / CCM context lens draws its evidence
-  // from Soundcharts genre metadata. The scoring pipeline does not persist
-  // that metadata (the engine only ever consumed audio features from the
-  // same payload), so this lookup fetches the raw song either from the hot
-  // per-process cache (populated during the original scan) or with one
-  // extra Soundcharts call. Failure is silent — no context lens is a
-  // better outcome than a blocked report.
+  // Fetch the raw Soundcharts song ONCE. It carries the genre metadata (for
+  // the Christian gate + genre roots), the audio-feature extras the
+  // intelligence layer characterises against, and — indirectly, via the
+  // song UUID it contains — the key for the enrichment endpoints. All of
+  // this is fail-open: any missing piece silently reduces the intelligence
+  // layer's output. Nothing here can block a report.
   let christianContext:
     | { tradition: import("@/lib/rhodes/christian-context").ChristianTradition; evidence: string[] }
     | null = null;
   let genres: string[] | undefined;
+  let instrumentalness: number | undefined;
+  let audioExtras: AnalysisFacts["audioExtras"] | undefined;
+  let lyricsAnalysis: AnalysisFacts["lyricsAnalysis"] | null = null;
+  let marketStats: AnalysisFacts["marketStats"] | null = null;
+  let soundchartsScore: AnalysisFacts["soundchartsScore"] | null = null;
+
   const isrc = free.track.isrc;
   if (isrc) {
-    // Prefer the cached analyzed payload's origin, but fall back to a fresh
-    // Soundcharts fetch — the raw cache honours both.
     void cachedAnalysis(isrc);
     const song = await soundchartsSongByIsrcSafe(isrc);
     if (song) {
       christianContext = extractChristianContext(song);
-      // If Soundcharts supplied any genre roots, forward them so the
-      // existing hasGenre governor rule unlocks. Only real string labels;
-      // nothing is invented.
       const rawGenres = (song as { genres?: unknown }).genres;
       if (Array.isArray(rawGenres)) {
         const roots: string[] = [];
@@ -304,6 +305,88 @@ async function factsForAnalysis(
           }
         }
         if (roots.length > 0) genres = roots;
+      }
+
+      // Audio extras — the by-isrc payload already carries them; the scoring
+      // pipeline just doesn't need them. The intelligence layer does, so we
+      // extract them defensively here. Never invented; always dropped when
+      // absent.
+      const audio = (song as { audio?: Record<string, unknown> }).audio;
+      if (audio && typeof audio === "object") {
+        const pickNum = (k: string): number | undefined => {
+          const v = audio[k];
+          return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+        };
+        if (typeof audio.instrumentalness === "number") {
+          instrumentalness = audio.instrumentalness;
+        }
+        const extras: NonNullable<AnalysisFacts["audioExtras"]> = {};
+        const speechiness = pickNum("speechiness");
+        if (speechiness !== undefined) extras.speechiness = speechiness;
+        const acousticness = pickNum("acousticness");
+        if (acousticness !== undefined) extras.acousticness = acousticness;
+        const tempo = pickNum("tempo");
+        if (tempo !== undefined) extras.tempo = tempo;
+        const energy = pickNum("energy");
+        if (energy !== undefined) extras.energy = energy;
+        const liveness = pickNum("liveness");
+        if (liveness !== undefined) extras.liveness = liveness;
+        if (Object.keys(extras).length > 0) audioExtras = extras;
+      }
+
+      // Enrichment endpoints — every one is fail-open at the client. Run in
+      // parallel; a slow one never blocks a fast one. A missing UUID means
+      // we cannot address the endpoints at all, which is also fine.
+      const uuid =
+        typeof (song as { uuid?: unknown }).uuid === "string"
+          ? ((song as { uuid: string }).uuid)
+          : typeof (song as { id?: unknown }).id === "string"
+            ? ((song as { id: string }).id)
+            : null;
+      if (uuid) {
+        let client;
+        try {
+          client = getSoundchartsClient();
+        } catch {
+          client = null;
+        }
+        if (client) {
+          const [la, ms, ss] = await Promise.all([
+            client.getLyricsAnalysis(uuid),
+            client.getCurrentStats(uuid),
+            client.getSoundchartsScore(uuid),
+          ]);
+          if (la) {
+            const pickString = (k: string): string | undefined => {
+              const v = (la as Record<string, unknown>)[k];
+              return typeof v === "string" && v.trim().length > 0 ? v : undefined;
+            };
+            const pickStringArray = (k: string): string[] | undefined => {
+              const v = (la as Record<string, unknown>)[k];
+              if (!Array.isArray(v)) return undefined;
+              const clean = v.filter(
+                (s): s is string => typeof s === "string" && s.trim().length > 0,
+              );
+              return clean.length > 0 ? clean : undefined;
+            };
+            const pickNum = (k: string): number | undefined => {
+              const v = (la as Record<string, unknown>)[k];
+              return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+            };
+            lyricsAnalysis = {
+              themes: pickStringArray("themes"),
+              moods: pickStringArray("moods"),
+              emotionalIntensityScore: pickNum("emotionalIntensityScore"),
+              imageryScore: pickNum("imageryScore"),
+              complexityScore: pickNum("complexityScore"),
+              rhymeSchemeScore: pickNum("rhymeSchemeScore"),
+              repetitivenessScore: pickNum("repetitivenessScore"),
+              narrativeStyle: pickString("narrativeStyle"),
+            };
+          }
+          if (ms) marketStats = ms;
+          if (ss) soundchartsScore = ss;
+        }
       }
     }
   }
@@ -335,7 +418,12 @@ async function factsForAnalysis(
     // have Rhodes report a composite as a raw audio feature. Raw energy is
     // not persisted, so the field is omitted rather than approximated.
     arousal: row.circumplex?.arousal,
+    ...(typeof instrumentalness === "number" ? { instrumentalness } : {}),
+    ...(audioExtras ? { audioExtras } : {}),
     ...(genres ? { genres } : {}),
+    ...(lyricsAnalysis ? { lyricsAnalysis } : {}),
+    ...(marketStats ? { marketStats } : {}),
+    ...(soundchartsScore ? { soundchartsScore } : {}),
     ...(christianContext ? { christianContext } : {}),
   };
 }
