@@ -38,22 +38,104 @@ export const runtime = "nodejs";
 
 const BASE = "https://customer.api.soundcharts.com";
 
-/** Endpoints under test, in probe order. Every call is fail-open. */
-const ENDPOINTS: Array<{ key: string; path: (uuid: string) => string }> = [
-  { key: "lyrics-analysis",         path: (u) => `/api/v2.25/song/${u}/lyrics-analysis` },
-  { key: "current-stats",           path: (u) => `/api/v2.25/song/${u}/current/stats` },
-  { key: "soundcharts-score",       path: (u) => `/api/v2.25/song/${u}/soundcharts/score` },
-  { key: "audience-spotify",        path: (u) => `/api/v2.25/song/${u}/audience/spotify` },
-  { key: "audience-shazam",         path: (u) => `/api/v2.25/song/${u}/audience/shazam` },
-  { key: "audience-tiktok",         path: (u) => `/api/v2.25/song/${u}/audience/tiktok` },
-  { key: "audience-youtube",        path: (u) => `/api/v2.25/song/${u}/audience/youtube` },
-  { key: "streaming-spotify",       path: (u) => `/api/v2.25/song/${u}/streaming/spotify` },
-  { key: "popularity-spotify",      path: (u) => `/api/v2.25/song/${u}/popularity/spotify` },
-  { key: "playlist-current-spotify",path: (u) => `/api/v2.25/song/${u}/playlist/current/spotify` },
-  { key: "playlist-reach-spotify",  path: (u) => `/api/v2.25/song/${u}/playlist/reach/spotify` },
-  { key: "charts-ranks-spotify",    path: (u) => `/api/v2.25/song/${u}/charts/ranks/spotify` },
-  { key: "broadcasts",              path: (u) => `/api/v2.25/song/${u}/broadcasts` },
-  { key: "broadcast-groups",        path: (u) => `/api/v2.25/song/${u}/broadcast-groups` },
+/**
+ * Endpoints under test — every feature is probed with candidate version
+ * prefixes because Soundcharts's v2 family fragments across v2 / v2.20 /
+ * v2.25 depending on when each endpoint was added. First candidate that
+ * returns 200 wins for that feature; if none 200s we know the feature is
+ * either not on the tier or the song has no coverage.
+ *
+ * Every call is fail-open at the client level.
+ */
+type EndpointSpec = { key: string; candidates: Array<(uuid: string) => string> };
+
+const ENDPOINTS: EndpointSpec[] = [
+  {
+    key: "lyrics-analysis",
+    candidates: [
+      (u) => `/api/v2.25/song/${u}/lyrics-analysis`,
+      (u) => `/api/v2/song/${u}/lyrics-analysis`,
+      (u) => `/api/v2.20/song/${u}/lyrics-analysis`,
+    ],
+  },
+  {
+    key: "current-stats",
+    candidates: [
+      (u) => `/api/v2/song/${u}/current/stat`,
+      (u) => `/api/v2.25/song/${u}/current/stats`,
+      (u) => `/api/v2/song/${u}/current/stats`,
+    ],
+  },
+  {
+    key: "soundcharts-score",
+    candidates: [
+      (u) => `/api/v2/song/${u}/soundcharts/score`,
+      (u) => `/api/v2.25/song/${u}/soundcharts/score`,
+    ],
+  },
+  {
+    key: "audience-spotify",
+    candidates: [
+      (u) => `/api/v2/song/${u}/spotify/audience`,
+      (u) => `/api/v2.25/song/${u}/audience/spotify`,
+    ],
+  },
+  {
+    key: "audience-shazam",
+    candidates: [
+      (u) => `/api/v2/song/${u}/shazam`,
+      (u) => `/api/v2/song/${u}/shazam/audience`,
+    ],
+  },
+  {
+    key: "audience-tiktok",
+    candidates: [
+      (u) => `/api/v2/song/${u}/tiktok`,
+      (u) => `/api/v2/song/${u}/tiktok/audience`,
+    ],
+  },
+  {
+    key: "audience-youtube",
+    candidates: [
+      (u) => `/api/v2/song/${u}/youtube`,
+      (u) => `/api/v2/song/${u}/youtube/audience`,
+    ],
+  },
+  {
+    key: "streaming-spotify",
+    candidates: [
+      (u) => `/api/v2/song/${u}/spotify/stream`,
+      (u) => `/api/v2.25/song/${u}/streaming/spotify`,
+    ],
+  },
+  {
+    key: "popularity-spotify",
+    candidates: [
+      (u) => `/api/v2/song/${u}/spotify/popularity`,
+      (u) => `/api/v2.25/song/${u}/popularity/spotify`,
+    ],
+  },
+  {
+    key: "playlist-current-spotify",
+    candidates: [
+      (u) => `/api/v2.20/song/${u}/playlist/current/spotify`,
+      (u) => `/api/v2/song/${u}/playlist/current/spotify`,
+    ],
+  },
+  {
+    key: "charts-ranks-spotify",
+    candidates: [
+      (u) => `/api/v2/song/${u}/charts/ranks/spotify`,
+      (u) => `/api/v2.20/song/${u}/charts/ranks/spotify`,
+    ],
+  },
+  {
+    key: "broadcasts",
+    candidates: [
+      (u) => `/api/v2/song/${u}/broadcasts`,
+      (u) => `/api/v2.25/song/${u}/broadcasts`,
+    ],
+  },
 ];
 
 /** Return the top object of a Soundcharts response, or null. Never raw payload. */
@@ -164,57 +246,22 @@ export async function GET(
     );
   }
 
-  const isrc =
-    request.nextUrl.searchParams.get("isrc") ?? "GBWUL2270744";
+  // Comma-separated ISRCs; default is Safe + Blinding Lights so we can tell
+  // "small indie has no coverage" apart from "tier lacks the endpoint".
+  const isrcs = (request.nextUrl.searchParams.get("isrcs") ??
+    request.nextUrl.searchParams.get("isrc") ??
+    "GBWUL2270744,USUG11904206")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 
   const headers = { "x-app-id": appId, "x-api-key": apiKey };
 
-  // Step 1: by-isrc, to recover the UUID and describe the base payload's
-  // shape. We report which of the extra audio-feature fields are present.
-  const byIsrc = await safeGet(
-    `${BASE}/api/v2.25/song/by-isrc/${encodeURIComponent(isrc)}`,
-    headers,
-  );
-  const byIsrcObj = pickTop(byIsrc.body);
-  const rawObject =
-    (byIsrc.body as { object?: Record<string, unknown> } | null)?.object ??
-    null;
-  const uuidRaw = rawObject?.uuid;
-  const uuid = typeof uuidRaw === "string" ? uuidRaw : null;
-
-  // Extra audio fields present at all? (No values — just presence + rough range.)
-  const audio = rawObject?.audio as Record<string, unknown> | undefined;
-  const audioFieldsPresent: Record<string, string> = {};
-  if (audio && typeof audio === "object") {
-    for (const k of [
-      "instrumentalness",
-      "speechiness",
-      "acousticness",
-      "tempo",
-      "energy",
-      "liveness",
-      "danceability",
-      "loudness",
-      "valence",
-      "key",
-      "mode",
-      "timeSignature",
-      "duration",
-    ]) {
-      const v = audio[k];
-      if (typeof v === "number" && Number.isFinite(v)) {
-        // Bucket the value so no exact tempo/key values leak, but shape is visible.
-        const bucketed = Math.abs(v) < 1 ? v.toFixed(2) : String(Math.round(v));
-        audioFieldsPresent[k] = `number(${bucketed})`;
-      } else if (typeof v === "string") {
-        audioFieldsPresent[k] = "string";
-      }
-    }
-  }
-
-  type Row = {
+  type EndpointRow = {
     endpoint: string;
     status: number;
+    path_that_worked: string | null;
     result:
       | "AVAILABLE + POPULATED"
       | "AVAILABLE + SPARSE"
@@ -226,69 +273,130 @@ export async function GET(
     note: string;
     rate_hint: string | null;
   };
+  type SongResult = {
+    isrc: string;
+    by_isrc_status: number;
+    uuid_present: boolean;
+    top_keys: string[];
+    audio_fields_present: Record<string, string>;
+    endpoints: EndpointRow[];
+  };
 
-  const rows: Row[] = [];
+  const songResults: SongResult[] = [];
 
-  if (uuid) {
-    for (const spec of ENDPOINTS) {
-      const res = await safeGet(`${BASE}${spec.path(uuid)}`, headers);
-      const top = pickTop(res.body);
-      let result: Row["result"];
-      let note: string;
-      if (res.status === 200) {
-        if (top.usable) {
-          result = "AVAILABLE + POPULATED";
-          note =
-            top.itemsLen !== null
-              ? `items: ${top.itemsLen}`
-              : `has: ${top.keys.join(", ")}`;
-        } else {
-          result = "AVAILABLE + SPARSE";
-          note = `top keys: ${top.keys.join(", ") || "(none)"}`;
+  for (const isrc of isrcs) {
+    const byIsrc = await safeGet(
+      `${BASE}/api/v2.25/song/by-isrc/${encodeURIComponent(isrc)}`,
+      headers,
+    );
+    const byIsrcObj = pickTop(byIsrc.body);
+    const rawObject =
+      (byIsrc.body as { object?: Record<string, unknown> } | null)?.object ??
+      null;
+    const uuidRaw = rawObject?.uuid;
+    const uuid = typeof uuidRaw === "string" ? uuidRaw : null;
+
+    const audio = rawObject?.audio as Record<string, unknown> | undefined;
+    const audioFieldsPresent: Record<string, string> = {};
+    if (audio && typeof audio === "object") {
+      for (const k of [
+        "instrumentalness","speechiness","acousticness","tempo","energy",
+        "liveness","danceability","loudness","valence","key","mode",
+        "timeSignature","duration",
+      ]) {
+        const v = audio[k];
+        if (typeof v === "number" && Number.isFinite(v)) {
+          const bucketed = Math.abs(v) < 1 ? v.toFixed(2) : String(Math.round(v));
+          audioFieldsPresent[k] = `number(${bucketed})`;
+        } else if (typeof v === "string") {
+          audioFieldsPresent[k] = "string";
         }
-      } else if (res.status === 403) {
-        result = "PLAN-GATED";
-        note = "http 403";
-      } else if (res.status === 404) {
-        result = "UNAVAILABLE";
-        note = "http 404";
-      } else if (res.status === 429) {
-        result = "PLAN-GATED";
-        note = "http 429 (rate limit)";
-      } else {
-        result = "ERROR";
-        note = `http ${res.status}`;
       }
-      rows.push({
-        endpoint: spec.key,
-        status: res.status,
-        result,
-        top_keys: top.keys,
-        items_len: top.itemsLen,
-        note,
-        rate_hint: res.rateHint,
-      });
     }
-  }
 
-  return NextResponse.json({
-    diagnostic: "temporary — delete src/app/api/_diag after use",
-    vercel_env: process.env.VERCEL_ENV ?? "(unknown)",
-    isrc,
-    by_isrc: {
-      status: byIsrc.status,
+    const rows: EndpointRow[] = [];
+    if (uuid) {
+      for (const spec of ENDPOINTS) {
+        let winner: {
+          status: number;
+          path: string;
+          top: ReturnType<typeof pickTop>;
+          rate: string | null;
+        } | null = null;
+        let lastNon200: {
+          status: number;
+          path: string;
+          rate: string | null;
+        } | null = null;
+        for (const build of spec.candidates) {
+          const path = build(uuid);
+          const res = await safeGet(`${BASE}${path}`, headers);
+          if (res.status === 200) {
+            winner = {
+              status: 200,
+              path,
+              top: pickTop(res.body),
+              rate: res.rateHint,
+            };
+            break;
+          }
+          lastNon200 = { status: res.status, path, rate: res.rateHint };
+        }
+
+        if (winner) {
+          const result = winner.top.usable
+            ? "AVAILABLE + POPULATED"
+            : "AVAILABLE + SPARSE";
+          rows.push({
+            endpoint: spec.key,
+            status: 200,
+            path_that_worked: winner.path,
+            result,
+            top_keys: winner.top.keys,
+            items_len: winner.top.itemsLen,
+            note:
+              winner.top.itemsLen !== null
+                ? `items: ${winner.top.itemsLen}`
+                : `has: ${winner.top.keys.join(", ")}`,
+            rate_hint: winner.rate,
+          });
+        } else {
+          const s = lastNon200?.status ?? 0;
+          const result: EndpointRow["result"] =
+            s === 403 ? "PLAN-GATED"
+              : s === 429 ? "PLAN-GATED"
+              : s === 404 ? "UNAVAILABLE"
+              : "ERROR";
+          rows.push({
+            endpoint: spec.key,
+            status: s,
+            path_that_worked: null,
+            result,
+            top_keys: [],
+            items_len: null,
+            note:
+              s === 0
+                ? "no candidates ran"
+                : `all candidates returned http ${s} (last tried: ${lastNon200?.path})`,
+            rate_hint: lastNon200?.rate ?? null,
+          });
+        }
+      }
+    }
+
+    songResults.push({
+      isrc,
+      by_isrc_status: byIsrc.status,
       uuid_present: Boolean(uuid),
       top_keys: byIsrcObj.keys,
       audio_fields_present: audioFieldsPresent,
-      rate_hint: byIsrc.rateHint,
-    },
-    endpoints: rows,
-    summary: {
-      available_populated: rows.filter((r) => r.result === "AVAILABLE + POPULATED").length,
-      available_sparse: rows.filter((r) => r.result === "AVAILABLE + SPARSE").length,
-      plan_gated: rows.filter((r) => r.result === "PLAN-GATED").length,
-      unavailable: rows.filter((r) => r.result === "UNAVAILABLE").length,
-      error: rows.filter((r) => r.result === "ERROR").length,
-    },
+      endpoints: rows,
+    });
+  }
+
+  return NextResponse.json({
+    diagnostic: "temporary — delete src/app/api/diag after use",
+    vercel_env: process.env.VERCEL_ENV ?? "(unknown)",
+    songs: songResults,
   });
 }
