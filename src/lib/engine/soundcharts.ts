@@ -162,20 +162,6 @@ export class SoundchartsClient {
   }
 
   /**
-   * `/song/{uuid}/current/stats` returned 403 on our tier — plan-gated. Kept
-   * here as a fail-open no-op so a future tier upgrade is a one-line wire
-   * change rather than a hunt across the codebase.
-   */
-  async getCurrentStats(
-    uuid: string,
-  ): Promise<Record<string, unknown> | null> {
-    if (!uuid) return null;
-    return this.safeGet(
-      `/api/v2.25/song/${encodeURIComponent(uuid)}/current/stats`,
-    );
-  }
-
-  /**
    * Soundcharts's proprietary aggregate score — weekly time series of
    * `{ date, fanbaseScore, trendingScore }`, ~4 weeks. Fail-open.
    *

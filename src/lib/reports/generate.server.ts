@@ -105,9 +105,6 @@ export interface AnalysisFacts {
     locations?: string[];
   } | null;
 
-  /** Plan-gated /current/stats — always null on our tier. */
-  marketStats?: Record<string, unknown> | null;
-
   /**
    * Soundcharts proprietary weekly score series (fanbase + trending).
    * Present when the tier returned it.
@@ -214,7 +211,6 @@ export function factsToRhodesInput(
     context.audioExtras = facts.audioExtras;
   }
   if (facts.lyricsAnalysis) context.lyricsAnalysis = facts.lyricsAnalysis;
-  if (facts.marketStats) context.marketStats = facts.marketStats;
   if (facts.soundchartsScore) context.soundchartsScore = facts.soundchartsScore;
   if (facts.playlistCurrent) context.playlistCurrent = facts.playlistCurrent;
   if (facts.chartsRanks) context.chartsRanks = facts.chartsRanks;

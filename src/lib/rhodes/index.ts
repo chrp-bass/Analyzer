@@ -178,8 +178,6 @@ export interface SongIntelligenceInput {
       brands?: string[];
       locations?: string[];
     } | null;
-    /** Soundcharts /current/stats snapshot, when reachable (plan-gated on our tier). */
-    marketStats?: Record<string, unknown> | null;
     /**
      * Soundcharts's proprietary aggregate score — weekly time series of
      * `{ date, fanbaseScore, trendingScore }`. Present only when the tier
@@ -298,7 +296,6 @@ export function findingsInputFor(
         ? { instrumentalness: c.instrumentalness }
         : undefined,
     lyricsAnalysis: c?.lyricsAnalysis ?? null,
-    marketStats: c?.marketStats ?? null,
     soundchartsScore: c?.soundchartsScore ?? null,
     playlistCurrent: c?.playlistCurrent ?? null,
     chartsRanks: c?.chartsRanks ?? null,

@@ -151,9 +151,6 @@ export interface FindingsInput {
     locations?: string[];
   } | null;
 
-  /** Plan-gated /current/stats — kept for shape compatibility, always null on our tier. */
-  marketStats?: Record<string, unknown> | null;
-
   /**
    * Soundcharts's proprietary weekly time series. `items[i]` is one week
    * with fanbase (audience size) and trending (momentum) scores.

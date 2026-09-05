@@ -491,7 +491,6 @@ describe("sparse enrichment does not break the layer", () => {
     const findings = deriveFindings(
       baseInput({
         lyricsAnalysis: null,
-        marketStats: null,
         soundchartsScore: null,
         playlistCurrent: null,
         chartsRanks: null,

@@ -20,10 +20,7 @@ import {
   type AnalysisFacts,
 } from "@/lib/reports/generate.server";
 import type { FreeReport, Mode, ReportPayload } from "@/lib/fixtures/tracks";
-import {
-  cachedAnalysis,
-  soundchartsSongByIsrcSafe,
-} from "@/lib/engine/analyze.server";
+import { soundchartsSongByIsrcSafe } from "@/lib/engine/analyze.server";
 import { getSoundchartsClient } from "@/lib/engine/soundcharts";
 import { extractChristianContext } from "@/lib/rhodes/christian-context";
 
@@ -282,7 +279,6 @@ async function factsForAnalysis(
   let instrumentalness: number | undefined;
   let audioExtras: AnalysisFacts["audioExtras"] | undefined;
   let lyricsAnalysis: AnalysisFacts["lyricsAnalysis"] | null = null;
-  let marketStats: AnalysisFacts["marketStats"] | null = null;
   let soundchartsScore: AnalysisFacts["soundchartsScore"] | null = null;
   let playlistCurrent: AnalysisFacts["playlistCurrent"] | null = null;
   let chartsRanks: AnalysisFacts["chartsRanks"] | null = null;
@@ -290,7 +286,9 @@ async function factsForAnalysis(
 
   const isrc = free.track.isrc;
   if (isrc) {
-    void cachedAnalysis(isrc);
+    // soundchartsSongByIsrcSafe honours the in-process rawSongCache first,
+    // so a same-invocation scan → report pays zero extra by-isrc traffic.
+    // Cold-cache report generation pays one call.
     const song = await soundchartsSongByIsrcSafe(isrc);
     if (song) {
       christianContext = extractChristianContext(song);
@@ -354,15 +352,15 @@ async function factsForAnalysis(
           client = null;
         }
         if (client) {
-          // Six enrichment fetches, all fail-open at the client. Run in
+          // FIVE enrichment fetches, all fail-open at the client. Run in
           // parallel; a slow or dead one never blocks a fast one. Paths
           // verified against the production tier: lyrics-analysis on v2,
-          // soundcharts/score on v2, playlist/current on v2.20,
-          // charts/ranks on v2, broadcasts on v2. current/stats is
-          // plan-gated (403) and always returns null here.
-          const [la, ms, ss, pc, cr, br] = await Promise.all([
+          // soundcharts/score on v2, playlist/current on v2.20, charts/ranks
+          // on v2, broadcasts on v2. current/stats was 403 plan-gated on
+          // our tier and is deliberately NOT called — useless network is
+          // itself a defect worth removing.
+          const [la, ss, pc, cr, br] = await Promise.all([
             client.getLyricsAnalysis(uuid),
-            client.getCurrentStats(uuid),
             client.getSoundchartsScore(uuid),
             client.getPlaylistCurrentSpotify(uuid),
             client.getChartsRanksSpotify(uuid),
@@ -408,8 +406,6 @@ async function factsForAnalysis(
               locations: pickStringArray("locations"),
             };
           }
-
-          if (ms) marketStats = ms;
 
           // ── soundcharts-score ──────────────────────────────────────────
           // `{ items: [{ date, fanbaseScore, trendingScore }, ...] }`.
@@ -584,7 +580,6 @@ async function factsForAnalysis(
     ...(audioExtras ? { audioExtras } : {}),
     ...(genres ? { genres } : {}),
     ...(lyricsAnalysis ? { lyricsAnalysis } : {}),
-    ...(marketStats ? { marketStats } : {}),
     ...(soundchartsScore ? { soundchartsScore } : {}),
     ...(playlistCurrent ? { playlistCurrent } : {}),
     ...(chartsRanks ? { chartsRanks } : {}),
