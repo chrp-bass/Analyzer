@@ -60,17 +60,19 @@ describe("deriveFindings — always produces at least one Finding", () => {
         lyricsAnalysis: {
           themes: ["loss", "memory"],
           moods: ["melancholy", "reflective"],
-          emotionalIntensityScore: 0.8,
-          complexityScore: 0.6,
+          // 1-10 scale (verified against the production tier).
+          emotionalIntensityScore: 8,
+          complexityScore: 6,
         },
-        marketStats: {
-          spotify: { streams: 1_200_000, popularity: 55 },
-          shazam: { count: 8_400 },
+        soundchartsScore: {
+          items: [
+            { date: "2026-08-01", fanbaseScore: 40000, trendingScore: 30000 },
+            { date: "2026-08-29", fanbaseScore: 50000, trendingScore: 40000 },
+          ],
         },
-        soundchartsScore: { value: 62 },
       }),
     );
-    expect(findings.length).toBeLessThanOrEqual(6);
+    expect(findings.length).toBeLessThanOrEqual(7);
   });
 });
 
@@ -161,7 +163,8 @@ describe("affect alignment", () => {
         valence: 0.72,
         lyricsAnalysis: {
           moods: ["melancholy", "loss"],
-          emotionalIntensityScore: 0.75,
+          // 1-10 scale.
+          emotionalIntensityScore: 8,
         },
       }),
     );
@@ -178,7 +181,7 @@ describe("affect alignment", () => {
         valence: undefined,
         lyricsAnalysis: {
           moods: ["melancholy"],
-          emotionalIntensityScore: 0.8,
+          emotionalIntensityScore: 8,
         },
       }),
     );
@@ -223,35 +226,139 @@ describe("semantic finding", () => {
   });
 });
 
-// ─── 6. Market snapshot (OBSERVED_MARKET) + unlocks ─────────────────────────
+// ─── 6. Soundcharts score (SOUNDCHARTS_DERIVED, weekly time series) ─────────
 
-describe("market snapshot", () => {
-  it("emits with OBSERVED_MARKET truth and unlocks market-claim / audience-behaviour", () => {
+describe("soundcharts-score extractor", () => {
+  it("emits latest fanbase + trending values as SOUNDCHARTS_DERIVED", () => {
     const findings = deriveFindings(
       baseInput({
-        marketStats: {
-          spotify: { streams: 4_200_000, popularity: 58 },
-          shazam: { count: 12_500 },
-          tiktok: { videos: 3_100 },
+        soundchartsScore: {
+          items: [
+            { date: "2026-08-08", fanbaseScore: 45000, trendingScore: 30000 },
+            { date: "2026-08-15", fanbaseScore: 47000, trendingScore: 32000 },
+            { date: "2026-08-29", fanbaseScore: 50000, trendingScore: 40000 },
+          ],
         },
-        soundchartsScore: { value: 71 },
       }),
     );
-    const m = findings.find((f) => f.kind === "market");
-    expect(m).toBeDefined();
-    expect(m!.truth).toBe("OBSERVED_MARKET");
-    const unlocks = unlocksFrom(findings);
-    expect(unlocks.has("market-claim")).toBe(true);
-    expect(unlocks.has("audience-behaviour")).toBe(true);
+    const s = findings.find((f) => f.kind === "sc-score");
+    expect(s).toBeDefined();
+    expect(s!.truth).toBe("SOUNDCHARTS_DERIVED");
+    expect(s!.evidence.some((e) => e.includes("fanbaseScore"))).toBe(true);
+    expect(s!.evidence.some((e) => /Δ over/.test(e))).toBe(true);
   });
 
-  it("stays silent when nothing usable came back", () => {
+  it("stays silent when the tier returned no items", () => {
     const findings = deriveFindings(
-      baseInput({ marketStats: {}, soundchartsScore: {} }),
+      baseInput({ soundchartsScore: { items: [] } }),
     );
-    expect(findings.some((f) => f.kind === "market")).toBe(false);
+    expect(findings.some((f) => f.kind === "sc-score")).toBe(false);
+  });
+});
+
+// ─── 6b. Playlist footprint (OBSERVED_MARKET) ───────────────────────────────
+
+describe("playlist footprint extractor", () => {
+  it("aggregates counts + reach and calls out dominant playlist type", () => {
+    const findings = deriveFindings(
+      baseInput({
+        playlistCurrent: {
+          items: [
+            {
+              playlist: { name: "Mellow Cuts", type: "Curators & Listeners", latestSubscriberCount: 12 },
+              position: 72,
+            },
+            {
+              playlist: { name: "Liked Songs 2", type: "Curators & Listeners", latestSubscriberCount: 0 },
+              position: 2121,
+            },
+            {
+              playlist: { name: "Chill Mix", type: "Editorial", latestSubscriberCount: 45_000 },
+              position: 8,
+            },
+          ],
+        },
+      }),
+    );
+    const p = findings.find((f) => f.kind === "playlist");
+    expect(p).toBeDefined();
+    expect(p!.truth).toBe("OBSERVED_MARKET");
+    expect(p!.evidence.some((e) => e.includes("Curators & Listeners"))).toBe(true);
+    expect(p!.evidence.some((e) => e.includes("reach"))).toBe(true);
     const unlocks = unlocksFrom(findings);
-    expect(unlocks.has("market-claim")).toBe(false);
+    expect(unlocks.has("market-claim")).toBe(true);
+  });
+
+  it("stays silent when no playlist items came back", () => {
+    const findings = deriveFindings(
+      baseInput({ playlistCurrent: { items: [] } }),
+    );
+    expect(findings.some((f) => f.kind === "playlist")).toBe(false);
+  });
+});
+
+// ─── 6c. Chart presence (OBSERVED_MARKET) ───────────────────────────────────
+
+describe("chart presence extractor", () => {
+  it("emits when the song is currently charting anywhere", () => {
+    const findings = deriveFindings(
+      baseInput({
+        chartsRanks: {
+          items: [
+            {
+              chart: { name: "Top Dubai", countryName: "United Arab Emirates" },
+              position: 55,
+              peakPosition: 21,
+              timeOnChart: 200,
+              timeOnChartUnit: "WOC",
+              current: true,
+            },
+          ],
+        },
+      }),
+    );
+    const c = findings.find((f) => f.kind === "chart");
+    expect(c).toBeDefined();
+    expect(c!.truth).toBe("OBSERVED_MARKET");
+    expect(c!.evidence.some((e) => e.includes("Top Dubai"))).toBe(true);
+  });
+
+  it("stays silent for indie songs with no current chart entries", () => {
+    const findings = deriveFindings(
+      baseInput({ chartsRanks: { items: [] } }),
+    );
+    expect(findings.some((f) => f.kind === "chart")).toBe(false);
+    // Absence must NOT read as a verdict — no negative finding created.
+  });
+});
+
+// ─── 6d. Broadcast activity (OBSERVED_MARKET) ───────────────────────────────
+
+describe("broadcast activity extractor", () => {
+  it("aggregates airings across stations and countries", () => {
+    const findings = deriveFindings(
+      baseInput({
+        broadcasts: {
+          items: [
+            { airedAt: "2026-09-05T21:05:12Z", radio: { name: "KDGS-FM", countryCode: "US", cityName: "Wichita, KS" } },
+            { airedAt: "2026-09-05T20:00:00Z", radio: { name: "KDGS-FM", countryCode: "US", cityName: "Wichita, KS" } },
+            { airedAt: "2026-09-05T19:00:00Z", radio: { name: "BBC Radio 1", countryCode: "GB", cityName: "London" } },
+          ],
+        },
+      }),
+    );
+    const b = findings.find((f) => f.kind === "broadcast");
+    expect(b).toBeDefined();
+    expect(b!.truth).toBe("OBSERVED_MARKET");
+    expect(b!.evidence.some((e) => e.includes("airing"))).toBe(true);
+    expect(b!.evidence.some((e) => e.includes("station"))).toBe(true);
+  });
+
+  it("stays silent for songs without radio pickup", () => {
+    const findings = deriveFindings(
+      baseInput({ broadcasts: { items: [] } }),
+    );
+    expect(findings.some((f) => f.kind === "broadcast")).toBe(false);
   });
 });
 
@@ -380,18 +487,23 @@ describe("renderFindingsForPrompt", () => {
 // ─── 11. Sparse enrichment regression ───────────────────────────────────────
 
 describe("sparse enrichment does not break the layer", () => {
-  it("null lyricsAnalysis, null marketStats and null score all coexist safely", () => {
+  it("all-null enrichment coexists safely; only the profile finding fires", () => {
     const findings = deriveFindings(
       baseInput({
         lyricsAnalysis: null,
         marketStats: null,
         soundchartsScore: null,
+        playlistCurrent: null,
+        chartsRanks: null,
+        broadcasts: null,
       }),
     );
-    // Profile finding still fires; every other extractor stays silent.
     expect(findings.some((f) => f.kind === "profile")).toBe(true);
     expect(findings.some((f) => f.kind === "semantic")).toBe(false);
-    expect(findings.some((f) => f.kind === "market")).toBe(false);
+    expect(findings.some((f) => f.kind === "sc-score")).toBe(false);
+    expect(findings.some((f) => f.kind === "playlist")).toBe(false);
+    expect(findings.some((f) => f.kind === "chart")).toBe(false);
+    expect(findings.some((f) => f.kind === "broadcast")).toBe(false);
   });
 
   it("partial lyricsAnalysis (moods only) still emits a semantic finding", () => {

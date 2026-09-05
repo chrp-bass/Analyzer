@@ -284,6 +284,9 @@ async function factsForAnalysis(
   let lyricsAnalysis: AnalysisFacts["lyricsAnalysis"] | null = null;
   let marketStats: AnalysisFacts["marketStats"] | null = null;
   let soundchartsScore: AnalysisFacts["soundchartsScore"] | null = null;
+  let playlistCurrent: AnalysisFacts["playlistCurrent"] | null = null;
+  let chartsRanks: AnalysisFacts["chartsRanks"] | null = null;
+  let broadcasts: AnalysisFacts["broadcasts"] | null = null;
 
   const isrc = free.track.isrc;
   if (isrc) {
@@ -351,18 +354,35 @@ async function factsForAnalysis(
           client = null;
         }
         if (client) {
-          const [la, ms, ss] = await Promise.all([
+          // Six enrichment fetches, all fail-open at the client. Run in
+          // parallel; a slow or dead one never blocks a fast one. Paths
+          // verified against the production tier: lyrics-analysis on v2,
+          // soundcharts/score on v2, playlist/current on v2.20,
+          // charts/ranks on v2, broadcasts on v2. current/stats is
+          // plan-gated (403) and always returns null here.
+          const [la, ms, ss, pc, cr, br] = await Promise.all([
             client.getLyricsAnalysis(uuid),
             client.getCurrentStats(uuid),
             client.getSoundchartsScore(uuid),
+            client.getPlaylistCurrentSpotify(uuid),
+            client.getChartsRanksSpotify(uuid),
+            client.getBroadcasts(uuid),
           ]);
+
+          // ── lyrics-analysis ────────────────────────────────────────────
+          // Response shape is `{ object: { lyricsAnalysis: {...}, related:
+          // {...} } }` — safeGet already returned `object`, so we dig once
+          // more into `.lyricsAnalysis` before reading the fields.
           if (la) {
+            const inner =
+              (la as { lyricsAnalysis?: Record<string, unknown> })
+                .lyricsAnalysis ?? la;
             const pickString = (k: string): string | undefined => {
-              const v = (la as Record<string, unknown>)[k];
+              const v = (inner as Record<string, unknown>)[k];
               return typeof v === "string" && v.trim().length > 0 ? v : undefined;
             };
             const pickStringArray = (k: string): string[] | undefined => {
-              const v = (la as Record<string, unknown>)[k];
+              const v = (inner as Record<string, unknown>)[k];
               if (!Array.isArray(v)) return undefined;
               const clean = v.filter(
                 (s): s is string => typeof s === "string" && s.trim().length > 0,
@@ -370,7 +390,7 @@ async function factsForAnalysis(
               return clean.length > 0 ? clean : undefined;
             };
             const pickNum = (k: string): number | undefined => {
-              const v = (la as Record<string, unknown>)[k];
+              const v = (inner as Record<string, unknown>)[k];
               return typeof v === "number" && Number.isFinite(v) ? v : undefined;
             };
             lyricsAnalysis = {
@@ -382,10 +402,152 @@ async function factsForAnalysis(
               rhymeSchemeScore: pickNum("rhymeSchemeScore"),
               repetitivenessScore: pickNum("repetitivenessScore"),
               narrativeStyle: pickString("narrativeStyle"),
+              culturalReferencePeople: pickStringArray("culturalReferencePeople"),
+              culturalReferenceNonPeople: pickStringArray("culturalReferenceNonPeople"),
+              brands: pickStringArray("brands"),
+              locations: pickStringArray("locations"),
             };
           }
+
           if (ms) marketStats = ms;
-          if (ss) soundchartsScore = ss;
+
+          // ── soundcharts-score ──────────────────────────────────────────
+          // `{ items: [{ date, fanbaseScore, trendingScore }, ...] }`.
+          // Pass through unchanged; extractor reads items.
+          if (ss) {
+            const items = Array.isArray((ss as { items?: unknown }).items)
+              ? ((ss as { items: unknown[] }).items as Array<
+                  Record<string, unknown>
+                >)
+              : [];
+            const cleaned = items
+              .map((it) => ({
+                date: typeof it.date === "string" ? it.date : undefined,
+                fanbaseScore:
+                  typeof it.fanbaseScore === "number"
+                    ? it.fanbaseScore
+                    : undefined,
+                trendingScore:
+                  typeof it.trendingScore === "number"
+                    ? it.trendingScore
+                    : undefined,
+              }))
+              .filter((it) => it.date || it.fanbaseScore || it.trendingScore);
+            if (cleaned.length > 0) soundchartsScore = { items: cleaned };
+          }
+
+          // ── playlist/current/spotify ───────────────────────────────────
+          // Sanitize to only the fields extractPlaylistFootprint reads —
+          // discard imageUrls, identifiers, uuids, latestCrawlDate. Cap the
+          // list at 100 items to keep the prompt bounded.
+          if (pc) {
+            const items = Array.isArray((pc as { items?: unknown }).items)
+              ? ((pc as { items: unknown[] }).items as Array<
+                  Record<string, unknown>
+                >)
+              : [];
+            const cleaned = items.slice(0, 100).map((it) => {
+              const p = (it.playlist as Record<string, unknown> | undefined) ?? {};
+              return {
+                playlist: {
+                  name: typeof p.name === "string" ? p.name : undefined,
+                  type: typeof p.type === "string" ? p.type : undefined,
+                  countryCode:
+                    typeof p.countryCode === "string" ? p.countryCode : undefined,
+                  latestSubscriberCount:
+                    typeof p.latestSubscriberCount === "number"
+                      ? p.latestSubscriberCount
+                      : undefined,
+                  latestTrackCount:
+                    typeof p.latestTrackCount === "number"
+                      ? p.latestTrackCount
+                      : undefined,
+                },
+                position:
+                  typeof it.position === "number" ? it.position : undefined,
+                peakPosition:
+                  typeof it.peakPosition === "number"
+                    ? it.peakPosition
+                    : undefined,
+                entryDate:
+                  typeof it.entryDate === "string" ? it.entryDate : undefined,
+              };
+            });
+            if (cleaned.length > 0) playlistCurrent = { items: cleaned };
+          }
+
+          // ── charts/ranks/spotify ───────────────────────────────────────
+          if (cr) {
+            const items = Array.isArray((cr as { items?: unknown }).items)
+              ? ((cr as { items: unknown[] }).items as Array<
+                  Record<string, unknown>
+                >)
+              : [];
+            const cleaned = items.slice(0, 50).map((it) => {
+              const c = (it.chart as Record<string, unknown> | undefined) ?? {};
+              return {
+                chart: {
+                  name: typeof c.name === "string" ? c.name : undefined,
+                  countryCode:
+                    typeof c.countryCode === "string" ? c.countryCode : undefined,
+                  countryName:
+                    typeof c.countryName === "string" ? c.countryName : undefined,
+                  cityName:
+                    typeof c.cityName === "string" ? c.cityName : undefined,
+                  frequency:
+                    typeof c.frequency === "string" ? c.frequency : undefined,
+                },
+                position:
+                  typeof it.position === "number" ? it.position : undefined,
+                peakPosition:
+                  typeof it.peakPosition === "number"
+                    ? it.peakPosition
+                    : undefined,
+                positionEvolution:
+                  typeof it.positionEvolution === "number"
+                    ? it.positionEvolution
+                    : undefined,
+                timeOnChart:
+                  typeof it.timeOnChart === "number"
+                    ? it.timeOnChart
+                    : undefined,
+                timeOnChartUnit:
+                  typeof it.timeOnChartUnit === "string"
+                    ? it.timeOnChartUnit
+                    : undefined,
+                current: typeof it.current === "boolean" ? it.current : undefined,
+              };
+            });
+            if (cleaned.length > 0) chartsRanks = { items: cleaned };
+          }
+
+          // ── broadcasts ────────────────────────────────────────────────
+          // High-volume songs return up to 100 items; the extractor only
+          // needs radio metadata to aggregate, so drop everything else.
+          if (br) {
+            const items = Array.isArray((br as { items?: unknown }).items)
+              ? ((br as { items: unknown[] }).items as Array<
+                  Record<string, unknown>
+                >)
+              : [];
+            const cleaned = items.slice(0, 100).map((it) => {
+              const r = (it.radio as Record<string, unknown> | undefined) ?? {};
+              return {
+                airedAt:
+                  typeof it.airedAt === "string" ? it.airedAt : undefined,
+                radio: {
+                  name: typeof r.name === "string" ? r.name : undefined,
+                  countryCode:
+                    typeof r.countryCode === "string" ? r.countryCode : undefined,
+                  countryName:
+                    typeof r.countryName === "string" ? r.countryName : undefined,
+                  cityName:
+                    typeof r.cityName === "string" ? r.cityName : undefined,
+                },
+              };
+            });
+            if (cleaned.length > 0) broadcasts = { items: cleaned };
+          }
         }
       }
     }
@@ -424,6 +586,9 @@ async function factsForAnalysis(
     ...(lyricsAnalysis ? { lyricsAnalysis } : {}),
     ...(marketStats ? { marketStats } : {}),
     ...(soundchartsScore ? { soundchartsScore } : {}),
+    ...(playlistCurrent ? { playlistCurrent } : {}),
+    ...(chartsRanks ? { chartsRanks } : {}),
+    ...(broadcasts ? { broadcasts } : {}),
     ...(christianContext ? { christianContext } : {}),
   };
 }

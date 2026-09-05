@@ -56,6 +56,10 @@ export type FindingKind =
   | "affect"         // audio ↔ lyric affective posture
   | "semantic"       // lyric-derived characteristic
   | "market"         // observable market behaviour
+  | "playlist"       // current playlist placements — OBSERVED_MARKET
+  | "chart"          // current chart entries — OBSERVED_MARKET
+  | "broadcast"      // radio airplay evidence — OBSERVED_MARKET
+  | "sc-score"       // Soundcharts's proprietary fanbase/trending score
   | "agreement"      // independent signals reinforce
   | "contradiction"  // signals disagree
   | "qualification"  // one signal changes how another should be read
@@ -122,30 +126,93 @@ export interface FindingsInput {
   };
 
   /**
-   * Soundcharts /lyrics-analysis payload, if reachable on this tier.
-   * Every subfield stays optional — the endpoint's shape varies by tier and
-   * the extractors read only what is actually there.
+   * Soundcharts /lyrics-analysis payload. Scores are on a 1-10 integer scale
+   * — verified against the live tier, NOT the 0-1 scale audio features use.
+   * Every subfield stays optional.
    */
   lyricsAnalysis?: {
     themes?: string[];
     moods?: string[];
+    /** 1-10. */
     emotionalIntensityScore?: number;
+    /** 1-10. */
     imageryScore?: number;
+    /** 1-10. */
     complexityScore?: number;
+    /** 1-10. */
     rhymeSchemeScore?: number;
+    /** 1-10. */
     repetitivenessScore?: number;
+    /** e.g. "First person", "Third person", "Second person". */
     narrativeStyle?: string;
+    culturalReferencePeople?: string[];
+    culturalReferenceNonPeople?: string[];
+    brands?: string[];
+    locations?: string[];
   } | null;
 
-  /**
-   * Soundcharts /current/stats payload if reachable. Shape varies wildly by
-   * tier — extractors below match the shapes seen in the wild and ignore the
-   * rest. Anything null-safe.
-   */
+  /** Plan-gated /current/stats — kept for shape compatibility, always null on our tier. */
   marketStats?: Record<string, unknown> | null;
 
-  /** Soundcharts's own aggregate score for the song, if the tier exposes it. */
-  soundchartsScore?: Record<string, unknown> | null;
+  /**
+   * Soundcharts's proprietary weekly time series. `items[i]` is one week
+   * with fanbase (audience size) and trending (momentum) scores.
+   */
+  soundchartsScore?: {
+    items?: Array<{
+      date?: string;
+      fanbaseScore?: number;
+      trendingScore?: number;
+    }>;
+  } | null;
+
+  /** Current Spotify playlist placements — sanitized shape from the tier. */
+  playlistCurrent?: {
+    items?: Array<{
+      playlist?: {
+        name?: string;
+        type?: string;
+        countryCode?: string;
+        latestSubscriberCount?: number;
+        latestTrackCount?: number;
+      };
+      position?: number;
+      peakPosition?: number;
+      entryDate?: string;
+    }>;
+  } | null;
+
+  /** Current chart entries. */
+  chartsRanks?: {
+    items?: Array<{
+      chart?: {
+        name?: string;
+        countryCode?: string;
+        countryName?: string;
+        cityName?: string;
+        frequency?: string;
+      };
+      position?: number;
+      peakPosition?: number;
+      positionEvolution?: number;
+      timeOnChart?: number;
+      timeOnChartUnit?: string;
+      current?: boolean;
+    }>;
+  } | null;
+
+  /** Radio broadcast events (individual airings). */
+  broadcasts?: {
+    items?: Array<{
+      airedAt?: string;
+      radio?: {
+        name?: string;
+        countryCode?: string;
+        countryName?: string;
+        cityName?: string;
+      };
+    }>;
+  } | null;
 }
 
 /** Helper: coerce to a finite number or null. */
@@ -251,17 +318,15 @@ function extractProfileEpiContradiction(
 
 /**
  * The verbal-load finding. High instrumentalness with low speechiness is the
- * defensible profile for verbal-light listening (the audio side of what a
- * concentration playlist tends to look for). This is a HYPOTHESIS — we
- * cannot claim it improves concentration, only that its architecture is
- * compatible with contexts that request low verbal load.
+ * defensible profile for verbal-light listening. Lyric complexity, when the
+ * semantic layer provides it, is on a 1-10 scale (verified against tier) and
+ * strengthens the finding when it agrees.
  */
 function extractVerbalLoad(input: FindingsInput): Finding | null {
   const inst = num(input.audio?.instrumentalness);
   const sp = num(input.audio?.speechiness);
   if (inst === null && sp === null) return null;
 
-  // Only fire on the extremes — the middle of both fields is uninteresting.
   const lowVerbal = (inst ?? 0) >= 0.6 && (sp ?? 1) <= 0.06;
   const highVerbal = (sp ?? 0) >= 0.15 && (inst ?? 1) <= 0.15;
   if (!lowVerbal && !highVerbal) return null;
@@ -273,8 +338,9 @@ function extractVerbalLoad(input: FindingsInput): Finding | null {
       `MEASURED: speechiness ${r1(sp ?? 0)}`,
     ];
     if (complexity !== null) {
+      // 1-10 scale (verified).
       evidence.push(
-        `SOUNDCHARTS_DERIVED: lyric complexity ${r1(complexity)}`,
+        `SOUNDCHARTS_DERIVED: lyric complexity ${Math.round(complexity)}/10`,
       );
     }
     return {
@@ -289,14 +355,21 @@ function extractVerbalLoad(input: FindingsInput): Finding | null {
     };
   }
 
+  const complexity = num(input.lyricsAnalysis?.complexityScore);
+  const evidence: string[] = [
+    `MEASURED: speechiness ${r1(sp ?? 0)}`,
+    `MEASURED: instrumentalness ${r1(inst ?? 0)}`,
+  ];
+  if (complexity !== null) {
+    evidence.push(
+      `SOUNDCHARTS_DERIVED: lyric complexity ${Math.round(complexity)}/10`,
+    );
+  }
   return {
     kind: "verbal-load",
     truth: "HYPOTHESIS",
     signal: `Verbal-load-heavy: the recording foregrounds language.`,
-    evidence: [
-      `MEASURED: speechiness ${r1(sp ?? 0)}`,
-      `MEASURED: instrumentalness ${r1(inst ?? 0)}`,
-    ],
+    evidence,
     implication: `The song's foreground work is done with words. That widens what a supervisor or programmer can use it FOR — the lyric is part of what carries the moment — and narrows how it can be dropped underneath dialogue.`,
     confidence: "medium",
   };
@@ -306,6 +379,8 @@ function extractVerbalLoad(input: FindingsInput): Finding | null {
  * SEMANTIC characterisation. Lyric themes / moods / narrativeStyle read as
  * SOUNDCHARTS_DERIVED — they are analysis, not raw text — so the phrasing
  * stays "the lyric is characterised as…" rather than "the song is about…".
+ * Cultural / location references, when present, add specificity Rhodes can
+ * ground positioning language in.
  */
 function extractSemantic(input: FindingsInput): Finding | null {
   const la = input.lyricsAnalysis;
@@ -313,49 +388,71 @@ function extractSemantic(input: FindingsInput): Finding | null {
   const themes = (la.themes ?? []).slice(0, 3);
   const moods = (la.moods ?? []).slice(0, 3);
   const nar = typeof la.narrativeStyle === "string" ? la.narrativeStyle : null;
-  if (themes.length === 0 && moods.length === 0 && !nar) return null;
+  const nonPeople = (la.culturalReferenceNonPeople ?? []).slice(0, 3);
+  const locations = (la.locations ?? []).slice(0, 3);
+  const brands = (la.brands ?? []).slice(0, 3);
+  if (
+    themes.length === 0 &&
+    moods.length === 0 &&
+    !nar &&
+    nonPeople.length === 0 &&
+    locations.length === 0 &&
+    brands.length === 0
+  ) {
+    return null;
+  }
 
   const pieces: string[] = [];
   if (themes.length > 0) pieces.push(`themes ${themes.join(", ")}`);
   if (moods.length > 0) pieces.push(`moods ${moods.join(", ")}`);
-  if (nar) pieces.push(`narrative style ${nar}`);
+  if (nar) pieces.push(`narrative ${nar}`);
+  if (nonPeople.length > 0) pieces.push(`cultural refs ${nonPeople.join(", ")}`);
+  if (locations.length > 0) pieces.push(`locations ${locations.join(", ")}`);
+  if (brands.length > 0) pieces.push(`brands ${brands.join(", ")}`);
+
+  const evidence: string[] = [];
+  if (themes.length > 0) evidence.push(`SOUNDCHARTS_DERIVED: themes=[${themes.join(", ")}]`);
+  if (moods.length > 0) evidence.push(`SOUNDCHARTS_DERIVED: moods=[${moods.join(", ")}]`);
+  if (nar) evidence.push(`SOUNDCHARTS_DERIVED: narrativeStyle=${nar}`);
+  if (nonPeople.length > 0)
+    evidence.push(`SOUNDCHARTS_DERIVED: culturalReferenceNonPeople=[${nonPeople.join(", ")}]`);
+  if (locations.length > 0)
+    evidence.push(`SOUNDCHARTS_DERIVED: locations=[${locations.join(", ")}]`);
+  if (brands.length > 0)
+    evidence.push(`SOUNDCHARTS_DERIVED: brands=[${brands.join(", ")}]`);
 
   return {
     kind: "semantic",
     truth: "SOUNDCHARTS_DERIVED",
     signal: `Soundcharts's lyric analysis characterises this song as ${pieces.join("; ")}.`,
-    evidence: [
-      `SOUNDCHARTS_DERIVED: themes=[${themes.join(", ")}]`,
-      `SOUNDCHARTS_DERIVED: moods=[${moods.join(", ")}]`,
-      ...(nar ? [`SOUNDCHARTS_DERIVED: narrativeStyle=${nar}`] : []),
-    ],
-    implication: `Soundcharts analyses lyric semantics; the label is what its model saw, not what the song "is about". Use it as a second reading alongside the CHRP architecture, not as a substitute for it.`,
+    evidence,
+    implication: `Soundcharts analyses lyric semantics; the label is what its model saw, not what the song "is about". Use it as a second reading alongside the CHRP architecture, not as a substitute for it. Cultural / location references (when present) are usable anchor points for positioning language.`,
     confidence: "medium",
   };
 }
 
 /**
- * AGREEMENT / CONTRADICTION between the audio's affective posture (valence)
- * and the lyric's affective posture (moods, emotionalIntensityScore).
- * The most useful finding this produces is the CONTRADICTION shape — a bright
- * melody with heavy words is a specific commercial texture and one that
- * markets very differently from either half taken alone.
+ * AGREEMENT / CONTRADICTION between the audio's affective posture (valence,
+ * 0-1) and the lyric's affective posture (moods, emotionalIntensityScore on
+ * a 1-10 scale). The most useful finding this produces is the CONTRADICTION
+ * shape — a bright melody with heavy words is a specific commercial texture
+ * and one that markets very differently from either half taken alone.
  */
 function extractAffectAlignment(input: FindingsInput): Finding | null {
   const v = num(input.valence);
   const la = input.lyricsAnalysis;
-  const intensity = num(la?.emotionalIntensityScore);
+  const intensity = num(la?.emotionalIntensityScore); // 1-10 scale
   const moods = (la?.moods ?? []).map((m) => m.toLowerCase());
   if (v === null || (intensity === null && moods.length === 0)) return null;
 
   const bright = v >= 0.6;
   const dark = v <= 0.4;
   const heavyLyric =
-    (intensity !== null && intensity >= 0.65) ||
+    (intensity !== null && intensity >= 7) ||
     moods.some((m) => /sad|angry|melanchol|heavy|somber|grief|loss/.test(m));
   const lightLyric =
-    (intensity !== null && intensity <= 0.35) ||
-    moods.some((m) => /joy|celebrat|uplift|bright|happy|romantic/.test(m));
+    (intensity !== null && intensity <= 4) ||
+    moods.some((m) => /hope|joy|celebrat|uplift|empower|bright|happy|romantic/.test(m));
 
   if (bright && heavyLyric) {
     return {
@@ -413,53 +510,249 @@ function extractAffectAlignment(input: FindingsInput): Finding | null {
 }
 
 /**
- * MARKET finding: only fires when marketStats or soundchartsScore actually
- * carried something numeric worth mentioning. Every number here is treated
- * as OBSERVED_MARKET and prose about it becomes governor-supported (Rhodes
- * may name a market fact only when a market finding was supplied).
+ * SOUNDCHARTS SCORE — the proprietary weekly time series of
+ * `{ date, fanbaseScore, trendingScore }`. Emits SOUNDCHARTS_DERIVED (NOT
+ * OBSERVED_MARKET — the score is Soundcharts's own aggregate, not raw
+ * observed listener behaviour, and NOT a CHRP verdict). Includes the most
+ * recent values and, when the 4-week series shows a clear direction, the
+ * trend. Never described psychologically.
  */
-function extractMarketSnapshot(input: FindingsInput): Finding | null {
-  const stats = input.marketStats ?? {};
-  const score = input.soundchartsScore ?? {};
+function extractSoundchartsScore(input: FindingsInput): Finding | null {
+  const items = input.soundchartsScore?.items ?? [];
+  if (items.length === 0) return null;
+  // Sort by date ascending so the last item is the most recent.
+  const rows = items
+    .filter((it) => typeof it?.date === "string")
+    .slice()
+    .sort((a, b) => (a.date! < b.date! ? -1 : 1));
+  const latest = rows[rows.length - 1];
+  if (!latest) return null;
+  const fanbase = num(latest.fanbaseScore);
+  const trending = num(latest.trendingScore);
+  if (fanbase === null && trending === null) return null;
+
   const evidence: string[] = [];
-
-  // Soundcharts's own score, when present, is worth naming as a Soundcharts
-  // proprietary metric — it is NOT a CHRP verdict, so the phrasing makes
-  // that clear in evidence and implication.
-  const sc = num((score as { value?: unknown }).value) ??
-    num((score as { score?: unknown }).score);
-  if (sc !== null) evidence.push(`SOUNDCHARTS_DERIVED: soundcharts-score ${r1(sc)}`);
-
-  // Best-effort extraction — nothing here throws if the shape doesn't match.
-  const spotify = (stats as { spotify?: Record<string, unknown> }).spotify;
-  const streams = num((spotify as { streams?: unknown } | undefined)?.streams);
-  if (streams !== null) evidence.push(`OBSERVED_MARKET: spotify streams (snapshot) ${streams}`);
-  const popularity = num(
-    (spotify as { popularity?: unknown } | undefined)?.popularity,
-  );
-  if (popularity !== null) evidence.push(`OBSERVED_MARKET: spotify popularity ${r1(popularity)}`);
-  const shazam = (stats as { shazam?: Record<string, unknown> }).shazam;
-  const shazamCount = num(
-    (shazam as { count?: unknown } | undefined)?.count,
-  );
-  if (shazamCount !== null) evidence.push(`OBSERVED_MARKET: shazam count ${shazamCount}`);
-  const tiktok = (stats as { tiktok?: Record<string, unknown> }).tiktok;
-  const tiktokCreations = num(
-    (tiktok as { videos?: unknown } | undefined)?.videos ??
-      (tiktok as { creations?: unknown } | undefined)?.creations,
-  );
-  if (tiktokCreations !== null) evidence.push(`OBSERVED_MARKET: tiktok creations ${tiktokCreations}`);
-
-  if (evidence.length === 0) return null;
+  if (fanbase !== null)
+    evidence.push(`SOUNDCHARTS_DERIVED: fanbaseScore (latest) ${Math.round(fanbase)}`);
+  if (trending !== null)
+    evidence.push(`SOUNDCHARTS_DERIVED: trendingScore (latest) ${Math.round(trending)}`);
+  if (rows.length > 1) {
+    const first = rows[0];
+    const fb0 = num(first.fanbaseScore);
+    const tr0 = num(first.trendingScore);
+    if (fanbase !== null && fb0 !== null && fb0 > 0) {
+      const delta = fanbase - fb0;
+      const pct = Math.round((delta / fb0) * 100);
+      if (Math.abs(pct) >= 5) {
+        evidence.push(
+          `SOUNDCHARTS_DERIVED: fanbase Δ over ${rows.length} weeks ${pct >= 0 ? "+" : ""}${pct}%`,
+        );
+      }
+    }
+    if (trending !== null && tr0 !== null && tr0 > 0) {
+      const delta = trending - tr0;
+      const pct = Math.round((delta / tr0) * 100);
+      if (Math.abs(pct) >= 5) {
+        evidence.push(
+          `SOUNDCHARTS_DERIVED: trending Δ over ${rows.length} weeks ${pct >= 0 ? "+" : ""}${pct}%`,
+        );
+      }
+    }
+  }
 
   return {
-    kind: "market",
-    truth: "OBSERVED_MARKET",
-    signal: `The song has an observed market footprint — the enrichment layer returned real market signals.`,
+    kind: "sc-score",
+    truth: "SOUNDCHARTS_DERIVED",
+    signal: `Soundcharts's proprietary weekly score for this song is ${fanbase !== null ? `fanbase ${Math.round(fanbase)}` : "not returned"}${trending !== null ? `, trending ${Math.round(trending)}` : ""}.`,
     evidence,
-    implication: `These are OBSERVED market values at a snapshot in time, not predictions and not a CHRP verdict. If the observed footprint agrees with the architecture (e.g. a Motivation-led song showing TikTok creation activity), that agreement is worth naming; where it contradicts it, that is the more useful finding.`,
-    unlocks: ["market-claim", "audience-behaviour"],
-    confidence: "medium",
+    implication: `Soundcharts's own aggregate score for the recording — a Soundcharts view of audience and momentum, NOT a CHRP verdict and not a prediction. Useful as a cross-signal only. Do not interpret it psychologically, and do not translate a number into a listener state.`,
+    confidence: "low",
+  };
+}
+
+/**
+ * PLAYLIST FOOTPRINT — the OBSERVED_MARKET finding for current Spotify
+ * playlist placements. Aggregates the item list into counts + reach without
+ * exposing individual playlist names (many are user-created).
+ */
+function extractPlaylistFootprint(input: FindingsInput): Finding | null {
+  const items = input.playlistCurrent?.items ?? [];
+  if (items.length === 0) return null;
+
+  const typeCounts: Record<string, number> = {};
+  let totalReach = 0;
+  let reachKnown = 0;
+  const positions: number[] = [];
+  for (const it of items) {
+    const type = it.playlist?.type;
+    if (typeof type === "string") {
+      typeCounts[type] = (typeCounts[type] ?? 0) + 1;
+    }
+    const subs = num(it.playlist?.latestSubscriberCount);
+    if (subs !== null) {
+      totalReach += subs;
+      reachKnown += 1;
+    }
+    const pos = num(it.position);
+    if (pos !== null) positions.push(pos);
+  }
+  const dominantTypeEntries = Object.entries(typeCounts).sort(
+    (a, b) => b[1] - a[1],
+  );
+  const dominant = dominantTypeEntries[0] ?? null;
+  const dominantShare = dominant ? dominant[1] / items.length : 0;
+
+  const evidence: string[] = [
+    `OBSERVED_MARKET: ${items.length} current Spotify playlist placement(s)`,
+  ];
+  if (dominant) {
+    evidence.push(
+      `OBSERVED_MARKET: dominant playlist type "${dominant[0]}" — ${dominant[1]}/${items.length} (${Math.round(dominantShare * 100)}%)`,
+    );
+    if (dominantTypeEntries.length > 1) {
+      const others = dominantTypeEntries
+        .slice(1, 3)
+        .map(([t, c]) => `${t}: ${c}`)
+        .join(", ");
+      evidence.push(`OBSERVED_MARKET: other types — ${others}`);
+    }
+  }
+  if (reachKnown > 0) {
+    evidence.push(
+      `OBSERVED_MARKET: aggregate subscriber reach across ${reachKnown} placement(s) ≈ ${Math.round(totalReach)}`,
+    );
+  }
+  if (positions.length > 0) {
+    const sorted = positions.slice().sort((a, b) => a - b);
+    const best = sorted[0];
+    const median = sorted[Math.floor(sorted.length / 2)];
+    evidence.push(
+      `OBSERVED_MARKET: position range — best #${Math.round(best)}, median #${Math.round(median)}`,
+    );
+  }
+
+  // The interpretation is calibrated to WHAT the placement mix actually says
+  // rather than to counts alone — 100 items in Curators & Listeners is very
+  // different from 100 items in Editorial. Do not upgrade "placement" to
+  // "listener behaviour"; the Rhodes prompt forbids that upgrade too.
+  const isMostlyUserLevel =
+    dominant?.[0].toLowerCase().includes("curator") ?? false;
+  const implication = isMostlyUserLevel
+    ? `Placements are dominated by "${dominant?.[0]}" playlists — user- and small-curator-driven rather than editorial. That is a real market footprint, but reads as grassroots pickup, not editorial support. Do not upgrade "placement" to "listener behaviour": placement tells you where curators put the song, not what listeners do with it.`
+    : `Placement mix skews toward "${dominant?.[0]}" — worth naming when positioning, because different playlist types imply different discovery paths. Do not extrapolate to listener intent.`;
+
+  return {
+    kind: "playlist",
+    truth: "OBSERVED_MARKET",
+    signal: `${items.length} current Spotify placement${items.length === 1 ? "" : "s"}${dominant ? `; ${Math.round(dominantShare * 100)}% in "${dominant[0]}" playlists` : ""}.`,
+    evidence,
+    implication,
+    unlocks: ["market-claim"],
+    confidence: "high",
+  };
+}
+
+/**
+ * CHART PRESENCE — the OBSERVED_MARKET finding when the song is currently
+ * charting anywhere. Empty results are NOT a verdict; the finding simply
+ * does not fire.
+ */
+function extractChartPresence(input: FindingsInput): Finding | null {
+  const items = (input.chartsRanks?.items ?? []).filter(
+    (it) => it.current !== false,
+  );
+  if (items.length === 0) return null;
+
+  // Sort by position ascending — highest current rank first.
+  const sorted = items
+    .slice()
+    .sort((a, b) => (num(a.position) ?? 999) - (num(b.position) ?? 999));
+  const top = sorted.slice(0, 3);
+  const evidence: string[] = [
+    `OBSERVED_MARKET: ${items.length} current chart entr${items.length === 1 ? "y" : "ies"}`,
+  ];
+  for (const e of top) {
+    const parts: string[] = [];
+    if (e.chart?.name) parts.push(`"${e.chart.name}"`);
+    if (e.chart?.countryName) parts.push(e.chart.countryName);
+    if (typeof e.position === "number")
+      parts.push(`#${Math.round(e.position)}`);
+    if (typeof e.peakPosition === "number")
+      parts.push(`peak #${Math.round(e.peakPosition)}`);
+    if (typeof e.timeOnChart === "number" && e.timeOnChartUnit) {
+      parts.push(`${Math.round(e.timeOnChart)} ${e.timeOnChartUnit}`);
+    }
+    if (parts.length > 0) evidence.push(`OBSERVED_MARKET: ${parts.join(" · ")}`);
+  }
+
+  // Aggregate: countries touched, biggest week trajectory.
+  const countries = new Set<string>();
+  for (const it of items) {
+    const c = it.chart?.countryName ?? it.chart?.countryCode;
+    if (typeof c === "string" && c) countries.add(c);
+  }
+  if (countries.size > 1)
+    evidence.push(
+      `OBSERVED_MARKET: charting in ${countries.size} distinct countries`,
+    );
+
+  return {
+    kind: "chart",
+    truth: "OBSERVED_MARKET",
+    signal: `The song is currently charting in ${items.length} place${items.length === 1 ? "" : "s"}${countries.size > 1 ? ` across ${countries.size} countries` : ""}.`,
+    evidence,
+    implication: `These are OBSERVED chart positions at a snapshot in time. They tell you where the song currently ranks; they are NOT a prediction of where it will go, and NOT evidence for what a listener is doing. Position, peak and time-on-chart are the shape of the trajectory a supervisor or programmer would recognise as real market presence.`,
+    unlocks: ["market-claim"],
+    confidence: "high",
+  };
+}
+
+/**
+ * BROADCAST ACTIVITY — the OBSERVED_MARKET finding for radio airplay.
+ * Aggregates the raw airings list into station counts and geographic
+ * distribution. Empty = does not fire (not a verdict).
+ */
+function extractBroadcastActivity(input: FindingsInput): Finding | null {
+  const items = input.broadcasts?.items ?? [];
+  if (items.length === 0) return null;
+
+  const stations = new Set<string>();
+  const countries: Record<string, number> = {};
+  const cities = new Set<string>();
+  for (const it of items) {
+    const slug = it.radio?.name;
+    if (typeof slug === "string") stations.add(slug);
+    const cc = it.radio?.countryCode;
+    if (typeof cc === "string" && cc) {
+      countries[cc] = (countries[cc] ?? 0) + 1;
+    }
+    const city = it.radio?.cityName;
+    if (typeof city === "string" && city) cities.add(city);
+  }
+  const topCountries = Object.entries(countries)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  const evidence: string[] = [
+    `OBSERVED_MARKET: ${items.length} radio airing${items.length === 1 ? "" : "s"} in the returned window`,
+    `OBSERVED_MARKET: across ${stations.size} unique station${stations.size === 1 ? "" : "s"}`,
+  ];
+  if (cities.size > 0)
+    evidence.push(`OBSERVED_MARKET: ${cities.size} unique cit${cities.size === 1 ? "y" : "ies"}`);
+  if (topCountries.length > 0) {
+    evidence.push(
+      `OBSERVED_MARKET: top countries — ${topCountries.map(([c, n]) => `${c}: ${n}`).join(", ")}`,
+    );
+  }
+
+  return {
+    kind: "broadcast",
+    truth: "OBSERVED_MARKET",
+    signal: `The song is on radio: ${items.length} airings across ${stations.size} station${stations.size === 1 ? "" : "s"}${topCountries.length > 0 ? `, led by ${topCountries[0][0]}` : ""}.`,
+    evidence,
+    implication: `Radio airplay is direct evidence of programmer decisions — someone actively chose to play this song. It does NOT establish listener response or campaign fit, only that the song currently sits inside a real broadcast footprint.`,
+    unlocks: ["market-claim"],
+    confidence: "high",
   };
 }
 
@@ -578,10 +871,15 @@ function extractChristianAlignment(input: FindingsInput): Finding | null {
  */
 function rank(f: Finding): number {
   let s = 0;
+  // OBSERVED_MARKET evidence is the rarest and most decision-relevant.
+  if (f.kind === "chart") s += 6;
+  if (f.kind === "broadcast") s += 6;
   if (f.kind === "contradiction") s += 5;
   if (f.kind === "whitespace") s += 4;
+  if (f.kind === "playlist") s += 4;
   if (f.kind === "qualification") s += 3;
   if (f.kind === "market") s += 3;
+  if (f.kind === "sc-score") s += 2;
   if (f.kind === "verbal-load") s += 2;
   if (f.kind === "affect") s += 2;
   if (f.kind === "semantic") s += 2;
@@ -605,15 +903,18 @@ export function deriveFindings(input: FindingsInput): Finding[] {
     extractVerbalLoad(input),
     extractAffectAlignment(input),
     extractSemantic(input),
-    extractMarketSnapshot(input),
+    extractSoundchartsScore(input),
+    extractPlaylistFootprint(input),
+    extractChartPresence(input),
+    extractBroadcastActivity(input),
     extractWhitespace(input, rel),
     extractChristianAlignment(input),
   ];
   const findings = raw.filter((f): f is Finding => f !== null);
   findings.sort((a, b) => rank(b) - rank(a));
-  // Cap at 6. The point of the layer is a distilled set Rhodes can build
-  // around, not a data dump that dilutes the reasoning back into raw fields.
-  return findings.slice(0, 6);
+  // Cap at 7. Rich-data songs now legitimately produce more findings; the
+  // cap keeps Rhodes with a distilled set rather than a dump.
+  return findings.slice(0, 7);
 }
 
 /**

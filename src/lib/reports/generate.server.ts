@@ -86,8 +86,9 @@ export interface AnalysisFacts {
 
   /**
    * Soundcharts /lyrics-analysis payload if the account tier returns it.
-   * Null / absent means "no lyric analysis was returned"; the intelligence
-   * layer emits no semantic finding in that case. Never inferred.
+   * Scores are 1-10 (verified against the production tier). Null / absent
+   * means "no lyric analysis returned"; the intelligence layer emits no
+   * semantic finding in that case. Never inferred.
    */
   lyricsAnalysis?: {
     themes?: string[];
@@ -98,13 +99,74 @@ export interface AnalysisFacts {
     rhymeSchemeScore?: number;
     repetitivenessScore?: number;
     narrativeStyle?: string;
+    culturalReferencePeople?: string[];
+    culturalReferenceNonPeople?: string[];
+    brands?: string[];
+    locations?: string[];
   } | null;
 
-  /** Soundcharts /current/stats snapshot if the account tier returns it. */
+  /** Plan-gated /current/stats — always null on our tier. */
   marketStats?: Record<string, unknown> | null;
 
-  /** Soundcharts proprietary aggregate score if the account tier returns it. */
-  soundchartsScore?: Record<string, unknown> | null;
+  /**
+   * Soundcharts proprietary weekly score series (fanbase + trending).
+   * Present when the tier returned it.
+   */
+  soundchartsScore?: {
+    items?: Array<{
+      date?: string;
+      fanbaseScore?: number;
+      trendingScore?: number;
+    }>;
+  } | null;
+
+  /** Current Spotify playlist placements — sanitized to only the fields the extractor reads. */
+  playlistCurrent?: {
+    items?: Array<{
+      playlist?: {
+        name?: string;
+        type?: string;
+        countryCode?: string;
+        latestSubscriberCount?: number;
+        latestTrackCount?: number;
+      };
+      position?: number;
+      peakPosition?: number;
+      entryDate?: string;
+    }>;
+  } | null;
+
+  /** Current chart entries — empty for songs that never charted. */
+  chartsRanks?: {
+    items?: Array<{
+      chart?: {
+        name?: string;
+        countryCode?: string;
+        countryName?: string;
+        cityName?: string;
+        frequency?: string;
+      };
+      position?: number;
+      peakPosition?: number;
+      positionEvolution?: number;
+      timeOnChart?: number;
+      timeOnChartUnit?: string;
+      current?: boolean;
+    }>;
+  } | null;
+
+  /** Radio broadcast events (sanitized to name / country / city per station). */
+  broadcasts?: {
+    items?: Array<{
+      airedAt?: string;
+      radio?: {
+        name?: string;
+        countryCode?: string;
+        countryName?: string;
+        cityName?: string;
+      };
+    }>;
+  } | null;
 
   /**
    * The Christian / Worship / Gospel / CCM lens. Populated by the resolver
@@ -154,6 +216,9 @@ export function factsToRhodesInput(
   if (facts.lyricsAnalysis) context.lyricsAnalysis = facts.lyricsAnalysis;
   if (facts.marketStats) context.marketStats = facts.marketStats;
   if (facts.soundchartsScore) context.soundchartsScore = facts.soundchartsScore;
+  if (facts.playlistCurrent) context.playlistCurrent = facts.playlistCurrent;
+  if (facts.chartsRanks) context.chartsRanks = facts.chartsRanks;
+  if (facts.broadcasts) context.broadcasts = facts.broadcasts;
 
   return {
     identity: { title: facts.title, artist: facts.artist },

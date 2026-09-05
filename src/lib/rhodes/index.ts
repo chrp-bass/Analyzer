@@ -154,23 +154,92 @@ export interface SongIntelligenceInput {
     };
     /**
      * Soundcharts /lyrics-analysis payload, when reachable on this account
-     * tier. Every subfield is optional; the intelligence layer reads only
-     * what is actually there and ignores everything else.
+     * tier. Scores are on a 1-10 scale, verified against the live tier.
+     * Every subfield is optional; the intelligence layer reads only what is
+     * actually there and ignores everything else.
      */
     lyricsAnalysis?: {
       themes?: string[];
       moods?: string[];
+      /** 1-10 scale. */
       emotionalIntensityScore?: number;
+      /** 1-10 scale. */
       imageryScore?: number;
+      /** 1-10 scale. */
       complexityScore?: number;
+      /** 1-10 scale. */
       rhymeSchemeScore?: number;
+      /** 1-10 scale. */
       repetitivenessScore?: number;
+      /** e.g. "First person". */
       narrativeStyle?: string;
+      culturalReferencePeople?: string[];
+      culturalReferenceNonPeople?: string[];
+      brands?: string[];
+      locations?: string[];
     } | null;
-    /** Soundcharts /current/stats snapshot, when reachable. */
+    /** Soundcharts /current/stats snapshot, when reachable (plan-gated on our tier). */
     marketStats?: Record<string, unknown> | null;
-    /** Soundcharts's proprietary aggregate score, when reachable. */
-    soundchartsScore?: Record<string, unknown> | null;
+    /**
+     * Soundcharts's proprietary aggregate score — weekly time series of
+     * `{ date, fanbaseScore, trendingScore }`. Present only when the tier
+     * returned it.
+     */
+    soundchartsScore?: {
+      items?: Array<{
+        date?: string;
+        fanbaseScore?: number;
+        trendingScore?: number;
+      }>;
+    } | null;
+    /**
+     * Current Spotify playlist placements. Every item names its host
+     * playlist and the song's position/entry. Fail-open on all fields.
+     */
+    playlistCurrent?: {
+      items?: Array<{
+        playlist?: {
+          name?: string;
+          type?: string;
+          countryCode?: string;
+          latestSubscriberCount?: number;
+          latestTrackCount?: number;
+        };
+        position?: number;
+        peakPosition?: number;
+        entryDate?: string;
+      }>;
+    } | null;
+    /** Current chart entries — empty for songs that never charted. */
+    chartsRanks?: {
+      items?: Array<{
+        chart?: {
+          name?: string;
+          countryCode?: string;
+          countryName?: string;
+          cityName?: string;
+          frequency?: string;
+        };
+        position?: number;
+        peakPosition?: number;
+        positionEvolution?: number;
+        timeOnChart?: number;
+        timeOnChartUnit?: string;
+        current?: boolean;
+      }>;
+    } | null;
+    /** Radio broadcast events — empty for songs without radio pickup. */
+    broadcasts?: {
+      items?: Array<{
+        airedAt?: string;
+        radio?: {
+          name?: string;
+          countryCode?: string;
+          countryName?: string;
+          cityName?: string;
+        };
+      }>;
+    } | null;
   };
 
   /** OPTIONAL USER TRUTH — what the creator said. Outranks any inference. */
@@ -231,6 +300,9 @@ export function findingsInputFor(
     lyricsAnalysis: c?.lyricsAnalysis ?? null,
     marketStats: c?.marketStats ?? null,
     soundchartsScore: c?.soundchartsScore ?? null,
+    playlistCurrent: c?.playlistCurrent ?? null,
+    chartsRanks: c?.chartsRanks ?? null,
+    broadcasts: c?.broadcasts ?? null,
   };
 }
 

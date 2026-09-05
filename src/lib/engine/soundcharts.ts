@@ -148,24 +148,23 @@ export class SoundchartsClient {
    * Soundcharts semantic analysis of the lyric (themes, moods,
    * emotionalIntensityScore, imageryScore, narrativeStyle, …). Fail-open.
    *
-   * The endpoint is plan-gated on some Soundcharts tiers, so a 403 or 404 is
-   * expected on any given account and returns null just like a timeout would.
-   * The intelligence layer treats null as "we did not see a lyric analysis
-   * for this song" and emits no lyric findings. Nothing else changes.
+   * Path verified against the production Soundcharts tier: v2 (not v2.25 —
+   * the family fragments across versions and this one is on v2). The
+   * response body is `{ object: { lyricsAnalysis: {...}, related: {...} } }`.
    */
   async getLyricsAnalysis(
     uuid: string,
   ): Promise<Record<string, unknown> | null> {
     if (!uuid) return null;
     return this.safeGet(
-      `/api/v2.25/song/${encodeURIComponent(uuid)}/lyrics-analysis`,
+      `/api/v2/song/${encodeURIComponent(uuid)}/lyrics-analysis`,
     );
   }
 
   /**
-   * A snapshot of current cross-platform market statistics for the song.
-   * Fail-open. The shape varies by tier; the consumer reads only fields it
-   * recognises and ignores everything else.
+   * `/song/{uuid}/current/stats` returned 403 on our tier — plan-gated. Kept
+   * here as a fail-open no-op so a future tier upgrade is a one-line wire
+   * change rather than a hunt across the codebase.
    */
   async getCurrentStats(
     uuid: string,
@@ -177,16 +176,65 @@ export class SoundchartsClient {
   }
 
   /**
-   * Soundcharts's own aggregate score for the song, when the tier exposes it.
-   * Fail-open, and treated by the consumer as SOUNDCHARTS_DERIVED (never as
-   * a CHRP verdict).
+   * Soundcharts's proprietary aggregate score — weekly time series of
+   * `{ date, fanbaseScore, trendingScore }`, ~4 weeks. Fail-open.
+   *
+   * Path verified: v2. Response body is `{ items: [...] }`.
    */
   async getSoundchartsScore(
     uuid: string,
   ): Promise<Record<string, unknown> | null> {
     if (!uuid) return null;
     return this.safeGet(
-      `/api/v2.25/song/${encodeURIComponent(uuid)}/soundcharts/score`,
+      `/api/v2/song/${encodeURIComponent(uuid)}/soundcharts/score`,
+    );
+  }
+
+  /**
+   * Current Spotify playlist placements for the song. Each item is
+   * `{ playlist: {name, type, latestSubscriberCount, ...}, position,
+   * peakPosition, entryDate, positionDate, ... }`. Fail-open.
+   *
+   * Path verified: v2.20. Response body is `{ items: [...] }`.
+   */
+  async getPlaylistCurrentSpotify(
+    uuid: string,
+  ): Promise<Record<string, unknown> | null> {
+    if (!uuid) return null;
+    return this.safeGet(
+      `/api/v2.20/song/${encodeURIComponent(uuid)}/playlist/current/spotify`,
+    );
+  }
+
+  /**
+   * Current Spotify chart entries — one item per chart the song currently
+   * appears on, with peak/position/timeOnChart. Fail-open. Empty for indie
+   * releases that never charted, which is not a verdict.
+   *
+   * Path verified: v2. Response body is `{ items: [...] }`.
+   */
+  async getChartsRanksSpotify(
+    uuid: string,
+  ): Promise<Record<string, unknown> | null> {
+    if (!uuid) return null;
+    return this.safeGet(
+      `/api/v2/song/${encodeURIComponent(uuid)}/charts/ranks/spotify`,
+    );
+  }
+
+  /**
+   * Radio broadcast events for the song — time series of individual airings
+   * across stations. Fail-open. Empty for songs without radio pickup, which
+   * is not a verdict.
+   *
+   * Path verified: v2. Response body is `{ items: [...] }`.
+   */
+  async getBroadcasts(
+    uuid: string,
+  ): Promise<Record<string, unknown> | null> {
+    if (!uuid) return null;
+    return this.safeGet(
+      `/api/v2/song/${encodeURIComponent(uuid)}/broadcasts`,
     );
   }
 }
