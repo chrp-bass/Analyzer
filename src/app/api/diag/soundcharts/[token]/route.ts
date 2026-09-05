@@ -120,7 +120,10 @@ async function safeGet(
   return { status: res.status, body, rateHint };
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { token: string } },
+) {
   // Rail 1: never on production.
   if (process.env.VERCEL_ENV === "production") {
     return NextResponse.json(
@@ -129,13 +132,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Rail 2 + 3: token gate with fail-closed if unset. The `hint` field
-  // reveals ONLY length information (not values, prefixes, or any content).
-  // Present because the first attempt returned 401 and we need to know
-  // whether the env var reached the deploy or the value differs. Removed
-  // when the diagnostic is removed.
+  // Rail 2 + 3: token gate with fail-closed if unset. Token lives in the URL
+  // PATH — Vercel SSO strips ?query= tokens on redirect as a safety measure,
+  // and the path segment survives the SSO round-trip intact.
   const expected = process.env.DIAG_TOKEN;
-  const provided = request.nextUrl.searchParams.get("token") ?? "";
+  const provided = decodeURIComponent(params.token ?? "");
   if (!expected) {
     return NextResponse.json(
       { error: "unauthorized", hint: "env_missing" },
