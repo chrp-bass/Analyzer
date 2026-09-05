@@ -131,11 +131,12 @@ function distribution(
     const k = typeof v === "string" ? v : JSON.stringify(v);
     bag.set(k, (bag.get(k) ?? 0) + 1);
   }
-  const sorted = [...bag.entries()]
+  const entries: Array<[string, number]> = [];
+  bag.forEach((count, value) => entries.push([value, count]));
+  return entries
     .sort((a, b) => b[1] - a[1])
     .slice(0, cap)
     .map(([value, count]) => ({ value: value.slice(0, 60), count }));
-  return sorted;
 }
 
 /** Deep sanitized field walk for a single endpoint. */
