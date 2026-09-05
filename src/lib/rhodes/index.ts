@@ -35,6 +35,12 @@ import {
   type Violation,
 } from "./governor";
 import type { ChristianContext } from "./christian-context";
+import {
+  deriveFindings,
+  renderFindingsForPrompt,
+  unlocksFrom,
+  type FindingsInput,
+} from "./findings";
 
 export type RhodesMode = "Ready" | "Recover" | "Recharge" | "Flow";
 
@@ -50,6 +56,12 @@ export {
 export type { Violation, AuditContext, FactSheet } from "./governor";
 export { SONG_INTELLIGENCE_SYSTEM_PROMPT } from "./song-intelligence";
 export { RHODES_CORE } from "./core";
+export {
+  deriveFindings,
+  renderFindingsForPrompt,
+  unlocksFrom,
+} from "./findings";
+export type { Finding, TruthClass, FindingKind } from "./findings";
 
 export interface Placement {
   title: string;
@@ -127,6 +139,105 @@ export interface SongIntelligenceInput {
      * Never derived from artist, title, audio, EPI, mode, or dimensions.
      */
     christianContext?: ChristianContext;
+    /**
+     * Extra audio fields carried by the by-isrc payload (speechiness,
+     * acousticness, tempo, energy, liveness). These do NOT influence any
+     * dimension or EPI — those are done — they simply widen what the
+     * intelligence layer can characterise.
+     */
+    audioExtras?: {
+      speechiness?: number;
+      acousticness?: number;
+      tempo?: number;
+      energy?: number;
+      liveness?: number;
+    };
+    /**
+     * Soundcharts /lyrics-analysis payload, when reachable on this account
+     * tier. Scores are on a 1-10 scale, verified against the live tier.
+     * Every subfield is optional; the intelligence layer reads only what is
+     * actually there and ignores everything else.
+     */
+    lyricsAnalysis?: {
+      themes?: string[];
+      moods?: string[];
+      /** 1-10 scale. */
+      emotionalIntensityScore?: number;
+      /** 1-10 scale. */
+      imageryScore?: number;
+      /** 1-10 scale. */
+      complexityScore?: number;
+      /** 1-10 scale. */
+      rhymeSchemeScore?: number;
+      /** 1-10 scale. */
+      repetitivenessScore?: number;
+      /** e.g. "First person". */
+      narrativeStyle?: string;
+      culturalReferencePeople?: string[];
+      culturalReferenceNonPeople?: string[];
+      brands?: string[];
+      locations?: string[];
+    } | null;
+    /**
+     * Soundcharts's proprietary aggregate score — weekly time series of
+     * `{ date, fanbaseScore, trendingScore }`. Present only when the tier
+     * returned it.
+     */
+    soundchartsScore?: {
+      items?: Array<{
+        date?: string;
+        fanbaseScore?: number;
+        trendingScore?: number;
+      }>;
+    } | null;
+    /**
+     * Current Spotify playlist placements. Every item names its host
+     * playlist and the song's position/entry. Fail-open on all fields.
+     */
+    playlistCurrent?: {
+      items?: Array<{
+        playlist?: {
+          name?: string;
+          type?: string;
+          countryCode?: string;
+          latestSubscriberCount?: number;
+          latestTrackCount?: number;
+        };
+        position?: number;
+        peakPosition?: number;
+        entryDate?: string;
+      }>;
+    } | null;
+    /** Current chart entries — empty for songs that never charted. */
+    chartsRanks?: {
+      items?: Array<{
+        chart?: {
+          name?: string;
+          countryCode?: string;
+          countryName?: string;
+          cityName?: string;
+          frequency?: string;
+        };
+        position?: number;
+        peakPosition?: number;
+        positionEvolution?: number;
+        timeOnChart?: number;
+        timeOnChartUnit?: string;
+        current?: boolean;
+      }>;
+    } | null;
+    /** Radio broadcast events — empty for songs without radio pickup. */
+    broadcasts?: {
+      items?: Array<{
+        airedAt?: string;
+        radio?: {
+          name?: string;
+          countryCode?: string;
+          countryName?: string;
+          cityName?: string;
+        };
+      }>;
+    } | null;
   };
 
   /** OPTIONAL USER TRUTH — what the creator said. Outranks any inference. */
@@ -154,21 +265,66 @@ export const RHODES_MODEL = "claude-sonnet-4-5";
 const MAX_ATTEMPTS = 2;
 const MAX_TOKENS = 2000;
 
+/**
+ * Build the FindingsInput this generation should reason from. Pure — the same
+ * input always produces the same findings. Exported so tests and the resolver
+ * can pre-compute or inspect what Rhodes will see.
+ */
+export function findingsInputFor(
+  input: SongIntelligenceInput,
+): FindingsInput {
+  const c = input.context;
+  const extras = c?.audioExtras;
+  return {
+    dimensions: input.engine.dimensions,
+    epiScore: input.engine.epiScore,
+    mode: input.engine.mode,
+    arousal: input.engine.arousal,
+    valence: input.engine.valence,
+    genres: c?.genres,
+    christianTradition: c?.christianContext?.tradition ?? null,
+    audio: extras
+      ? {
+          instrumentalness: c?.instrumentalness,
+          speechiness: extras.speechiness,
+          acousticness: extras.acousticness,
+          tempo: extras.tempo,
+          energy: extras.energy,
+          liveness: extras.liveness,
+        }
+      : typeof c?.instrumentalness === "number"
+        ? { instrumentalness: c.instrumentalness }
+        : undefined,
+    lyricsAnalysis: c?.lyricsAnalysis ?? null,
+    soundchartsScore: c?.soundchartsScore ?? null,
+    playlistCurrent: c?.playlistCurrent ?? null,
+    chartsRanks: c?.chartsRanks ?? null,
+    broadcasts: c?.broadcasts ?? null,
+  };
+}
+
 /** Which governor rules this input's supplied facts unlock. */
 export function auditContextFor(input: SongIntelligenceInput): AuditContext {
   const c = input.context;
+  // Findings that carry OBSERVED_MARKET evidence explicitly unlock the
+  // market-claim / audience-behaviour rules. Nothing else does.
+  const findings = deriveFindings(findingsInputFor(input));
+  const unlocks = unlocksFrom(findings);
   return {
-    hasTempo: typeof c?.bpm === "number",
+    hasTempo: typeof c?.bpm === "number" || unlocks.has("invented-tempo"),
     hasKey: typeof c?.key === "string" && c.key.length > 0,
     hasGenre: Array.isArray(c?.genres) && c!.genres!.length > 0,
     hasComparableArtists:
       Array.isArray(c?.comparableArtists) && c!.comparableArtists!.length > 0,
     hasCorpusRanking:
       Boolean(c?.percentileCorpus) || Boolean(c?.percentileMode),
-    // The engine supplies no behavioural events and no temporal structure.
-    // These stay false until a source actually provides them.
-    hasObservedBehaviour: false,
+    // The engine supplies no behavioural events and no temporal structure —
+    // unless a market finding was supplied, in which case Rhodes is permitted
+    // to name what that finding EXPLICITLY carries. He may not extrapolate
+    // beyond it; the governor still catches unsupported specifics.
+    hasObservedBehaviour: unlocks.has("audience-behaviour"),
     hasStructure: false,
+    hasMarketEvidence: unlocks.has("market-claim"),
     // The Christian-context gate. True only when trusted Soundcharts genre
     // metadata clearly named a Christian tradition; the governor uses this
     // to permit AT MOST one restrained contextual sentence, and to reject
@@ -205,9 +361,16 @@ export function factSheetFor(input: SongIntelligenceInput): FactSheet {
  * Written as labelled classes rather than one JSON blob so the model reads
  * ownership as part of the data. DERIVED RELATIONSHIPS is computed here, not
  * asked for: the model should spend its capacity on meaning, not subtraction.
+ *
+ * FINDINGS is the new block: an intelligence layer that runs BEFORE the model
+ * and hands it a ranked, provenance-tagged set of observations. The model's
+ * job is to make those findings human, never to invent new ones. Everything
+ * outside the FINDINGS block remains the same — Rhodes still uses the
+ * ENGINE FACTS and DERIVED RELATIONSHIPS to characterise the profile.
  */
 export function buildUserMessage(input: SongIntelligenceInput): string {
   const rel = deriveRelationships(input.engine.dimensions);
+  const findings = deriveFindings(findingsInputFor(input));
 
   const engineFacts: Record<string, unknown> = {
     epi_score: input.engine.epiScore,
@@ -235,6 +398,7 @@ export function buildUserMessage(input: SongIntelligenceInput): string {
       .join("\n")}\n\nAll pairwise gaps, widest first:\n${rel.pairs
       .map((p) => `- ${p.higher} over ${p.lower}: ${p.gap}`)
       .join("\n")}`,
+    renderFindingsForPrompt(findings),
   ];
 
   const context = input.context ?? {};

@@ -71,6 +71,101 @@ export interface AnalysisFacts {
   comparableArtists?: string[];
 
   /**
+   * Extra audio fields from the by-isrc payload that DO NOT influence
+   * scoring or EPI — they only widen what the intelligence layer can
+   * characterise. Every field optional; each is silently dropped upstream
+   * if absent, so nothing here is ever speculative.
+   */
+  audioExtras?: {
+    speechiness?: number;
+    acousticness?: number;
+    tempo?: number;
+    energy?: number;
+    liveness?: number;
+  };
+
+  /**
+   * Soundcharts /lyrics-analysis payload if the account tier returns it.
+   * Scores are 1-10 (verified against the production tier). Null / absent
+   * means "no lyric analysis returned"; the intelligence layer emits no
+   * semantic finding in that case. Never inferred.
+   */
+  lyricsAnalysis?: {
+    themes?: string[];
+    moods?: string[];
+    emotionalIntensityScore?: number;
+    imageryScore?: number;
+    complexityScore?: number;
+    rhymeSchemeScore?: number;
+    repetitivenessScore?: number;
+    narrativeStyle?: string;
+    culturalReferencePeople?: string[];
+    culturalReferenceNonPeople?: string[];
+    brands?: string[];
+    locations?: string[];
+  } | null;
+
+  /**
+   * Soundcharts proprietary weekly score series (fanbase + trending).
+   * Present when the tier returned it.
+   */
+  soundchartsScore?: {
+    items?: Array<{
+      date?: string;
+      fanbaseScore?: number;
+      trendingScore?: number;
+    }>;
+  } | null;
+
+  /** Current Spotify playlist placements — sanitized to only the fields the extractor reads. */
+  playlistCurrent?: {
+    items?: Array<{
+      playlist?: {
+        name?: string;
+        type?: string;
+        countryCode?: string;
+        latestSubscriberCount?: number;
+        latestTrackCount?: number;
+      };
+      position?: number;
+      peakPosition?: number;
+      entryDate?: string;
+    }>;
+  } | null;
+
+  /** Current chart entries — empty for songs that never charted. */
+  chartsRanks?: {
+    items?: Array<{
+      chart?: {
+        name?: string;
+        countryCode?: string;
+        countryName?: string;
+        cityName?: string;
+        frequency?: string;
+      };
+      position?: number;
+      peakPosition?: number;
+      positionEvolution?: number;
+      timeOnChart?: number;
+      timeOnChartUnit?: string;
+      current?: boolean;
+    }>;
+  } | null;
+
+  /** Radio broadcast events (sanitized to name / country / city per station). */
+  broadcasts?: {
+    items?: Array<{
+      airedAt?: string;
+      radio?: {
+        name?: string;
+        countryCode?: string;
+        countryName?: string;
+        cityName?: string;
+      };
+    }>;
+  } | null;
+
+  /**
    * The Christian / Worship / Gospel / CCM lens. Populated by the resolver
    * from Soundcharts genre metadata only. Never inferred from artist name,
    * song title, audio profile, or CHRP measurements.
@@ -112,6 +207,14 @@ export function factsToRhodesInput(
   if (typeof facts.instrumentalness === "number")
     context.instrumentalness = facts.instrumentalness;
   if (facts.christianContext) context.christianContext = facts.christianContext;
+  if (facts.audioExtras && Object.keys(facts.audioExtras).length > 0) {
+    context.audioExtras = facts.audioExtras;
+  }
+  if (facts.lyricsAnalysis) context.lyricsAnalysis = facts.lyricsAnalysis;
+  if (facts.soundchartsScore) context.soundchartsScore = facts.soundchartsScore;
+  if (facts.playlistCurrent) context.playlistCurrent = facts.playlistCurrent;
+  if (facts.chartsRanks) context.chartsRanks = facts.chartsRanks;
+  if (facts.broadcasts) context.broadcasts = facts.broadcasts;
 
   return {
     identity: { title: facts.title, artist: facts.artist },
