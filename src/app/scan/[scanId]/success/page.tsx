@@ -4,6 +4,7 @@ import { getStripe, stripeConfigured } from "@/lib/commerce/stripe";
 import { assertReportAccess } from "@/lib/commerce/entitlements";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { RebindOnSuccess } from "@/components/scan/RebindOnSuccess";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +15,12 @@ export const dynamic = "force-dynamic";
  * page verifies that session against the Stripe API — but verification is
  * NOT a grant. Entitlement comes from the signed webhook and nothing else.
  *
- * So there are three outcomes:
- *   entitled           -> straight to the report
- *   paid, not yet in DB -> a short, honest processing state (webhook in flight)
- *   not paid / unknown  -> back to the reveal, nothing unlocked
- *
- * A forged or replayed session_id therefore buys nothing: it cannot create
- * an entitlement row, and the report route reads only the database.
+ * When the caller's cookie identity does not own the paid entitlement — a
+ * cleared cookie, a different browser, an expired anonymous JWT — the client
+ * island below establishes an identity and calls /api/scan/rebind, which
+ * moves the entitlement to the current caller against Stripe's own
+ * confirmation of payment. The Stripe session id in the URL is the proof
+ * that this caller is the one who just paid.
  */
 export default async function CheckoutSuccessPage({
   params,
@@ -30,18 +30,14 @@ export default async function CheckoutSuccessPage({
   searchParams: { session_id?: string };
 }) {
   const { scanId } = params;
+  const sessionId = searchParams.session_id;
 
-  // If the webhook has already landed, skip the interstitial entirely.
+  // If the webhook has already landed AND we already own it, skip the
+  // interstitial entirely.
   const access = await assertReportAccess(scanId);
-  // The webhook normally lands in a couple of seconds, so this redirect is
-  // the real post-payment path. `paid=1` is what lets the preparing state
-  // acknowledge the payment before the report exists — without it the
-  // creator went straight into a silent thirty-second generation.
   if (access.ok) redirect(`/scan/${scanId}/preview?paid=1`);
 
-  const sessionId = searchParams.session_id;
   let paidButPending = false;
-
   if (sessionId && stripeConfigured()) {
     try {
       const session = await getStripe().checkout.sessions.retrieve(sessionId);
@@ -79,9 +75,14 @@ export default async function CheckoutSuccessPage({
                   This page does not need to stay open. Your access is tied to
                   your account, not to this tab.
                 </p>
-                {/* Refresh rather than poll: the redirect above fires the
-                    moment the webhook-written entitlement is readable. */}
-                <meta httpEquiv="refresh" content="4" />
+                {/* The client island below establishes an identity and asks
+                    the server to rebind the entitlement. When it lands, it
+                    navigates to /preview. The meta-refresh is the fallback
+                    for a browser that cannot run scripts. */}
+                <RebindOnSuccess scanId={scanId} sessionId={sessionId!} />
+                <noscript>
+                  <meta httpEquiv="refresh" content="4" />
+                </noscript>
               </>
             ) : (
               <>
