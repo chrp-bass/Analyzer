@@ -41,6 +41,9 @@ interface Body {
   sessionId?: unknown;
 }
 
+/** How long after Stripe created the Checkout Session a rebind is allowed. */
+const REBIND_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 export async function POST(req: Request) {
   if (!stripeConfigured() || !adminConfigured()) {
     return NextResponse.json({ error: "unavailable" }, { status: 503 });
@@ -87,7 +90,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "session_not_found" }, { status: 404 });
   }
 
-  if (session.payment_status !== "paid") {
+  // Defense in depth: session must be paid AND complete (not open/expired)
+  // AND recent AND name this scan under the correct offer.
+  if (session.payment_status !== "paid" || session.status !== "complete") {
     return NextResponse.json(
       { error: "session_not_paid", status: session.payment_status },
       { status: 409 },
@@ -105,7 +110,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "wrong_offer" }, { status: 409 });
   }
 
+  // Time-window guard: refuse rebind for an old session. A leaked success
+  // URL from months ago cannot be replayed against an established creator.
+  const createdMs = (session.created ?? 0) * 1000;
+  if (!createdMs || Date.now() - createdMs > REBIND_WINDOW_MS) {
+    return NextResponse.json(
+      { error: "session_too_old" },
+      { status: 409 },
+    );
+  }
+
   const db = createAdminClient();
+
+  // Identity guardrails on both sides of the rebind.
+  const originalOwner =
+    typeof meta.user_id === "string"
+      ? meta.user_id
+      : (session.client_reference_id ?? null);
+  if (originalOwner && originalOwner !== userId) {
+    const { data: origData } = await db.auth.admin.getUserById(originalOwner);
+    const origUser = origData?.user;
+    // Paying user has a durable identity — refuse. Recovery is via email.
+    if (origUser && origUser.is_anonymous === false && origUser.email) {
+      return NextResponse.json(
+        { error: "payer_has_email_identity" },
+        { status: 409 },
+      );
+    }
+    const { data: callerData } = await db.auth.admin.getUserById(userId);
+    const callerUser = callerData?.user;
+    if (callerUser && callerUser.is_anonymous === false && callerUser.email) {
+      const stripeEmail =
+        session.customer_details?.email?.toLowerCase() ?? null;
+      if (
+        !stripeEmail ||
+        stripeEmail !== callerUser.email.toLowerCase()
+      ) {
+        return NextResponse.json(
+          { error: "caller_identity_mismatch" },
+          { status: 409 },
+        );
+      }
+    }
+  }
 
   // Is there already an entitlement for this exact Stripe session?
   const { data: bySession } = await db

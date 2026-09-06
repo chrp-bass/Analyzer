@@ -136,7 +136,32 @@ export default async function CheckoutSuccessPage({
  * This is the only place on the read side that mutates entitlement.user_id
  * or analyses.creator_id, and it always requires a Stripe session Stripe
  * itself confirmed as paid for this scan.
+ *
+ * Guardrails (defense in depth beyond the Stripe signature the caller
+ * cannot forge):
+ *
+ *   1. Session must be `payment_status = "paid"` AND `status = "complete"`
+ *      AND `metadata.scan_id` must equal the URL scan (checked by the
+ *      caller).
+ *   2. Session must be recent (createdAt within REBIND_WINDOW_MS). A
+ *      leaked success URL from long ago cannot be replayed to steal an
+ *      established creator's catalog.
+ *   3. Paying user must still be anonymous. Once they upgrade to a
+ *      confirmed email their identity is durable — the recovery path is
+ *      email sign-in, not a URL. This is the strongest defense against a
+ *      leaked success URL being used against a real, upgraded creator.
+ *   4. If the current caller is a DIFFERENT confirmed-email user, refuse.
+ *      One confirmed creator cannot sweep another creator's paid catalog
+ *      into their own with a success URL.
+ *
+ * The narrow legitimate case this covers: an anonymous buyer who lost
+ * their session cookie between paying and returning. Every other case
+ * either resolves silently (already bound) or is refused.
  */
+
+/** How long after Stripe created the Checkout Session a rebind is allowed. */
+const REBIND_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 async function ensureEntitlementForCaller(
   scanId: string,
   session: Stripe.Checkout.Session,
@@ -149,11 +174,61 @@ async function ensureEntitlementForCaller(
   const offerKey = session.metadata?.offer;
   if (!isOfferKey(offerKey) || offerKey !== "song_intelligence") return;
 
+  // Guardrail: Stripe session must be complete, not merely open or expired.
+  // payment_status was already verified by the caller.
+  if (session.status !== "complete") return;
+
+  // Guardrail: session must be recent. A rebind of an old paid session is
+  // exactly the pattern of a leaked URL being replayed against an
+  // established creator.
+  const createdMs = (session.created ?? 0) * 1000;
+  if (!createdMs || Date.now() - createdMs > REBIND_WINDOW_MS) {
+    console.error(
+      `[success] rebind refused: session ${session.id} is older than the ${REBIND_WINDOW_MS}ms window`,
+    );
+    return;
+  }
+
   const db = createAdminClient();
   const originalOwner =
     typeof session.metadata?.user_id === "string"
       ? session.metadata.user_id
       : (session.client_reference_id ?? null);
+
+  // Guardrails 3 & 4: check auth state of both the paying user and the
+  // current caller.
+  if (originalOwner && originalOwner !== userId) {
+    const { data: origData } = await db.auth.admin.getUserById(originalOwner);
+    const origUser = origData?.user;
+    // Paying user has a durable identity — refuse. They recover via email.
+    if (origUser && origUser.is_anonymous === false && origUser.email) {
+      console.error(
+        `[success] rebind refused: paying user ${originalOwner} is upgraded (has confirmed email); use email recovery instead`,
+      );
+      return;
+    }
+
+    const { data: callerData } = await db.auth.admin.getUserById(userId);
+    const callerUser = callerData?.user;
+    // Current caller is a different confirmed-email user — refuse. One
+    // confirmed creator cannot claim another's paid catalog with a URL.
+    if (callerUser && callerUser.is_anonymous === false && callerUser.email) {
+      // Only permitted when the caller's confirmed email exactly matches
+      // the email Stripe captured on the session (the buyer signing in
+      // afterwards on a fresh device).
+      const stripeEmail =
+        session.customer_details?.email?.toLowerCase() ?? null;
+      if (
+        !stripeEmail ||
+        stripeEmail !== callerUser.email.toLowerCase()
+      ) {
+        console.error(
+          `[success] rebind refused: caller ${userId} is a different confirmed identity than the payer`,
+        );
+        return;
+      }
+    }
+  }
 
   const { data: bySession } = await db
     .from("entitlements")
