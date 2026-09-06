@@ -119,8 +119,12 @@ export async function POST(req: Request) {
 
   if (existing) {
     if (existing.user_id === userId) {
+      // Cover the case where entitlement is already ours but the persistence
+      // rows lag behind (a partial rebind from a previous attempt).
+      await rebindPersistence(db, existing.user_id, userId, scanId);
       return NextResponse.json({ status: "already_bound" });
     }
+    const previousOwner = existing.user_id;
     // Rebind. The one place we mutate user_id — and we do it only against
     // Stripe's confirmation that this session was paid and names this scan.
     const { error: updateError } = await db
@@ -134,8 +138,12 @@ export async function POST(req: Request) {
       );
       return NextResponse.json({ error: "rebind_failed" }, { status: 500 });
     }
+    // The persisted analysis, song and report all filter on creator_id.
+    // Without moving them the paid entitlement resolves but the report is
+    // "unavailable" — access with nothing to serve.
+    await rebindPersistence(db, previousOwner, userId, scanId);
     console.error(
-      `[api/scan/rebind] rebound entitlement ${existing.id} from ${existing.user_id} to ${userId} (session ${session.id}, scan ${scanId})`,
+      `[api/scan/rebind] rebound entitlement ${existing.id} from ${previousOwner} to ${userId} (session ${session.id}, scan ${scanId})`,
     );
     return NextResponse.json({ status: "rebound" });
   }
@@ -181,10 +189,12 @@ export async function POST(req: Request) {
         .limit(1);
       const row = retry?.[0] as { id: string; user_id: string } | undefined;
       if (row && row.user_id !== userId) {
+        const previousOwner = row.user_id;
         await db
           .from("entitlements")
           .update({ user_id: userId })
           .eq("id", row.id);
+        await rebindPersistence(db, previousOwner, userId, scanId);
         return NextResponse.json({ status: "rebound" });
       }
       return NextResponse.json({ status: "already_bound" });
@@ -200,4 +210,103 @@ export async function POST(req: Request) {
     `[api/scan/rebind] created entitlement for ${userId} (session ${session.id}, scan ${scanId})`,
   );
   return NextResponse.json({ status: "created" });
+}
+
+/**
+ * Move the persisted analysis, song and report for `scanId` from
+ * `previousOwner` to `newOwner`.
+ *
+ * These rows are what `resolveEntitledReport` reads to answer the paid GET
+ * — an entitlement alone is not enough, because the report generator needs
+ * a completed analysis row filtered by creator_id. When the current caller
+ * already holds their own analysis for this scan (an unusual edge case
+ * where the same fresh anon session had already re-run the scan), the
+ * previous rows are left where they are and the current caller's rows win
+ * naturally.
+ */
+async function rebindPersistence(
+  db: ReturnType<typeof createAdminClient>,
+  previousOwner: string,
+  newOwner: string,
+  scanId: string,
+): Promise<void> {
+  if (previousOwner === newOwner) return;
+
+  // Does the new owner already have an analysis for this scan? If so, do
+  // not move the old one — updating creator_id would collide on the
+  // (creator_id, scan_id) unique index and their own rows already resolve.
+  const { data: newerRows } = await db
+    .from("analyses")
+    .select("id")
+    .eq("creator_id", newOwner)
+    .eq("scan_id", scanId)
+    .limit(1);
+  if (newerRows && newerRows.length > 0) return;
+
+  const { data: prevRows } = await db
+    .from("analyses")
+    .select("id,song_id")
+    .eq("creator_id", previousOwner)
+    .eq("scan_id", scanId)
+    .limit(1);
+  const prev = prevRows?.[0] as { id: string; song_id: string } | undefined;
+  if (!prev) return;
+
+  // Move the song first — songs.creator_id is what songs_creator_track_key
+  // is unique on, and analyses references songs.id. If the new owner already
+  // owns the underlying song (same track_key), skip the song move; the
+  // analysis will still be moved and point at the existing song.
+  const { data: songRow } = await db
+    .from("songs")
+    .select("id,creator_id,track_key")
+    .eq("id", prev.song_id)
+    .limit(1);
+  const song = songRow?.[0] as
+    | { id: string; creator_id: string; track_key: string }
+    | undefined;
+
+  if (song && song.creator_id === previousOwner) {
+    const { data: dup } = await db
+      .from("songs")
+      .select("id")
+      .eq("creator_id", newOwner)
+      .eq("track_key", song.track_key)
+      .limit(1);
+    if (!dup || dup.length === 0) {
+      const { error: songErr } = await db
+        .from("songs")
+        .update({ creator_id: newOwner })
+        .eq("id", song.id);
+      if (songErr) {
+        console.error(
+          `[api/scan/rebind] song rebind failed (song ${song.id}):`,
+          songErr,
+        );
+      }
+    }
+  }
+
+  const { error: analysisErr } = await db
+    .from("analyses")
+    .update({ creator_id: newOwner })
+    .eq("id", prev.id);
+  if (analysisErr) {
+    console.error(
+      `[api/scan/rebind] analysis rebind failed (analysis ${prev.id}):`,
+      analysisErr,
+    );
+  }
+
+  // Move the persisted report if one exists.
+  const { error: reportErr } = await db
+    .from("reports")
+    .update({ creator_id: newOwner })
+    .eq("creator_id", previousOwner)
+    .eq("scan_id", scanId);
+  if (reportErr) {
+    console.error(
+      `[api/scan/rebind] report rebind failed (scan ${scanId}):`,
+      reportErr,
+    );
+  }
 }
