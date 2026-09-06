@@ -2,6 +2,7 @@ import { ReportPayload, ScoreRow } from "@/lib/fixtures/tracks";
 import { EpiPlate } from "@/components/EpiPlate";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportOwnership } from "@/components/report/ReportOwnership";
+import { RhodesVoice } from "@/components/report/RhodesVoice";
 
 /**
  * The paid Song Intelligence report — locked design (Deliverable 09).
@@ -84,6 +85,14 @@ export function ReportBody({
 
       {/* The interpretation, after the position. CHRP is the voice. */}
       <CHRPReading text={report.rhodes} />
+
+      {/* Dr. Rhodes speaks. A short personalised read, then — if the creator
+          wants it — a conversation. The panel bridges the top summary to the
+          deep-dive evidence below; nothing is auto-played and nothing is
+          coerced. The signed-URL route enforces the same entitlement the
+          JSON report route does, so this only appears for creators who
+          actually own this scan's paid report. */}
+      <RhodesVoice scanId={id} />
 
       {/* 02 — the coordinate in full. */}
       <MovementHeading
