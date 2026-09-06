@@ -120,8 +120,17 @@ export async function POST(req: Request) {
   if (existing) {
     if (existing.user_id === userId) {
       // Cover the case where entitlement is already ours but the persistence
-      // rows lag behind (a partial rebind from a previous attempt).
-      await rebindPersistence(db, existing.user_id, userId, scanId);
+      // rows lag behind (a partial rebind from a previous attempt). The
+      // Stripe session metadata carries the ORIGINAL paying user_id, which
+      // is the row we need to move from — we cannot recover that from the
+      // entitlement any more, because it now belongs to us.
+      const originalOwner =
+        typeof session.metadata?.user_id === "string"
+          ? session.metadata.user_id
+          : (session.client_reference_id ?? null);
+      if (originalOwner && originalOwner !== userId) {
+        await rebindPersistence(db, originalOwner, userId, scanId);
+      }
       return NextResponse.json({ status: "already_bound" });
     }
     const previousOwner = existing.user_id;
