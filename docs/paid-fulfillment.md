@@ -38,10 +38,37 @@ lease timing.
 
 | Function | Role |
 |---|---|
-| `claim_report_lease(creator, scan, worker, version, stale_seconds)` | Atomic acquire-or-takeover. `INSERT … ON CONFLICT DO UPDATE … WHERE claimed_at < now() - interval` mints a new token and `fence+1` on a stale lease; a fresh conflicting lease makes the `WHERE` false → 0 rows → HELD. A complete current-version report short-circuits to "ready". |
+| `claim_report_lease(creator, scan, worker, version, stale_seconds)` | Atomic acquire-or-takeover. `INSERT … ON CONFLICT DO UPDATE … WHERE claimed_at < now() - interval` mints a new token and `fence+1` on a stale lease; a fresh conflicting lease makes the `WHERE` false → 0 rows → HELD. A complete current-version report short-circuits to "ready", **and after acquiring it re-checks** for a report a completer committed while it was blocked (see race 2 below). |
 | `renew_report_lease(creator, scan, worker, token)` | Heartbeat. `UPDATE … SET claimed_at = now() WHERE worker & lease_token match`; 0 rows ⇒ lease lost. |
-| `complete_report(creator, scan, worker, token, analysis, payload, version, model)` | **One transaction:** ownership check → `UPSERT reports` → `DELETE` this lease. Ownership lost ⇒ returns `ok=false`, writes nothing. No unfenced upsert-then-delete. |
+| `complete_report(creator, scan, worker, token, analysis, payload, version, model)` | **One transaction:** ownership+version validated under `SELECT … FOR UPDATE` (see race 1 below) → `UPSERT reports` → `DELETE` this lease. Ownership lost ⇒ returns `ok=false`, writes nothing. No unfenced upsert-then-delete. |
 | `release_report_lease(creator, scan, worker, token)` | Fenced delete of the caller's own failed-attempt lease. |
+
+### Two transaction races, and how they are closed
+
+**Race 1 — takeover between ownership check and write.** An earlier draft
+validated ownership with an unlocked `IF EXISTS`, so a takeover could interpose
+between the check and the `UPSERT`, letting a superseded worker overwrite the
+successor's report. `complete_report` now takes a row lock —
+`SELECT … FOR UPDATE` on the matching `(worker, lease_token, version)` lease —
+and holds it through the write. A concurrent `claim_report_lease` takeover of
+the same row blocks until completion commits; if a takeover already won, the row
+no longer matches and `FOUND` is false, so nothing is written.
+
+**Race 2 — completion committing after a claimant's pre-check.** The pre-check
+runs on an earlier snapshot, so a claimant blocked behind an in-flight
+completion could acquire a fresh lease just as the report was committed.
+`claim_report_lease` therefore **re-checks after acquiring**: if a complete
+current-version report now exists (a fresh snapshot under READ COMMITTED sees the
+committed row), it releases the just-acquired lease and returns READY — the
+claimant does no upstream work.
+
+Both are proven against **real PostgreSQL** (two concurrent connections, actual
+`FOR UPDATE` blocking) in `tests/report-claims-pg.test.ts`, which loads the
+shipped function bodies and reproduces: claimant blocked behind completion,
+takeover racing completion, completion after ownership check, and report
+committed while the claimant waits. (The suite self-skips if Postgres cannot be
+started; the SQL-text assertions in `paid-fulfillment-prepare.test.ts` still run
+everywhere.)
 
 ### `prepareReport(userId, scanId)` sequence
 

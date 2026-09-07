@@ -175,8 +175,9 @@ export class InMemoryReportStore implements ReportStore {
     }
 
     const existing = this.findClaim(input.userId, input.scanId);
+    let rec: ClaimRecord;
     if (!existing) {
-      const rec = this.seedClaim({
+      rec = this.seedClaim({
         creatorId: input.userId,
         scanId: input.scanId,
         worker: input.worker,
@@ -184,24 +185,34 @@ export class InMemoryReportStore implements ReportStore {
         claimedAt: this.dbNow(),
       });
       this.claimAcquisitions += 1;
-      return { outcome: "acquired", lease: { worker: rec.worker, token: rec.token, fence: rec.fence } };
+    } else {
+      const ageMs = this.dbNow().getTime() - existing.claimedAt.getTime();
+      if (ageMs < input.staleAfterMs) {
+        return { outcome: "held", startedAt: existing.claimedAt };
+      }
+      // Stale lease: take it over with a NEW token and a higher fence.
+      existing.worker = input.worker;
+      existing.token = `tok_${++tokenSeq}`;
+      existing.fence += 1;
+      existing.reportVersion = input.generatorVersion;
+      existing.claimedAt = this.dbNow();
+      this.claimAcquisitions += 1;
+      rec = existing;
     }
 
-    const ageMs = this.dbNow().getTime() - existing.claimedAt.getTime();
-    if (ageMs < input.staleAfterMs) {
-      return { outcome: "held", startedAt: existing.claimedAt };
+    // Recheck-after-acquire, mirroring claim_report_lease: a completer may
+    // have committed a complete current report while this claim was blocked.
+    // If so, release the just-acquired lease and return READY. (In this
+    // synchronous model nothing interleaves, so this is a no-op unless a
+    // complete report already exists — but it keeps the contract identical to
+    // the SQL that the real-Postgres tests exercise.)
+    const after = this.findReport(input.userId, input.scanId);
+    if (after && isCompletePaidPayload(after.payload) && after.generatorVersion === input.generatorVersion) {
+      this.claims = this.claims.filter((c) => c !== rec);
+      return { outcome: "ready", report: this.toReport(after) };
     }
-    // Stale lease: take it over with a NEW token and a higher fence.
-    existing.worker = input.worker;
-    existing.token = `tok_${++tokenSeq}`;
-    existing.fence += 1;
-    existing.reportVersion = input.generatorVersion;
-    existing.claimedAt = this.dbNow();
-    this.claimAcquisitions += 1;
-    return {
-      outcome: "acquired",
-      lease: { worker: existing.worker, token: existing.token, fence: existing.fence },
-    };
+
+    return { outcome: "acquired", lease: { worker: rec.worker, token: rec.token, fence: rec.fence } };
   }
 
   async renewClaim(userId: string, scanId: string, lease: Lease): Promise<RenewOutcome> {

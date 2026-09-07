@@ -83,6 +83,10 @@ create or replace function claim_report_lease(
 language plpgsql
 set search_path = pg_catalog, public, extensions
 as $$
+declare
+  v_token   uuid;
+  v_fence   bigint;
+  v_claimed timestamptz;
 begin
   -- Input validation.
   if p_creator is null
@@ -93,7 +97,8 @@ begin
     raise exception 'claim_report_lease: invalid arguments';
   end if;
 
-  -- A complete report on the current version already exists → nobody claims.
+  -- Pre-check: a complete report on the current version already exists →
+  -- nobody claims.
   if exists (
     select 1 from reports r
     where r.creator_id = p_creator
@@ -113,7 +118,6 @@ begin
   -- row is updated or returned (zero rows → held); a stale one is taken over
   -- with a NEW token and fence+1. Concurrent takeovers serialise on the row
   -- lock: the second re-evaluates the WHERE against the refreshed row.
-  return query
   insert into report_claims as rc (creator_id, scan_id, worker, lease_token, fence, report_version, claimed_at)
   values (p_creator, p_scan, p_worker, gen_random_uuid(), 1, p_version, now())
   on conflict (creator_id, scan_id) do update
@@ -123,7 +127,41 @@ begin
         report_version = excluded.report_version,
         claimed_at = now()
     where rc.claimed_at < now() - make_interval(secs => p_stale_seconds)
-  returning true, rc.lease_token, rc.fence, rc.claimed_at;
+  returning rc.lease_token, rc.fence, rc.claimed_at
+  into v_token, v_fence, v_claimed;
+
+  -- Zero rows (a FRESH lease is held by someone else) → held; poll.
+  if v_token is null then
+    return; -- empty result set
+  end if;
+
+  -- RE-CHECK after acquiring. The pre-check ran on an earlier snapshot; a
+  -- completer may have COMMITTED a complete report for this version while our
+  -- INSERT/takeover was blocked behind its row lock. If a complete report now
+  -- exists, RELEASE the lease we just took and return READY — no upstream work
+  -- is done. Each statement here runs on a fresh snapshot under READ
+  -- COMMITTED, so this observes the completer's committed row.
+  if exists (
+    select 1 from reports r
+    where r.creator_id = p_creator
+      and r.scan_id = p_scan
+      and r.generator_version = p_version
+      and coalesce(r.payload->>'signature', '') <> ''
+      and coalesce(r.payload->>'rhodes', '') <> ''
+      and coalesce(r.payload->>'throughline', '') <> ''
+      and jsonb_typeof(r.payload->'placements') = 'array'
+      and jsonb_array_length(r.payload->'placements') > 0
+  ) then
+    delete from report_claims
+     where creator_id = p_creator
+       and scan_id = p_scan
+       and worker = p_worker
+       and lease_token = v_token;
+    return query select false, null::uuid, null::bigint, null::timestamptz;
+    return;
+  end if;
+
+  return query select true, v_token, v_fence, v_claimed;
 end;
 $$;
 
@@ -193,16 +231,21 @@ begin
     raise exception 'complete_report: invalid arguments';
   end if;
 
-  -- Fenced ownership AND version, checked inside the transaction. A superseded
-  -- worker, or a lease claimed under a different version, matches nothing.
-  if not exists (
-    select 1 from report_claims
-    where creator_id = p_creator
-      and scan_id = p_scan
-      and worker = p_worker
-      and lease_token = p_token
-      and report_version = p_version
-  ) then
+  -- Fenced ownership AND version, LOCKED for the rest of the transaction.
+  -- SELECT … FOR UPDATE takes a row lock on the matching lease so a concurrent
+  -- claim_report_lease takeover of the same row BLOCKS until this transaction
+  -- commits — closing the window between validating ownership and writing the
+  -- report. If a takeover already won, the row no longer matches this
+  -- (worker, token, version) and FOUND is false, so nothing is written.
+  perform 1
+    from report_claims
+   where creator_id = p_creator
+     and scan_id = p_scan
+     and worker = p_worker
+     and lease_token = p_token
+     and report_version = p_version
+   for update;
+  if not found then
     return query select false, null::uuid;
     return;
   end if;
