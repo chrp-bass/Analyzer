@@ -277,23 +277,134 @@ export type ClaimOutcome =
   | "not_eligible"
   | "unavailable";
 
+/**
+ * How long the browser will wait on a preparation another request is
+ * running before giving up. Generation with the governor's retry finishes
+ * well inside this; the ceiling only exists so a dead worker cannot hold a
+ * tab forever.
+ */
+const PREPARE_POLL_MS = 2_500;
+const PREPARE_MAX_WAIT_MS = 5 * 60 * 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export async function claimFirstReport(
   scanId: string,
 ): Promise<ClaimOutcome> {
+  const deadline = Date.now() + PREPARE_MAX_WAIT_MS;
   try {
-    const res = await fetch("/api/scan/claim", {
+    // The server prepares the complete report before it grants. 202 means
+    // another request is generating it right now; ask again shortly — the
+    // claim is idempotent and joins that preparation rather than starting
+    // a second one.
+    for (;;) {
+      const res = await fetch("/api/scan/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId }),
+        cache: "no-store",
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        status?: ClaimOutcome | "preparing";
+      };
+      if (res.status === 202 || body.status === "preparing") {
+        if (Date.now() > deadline) return "unavailable";
+        await sleep(PREPARE_POLL_MS);
+        continue;
+      }
+      if (!res.ok) return "unavailable";
+      return (body.status as ClaimOutcome | undefined) ?? "unavailable";
+    }
+  } catch {
+    return "unavailable";
+  }
+}
+
+// ─── Preparing the paid report ─────────────────────────────────────────────
+
+/** Readiness metadata. Carries no report content. */
+export interface ReportReadiness {
+  reportId: string;
+  reportVersion: string;
+}
+
+export type PrepareOutcome =
+  | { status: "ready"; readiness: ReportReadiness }
+  | { status: "failed"; message: string };
+
+/**
+ * Ask the server to prepare the complete paid report for a scan, and wait
+ * for it. Nothing is charged here — this is what makes checkout possible.
+ *
+ * Analysis, enrichments, the Christian context gate, the governed Rhodes
+ * text and persistence all run on the server. The browser only learns
+ * whether the report is ready and which one it is, so it can bind the
+ * checkout to that exact report. Refreshing, a second tab or a retry joins
+ * the preparation in flight; nothing is generated twice.
+ */
+export async function prepareReport(scanId: string): Promise<PrepareOutcome> {
+  const deadline = Date.now() + PREPARE_MAX_WAIT_MS;
+  const generic =
+    "We can't prepare this report right now, so we haven't taken any payment. Please try again shortly.";
+
+  type Body = {
+    status?: string;
+    reportId?: string;
+    reportVersion?: string;
+    message?: string;
+  };
+  const readyFrom = (b: Body): PrepareOutcome | null =>
+    b.status === "ready" && b.reportId && b.reportVersion
+      ? {
+          status: "ready",
+          readiness: { reportId: b.reportId, reportVersion: b.reportVersion },
+        }
+      : null;
+
+  try {
+    // Start (or join) the preparation.
+    let res = await fetch("/api/scan/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scanId }),
       cache: "no-store",
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      status?: ClaimOutcome;
-    };
-    if (!res.ok) return "unavailable";
-    return body.status ?? "unavailable";
-  } catch {
-    return "unavailable";
+    let body = (await res.json().catch(() => ({}))) as Body;
+
+    for (;;) {
+      const ready = readyFrom(body);
+      if (res.ok && ready) return ready;
+      if (!(res.status === 202 || body.status === "preparing")) {
+        return { status: "failed", message: body.message ?? generic };
+      }
+      if (Date.now() > deadline) return { status: "failed", message: generic };
+
+      // Another request is generating. Poll readiness only; when the marker
+      // clears without a report (that worker died), POST again takes over.
+      await sleep(PREPARE_POLL_MS);
+      const poll = await fetch(
+        `/api/scan/prepare?scanId=${encodeURIComponent(scanId)}`,
+        { cache: "no-store" },
+      );
+      const state = (await poll.json().catch(() => ({}))) as Body;
+      if (state.status === "preparing") {
+        res = poll;
+        body = state;
+        continue;
+      }
+      res = await fetch("/api/scan/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId }),
+        cache: "no-store",
+      });
+      body = (await res.json().catch(() => ({}))) as Body;
+    }
+  } catch (err) {
+    console.error("[prepareReport] request failed:", err);
+    return { status: "failed", message: generic };
   }
 }
 

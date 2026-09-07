@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PaidSections } from "@/lib/fixtures/tracks";
+import { isCompletePaidPayload } from "@/lib/reports/store";
 
 /**
  * Song memory.
@@ -217,7 +218,11 @@ export async function getCatalog(
     }));
 }
 
-/** The persisted paid report for a scan, or null if none has been generated. */
+/**
+ * The persisted paid report for a scan, or null if none has been generated.
+ * A row holding a preparation marker or a partial payload is NOT a report
+ * and is reported as absent.
+ */
 export async function getPersistedReport(
   db: Db,
   userId: string,
@@ -229,8 +234,8 @@ export async function getPersistedReport(
     .eq("creator_id", userId)
     .eq("scan_id", scanId)
     .limit(1);
-  const row = data?.[0] as { payload: PaidSections } | undefined;
-  return row?.payload ?? null;
+  const row = data?.[0] as { payload: unknown } | undefined;
+  return row && isCompletePaidPayload(row.payload) ? row.payload : null;
 }
 
 /**

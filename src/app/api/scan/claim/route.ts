@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { createAdminClient, adminConfigured } from "@/lib/supabase/admin";
 import { currentUserId } from "@/lib/commerce/entitlements";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
-import {
-  ensureAnalysisPersisted,
-  fulfillmentMessage,
-} from "@/lib/scan/fulfillment.server";
+import { prepareReportForScan } from "@/lib/reports/prepare.server";
 import { grantFreeFirst, hasUsedFreeFirst } from "@/lib/commerce/free-first.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The included first report is prepared in full before it is granted — the
+// same chain, and the same budget, as the paid preparation route.
+export const maxDuration = 120;
 
 /**
  * POST /api/scan/claim   { scanId }
@@ -20,9 +20,10 @@ export const dynamic = "force-dynamic";
  * whether the free report is still available, whether it has been used, or
  * whether this song qualifies — it can only ask, and be told.
  *
- * Order matters: the analysis must persist as COMPLETE before anything is
+ * Order matters: the COMPLETE report — analysis, enrichments, Christian
+ * context, governed Rhodes text — must be persisted before anything is
  * granted, so a song that cannot be analysed never costs the creator their
- * free report.
+ * free report, and the read after the grant is a read, not a generation.
  */
 export async function POST(req: Request) {
   if (!adminConfigured()) {
@@ -77,15 +78,23 @@ export async function POST(req: Request) {
     }
   }
 
-  // The creator IS receiving this report, so the analysis becomes theirs.
-  // A failure here consumes nothing.
-  const fulfillment = await ensureAnalysisPersisted(userId, scanId);
-  if (!fulfillment.ok) {
+  // The creator IS receiving this report, so the analysis becomes theirs
+  // and the full report is prepared now. A failure here consumes nothing.
+  // "preparing" means another request is generating it; the client polls
+  // and claims again — the grant waits for the report, never the reverse.
+  const prepared = await prepareReportForScan(userId, scanId);
+  if (prepared.status === "preparing") {
+    return NextResponse.json(
+      { status: "preparing" },
+      { status: 202, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+  if (prepared.status === "failed") {
     return NextResponse.json(
       {
         status: "unavailable",
-        reason: fulfillment.reason,
-        message: fulfillmentMessage(fulfillment.reason),
+        reason: prepared.reason,
+        message: prepared.message,
       },
       { status: 409 },
     );

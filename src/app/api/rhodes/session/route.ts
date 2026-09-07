@@ -47,7 +47,9 @@ export async function POST(req: Request) {
   // The single source of truth for report authorisation. Any denial — no
   // identity, no entitlement, someone else's scan, misconfigured Supabase —
   // returns the same opaque error the JSON report route returns.
-  const resolved = await resolveEntitledReport(scanId);
+  // `recover: false` — voice reads the persisted report or nothing. It can
+  // never start a generation, so it can never delay or fail fulfillment.
+  const resolved = await resolveEntitledReport(scanId, { recover: false });
   if (!resolved.ok) {
     const body: Record<string, unknown> = { error: resolved.error };
     if (resolved.entitled) {

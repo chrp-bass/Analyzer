@@ -3,6 +3,9 @@ import { resolveEntitledReport } from "@/lib/reports/resolve.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The paid path is a read. The budget exists only for the recovery case —
+// an entitled report persisted before this flow with no complete payload.
+export const maxDuration = 120;
 
 /**
  * GET /api/report/[id]  — the paid Song Intelligence payload.

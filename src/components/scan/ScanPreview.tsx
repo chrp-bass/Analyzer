@@ -8,7 +8,11 @@ import { MODE_COLORS, type FreeReport, type ReportPayload } from "@/lib/fixtures
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
-import { fetchEntitledReport, claimFirstReport } from "@/lib/data-source";
+import {
+  fetchEntitledReport,
+  claimFirstReport,
+  prepareReport,
+} from "@/lib/data-source";
 import { startCheckout } from "@/lib/payments";
 import { ensureIdentity, linkEmail } from "@/lib/identity";
 
@@ -53,15 +57,33 @@ const FREE_ITEMS = [
  * Begin a real purchase. Identity is established first so the webhook has
  * someone to grant to; the offer key is all the client sends — the price is
  * resolved server-side from Stripe.
+ *
+ * For Song Intelligence the complete report is prepared and persisted on the
+ * server FIRST — analysis, enrichments, Christian context, the governed
+ * Rhodes text — and checkout is bound to that exact report. If it cannot be
+ * prepared, checkout never opens and nothing is charged. The browser is told
+ * only that the report is ready, never what it says.
  */
 async function beginPurchase(
   offer: "song_intelligence" | "creator_intelligence",
   scanId: string,
   onError: (msg: string) => void,
+  onPhase?: (phase: "preparing" | "checkout") => void,
 ) {
   try {
     await ensureIdentity();
-    const { url } = await startCheckout(offer, scanId);
+    let readiness: { reportId: string; reportVersion: string } | undefined;
+    if (offer === "song_intelligence") {
+      onPhase?.("preparing");
+      const prepared = await prepareReport(scanId);
+      if (prepared.status !== "ready") {
+        onError(prepared.message);
+        return;
+      }
+      readiness = prepared.readiness;
+    }
+    onPhase?.("checkout");
+    const { url } = await startCheckout(offer, scanId, readiness);
     window.location.assign(url);
   } catch (err) {
     console.error("[checkout] could not start:", err);
@@ -308,6 +330,7 @@ function FreeReveal({
  */
 function RevealActions({ scanId }: { scanId: string }) {
   const [buying, setBuying] = useState(false);
+  const [phase, setPhase] = useState<"preparing" | "checkout" | null>(null);
   const [saving, setSaving] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -358,13 +381,23 @@ function RevealActions({ scanId }: { scanId: string }) {
           disabled={buying}
           onClick={() => {
             setBuying(true);
-            beginPurchase("song_intelligence", scanId, (m) => {
-              setError(m);
-              setBuying(false);
-            });
+            beginPurchase(
+              "song_intelligence",
+              scanId,
+              (m) => {
+                setError(m);
+                setBuying(false);
+                setPhase(null);
+              },
+              setPhase,
+            );
           }}
         >
-          {buying ? "Opening checkout…" : "Unlock the full Song Intelligence"}
+          {buying
+            ? phase === "preparing"
+              ? "Preparing your report…"
+              : "Opening checkout…"
+            : "Unlock the full Song Intelligence"}
         </button>
         {!saving && !sent && (
           <button
@@ -547,6 +580,7 @@ export function ReportPreparing({
  */
 function Boundary({ scanId }: { scanId: string }) {
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<"preparing" | "checkout" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   return (
     <section className="rv-boundary">
@@ -583,13 +617,23 @@ function Boundary({ scanId }: { scanId: string }) {
               disabled={busy}
               onClick={() => {
                 setBusy(true);
-                beginPurchase("song_intelligence", scanId, (m) => {
-                  setErr(m);
-                  setBusy(false);
-                });
+                beginPurchase(
+                  "song_intelligence",
+                  scanId,
+                  (m) => {
+                    setErr(m);
+                    setBusy(false);
+                    setPhase(null);
+                  },
+                  setPhase,
+                );
               }}
             >
-              {busy ? "Opening checkout…" : "Unlock this song"}
+              {busy
+                ? phase === "preparing"
+                  ? "Preparing your report…"
+                  : "Opening checkout…"
+                : "Unlock this song"}
             </button>
             <button
               type="button"
@@ -610,6 +654,12 @@ function Boundary({ scanId }: { scanId: string }) {
                 {err}
               </p>
             )}
+            {busy && phase === "preparing" ? (
+              <p className="rv-terms" role="status">
+                Your full report is being written now. Checkout opens the
+                moment it&rsquo;s ready &mdash; nothing is charged before then.
+              </p>
+            ) : null}
             <p className="rv-terms">
               Report access runs 60 days on a single song, 12 months on a
               catalog.

@@ -10,20 +10,29 @@ import { currentUserId } from "@/lib/commerce/entitlements";
 import {
   ensureAnalysisPersisted,
   fulfillmentMessage,
+  ENGINE_VERSION,
 } from "@/lib/scan/fulfillment.server";
+import { verifyCheckoutReadiness } from "@/lib/reports/prepare.server";
 import { decodeScanId } from "@/lib/scan-id";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/checkout   { offer, scanId? }
+ * POST /api/checkout   { offer, scanId?, reportId?, reportVersion? }
  *
  * Creates a real Stripe Checkout Session. The client may name an offer and a
  * scan; it may not name a price. The price comes from server configuration,
  * and is verified against the locked commercial amount before any session is
  * created — a misconfigured Stripe Price fails the request rather than
  * charging an amount nobody approved.
+ *
+ * For Song Intelligence the client must also name the report it prepared
+ * (`reportId`, `reportVersion`, from POST /api/scan/prepare). Nobody is
+ * charged until the complete report is already persisted for THIS identity
+ * and THIS scan, from the analysis on file, under the current report and
+ * engine versions, matching that claim exactly. Anything stale or mismatched
+ * is refused before Stripe is contacted.
  *
  * Entitlement is NOT granted here. This endpoint only starts a payment; the
  * signed webhook is the sole grant path.
@@ -32,7 +41,20 @@ export const dynamic = "force-dynamic";
 interface Body {
   offer?: unknown;
   scanId?: unknown;
+  reportId?: unknown;
+  reportVersion?: unknown;
 }
+
+const READINESS_MESSAGE: Record<string, string> = {
+  not_ready:
+    "Your report hasn't finished preparing yet. Nothing has been charged — please try again in a moment.",
+  analysis_incomplete:
+    "This song's analysis isn't complete, so a report can't be sold for it yet. Nothing has been charged.",
+  mismatch:
+    "This checkout no longer matches the report that was prepared. Nothing has been charged — please try again.",
+  stale_version:
+    "The prepared report is out of date. Nothing has been charged — please prepare it again.",
+};
 
 function origin(req: Request): string {
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -135,12 +157,55 @@ export async function POST(req: Request) {
 
   // ── Fulfillment guard ──────────────────────────────────────────────────
   //
-  // Nobody reaches Stripe for a report we already know we cannot deliver.
-  // This persists the real completed analysis the paid report is generated
-  // from; if the engine cannot produce one, checkout fails here and no
-  // payment is taken. Server-side by necessity — a client check would be
-  // advisory, and this decides whether money moves.
-  if (scanId) {
+  // Nobody reaches Stripe for a report that does not already exist.
+  //
+  // Song Intelligence: the COMPLETE paid report — analysis, enrichments,
+  // Christian context, governed Rhodes text — must already be persisted for
+  // this identity and scan, and must be the exact report the client says it
+  // prepared. The paid path after payment only reads that row.
+  //
+  // Creator Intelligence (out of scope for this pass, unchanged): the
+  // completed analysis is persisted so the catalog has something to attach.
+  //
+  // Server-side by necessity — a client check would be advisory, and this
+  // decides whether money moves.
+  let reportBinding: Record<string, string> = {};
+  if (offer.key === "song_intelligence" && scanId) {
+    const claim =
+      typeof body.reportId === "string" && typeof body.reportVersion === "string"
+        ? { reportId: body.reportId, reportVersion: body.reportVersion }
+        : null;
+    if (!claim) {
+      return NextResponse.json(
+        {
+          error: "report_not_ready",
+          reason: "not_ready",
+          message: READINESS_MESSAGE.not_ready,
+        },
+        { status: 409 },
+      );
+    }
+    const readiness = await verifyCheckoutReadiness(userId, scanId, claim);
+    if (!readiness.ok) {
+      console.error(
+        `[api/checkout] refusing checkout for ${scanId}: report ${readiness.reason} (claimed ${claim.reportId}@${claim.reportVersion})`,
+      );
+      return NextResponse.json(
+        {
+          error: readiness.reason === "not_ready" ? "report_not_ready" : "report_stale",
+          reason: readiness.reason,
+          message: READINESS_MESSAGE[readiness.reason],
+        },
+        { status: 409 },
+      );
+    }
+    reportBinding = {
+      report_id: readiness.readiness.reportId,
+      report_version: readiness.readiness.reportVersion,
+      analysis_id: readiness.readiness.analysisId,
+      engine_version: readiness.engineVersion,
+    };
+  } else if (scanId) {
     const fulfillment = await ensureAnalysisPersisted(userId, scanId);
     if (!fulfillment.ok) {
       console.error(
@@ -156,6 +221,7 @@ export async function POST(req: Request) {
         { status: 409 },
       );
     }
+    reportBinding = { analysis_id: fulfillment.analysisId, engine_version: ENGINE_VERSION };
   }
 
   const verified = await resolveVerifiedPrice(offer);
@@ -187,6 +253,9 @@ export async function POST(req: Request) {
         user_id: userId,
         ...(scanId ? { scan_id: scanId } : {}),
         ...(trackSlug ? { track_slug: trackSlug } : {}),
+        // The exact report this payment is for. The webhook does not read
+        // these; they bind the charge to what was prepared, for audit.
+        ...reportBinding,
       },
     });
 
