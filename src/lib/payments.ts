@@ -33,17 +33,21 @@ function assertDemoAllowed(fn: string): void {
 }
 
 /**
- * Start a real Stripe Checkout Session. The browser sends an offer key and a
- * scan id; the server resolves the price. Returns the Stripe-hosted URL.
+ * Start a real Stripe Checkout Session. The browser sends an offer key, a
+ * scan id and — for Song Intelligence — the readiness of the report it just
+ * had prepared; the server resolves the price and refuses to charge for
+ * anything other than that exact persisted report. Returns the Stripe-hosted
+ * URL.
  */
 export async function startCheckout(
   offer: "song_intelligence" | "creator_intelligence",
   scanId?: string,
+  readiness?: { reportId: string; reportVersion: string },
 ): Promise<{ url: string }> {
   const res = await fetch("/api/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ offer, scanId }),
+    body: JSON.stringify({ offer, scanId, ...(readiness ?? {}) }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

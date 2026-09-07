@@ -1,0 +1,40 @@
+name: CI
+
+# Merge gate for CHRP Analyzer. Runs on every PR and on pushes to the main
+# lines. GitHub Actions sets CI=true, which makes the real multi-connection
+# PostgreSQL concurrency suite (tests/report-claims-pg.test.ts) MANDATORY: if
+# Postgres cannot start, that job fails rather than skipping.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "claude/**"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      # CI=true is set by GitHub Actions, so the real-Postgres concurrency
+      # suite is mandatory here — a failure to start Postgres fails the job.
+      - name: Tests (incl. real-Postgres concurrency suite)
+        run: npx vitest run
+
+      - name: Build
+        run: npx next build
+
+      - name: Lint
+        run: npx next lint

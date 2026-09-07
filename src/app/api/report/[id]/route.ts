@@ -3,6 +3,8 @@ import { resolveEntitledReport } from "@/lib/reports/resolve.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// A pure read — verify entitlement, load the persisted row, render. No
+// generation happens here, so no extended duration is needed.
 
 /**
  * GET /api/report/[id]  — the paid Song Intelligence payload.
