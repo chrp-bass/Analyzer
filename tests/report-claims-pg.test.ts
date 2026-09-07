@@ -19,10 +19,15 @@ import EmbeddedPostgres from "embedded-postgres";
  * They load the ACTUAL function bodies from db/migrations/0003_report_claims.sql
  * over a minimal supporting schema, so what is tested is the shipped SQL.
  *
- * If Postgres cannot be started (no network to fetch the binary, or the
- * sandbox blocks it), every test self-skips rather than failing — the source
- * assertions in paid-fulfillment-prepare.test.ts still cover the SQL text.
+ * These tests are MANDATORY IN CI. When CI=true, a failure to start real
+ * Postgres fails the job — the merge gate must not pass on a skipped
+ * concurrency suite. Only outside CI (local dev without a Postgres binary, or
+ * a sandbox that blocks it) do they self-skip; the source assertions in
+ * paid-fulfillment-prepare.test.ts still cover the SQL text everywhere.
  */
+
+/** GitHub Actions and most CI providers set CI=true. */
+const IN_CI = process.env.CI === "true";
 
 interface PgClient {
   connect(): Promise<void>;
@@ -97,8 +102,14 @@ beforeAll(async () => {
     ready = true;
   } catch (err) {
     startError = err instanceof Error ? err.message : String(err);
+    if (IN_CI) {
+      // Mandatory in CI: do not let the merge gate pass on a skipped suite.
+      throw new Error(
+        `real PostgreSQL is required for the concurrency suite in CI but failed to start: ${startError}`,
+      );
+    }
     // eslint-disable-next-line no-console
-    console.warn(`[report-claims-pg] skipping real-Postgres tests: ${startError}`);
+    console.warn(`[report-claims-pg] skipping real-Postgres tests (not CI): ${startError}`);
   }
 }, 180_000);
 
@@ -167,7 +178,10 @@ function completeQuery(
 
 describe("migration 0003 under real PostgreSQL concurrency", () => {
   it("baseline: acquire → complete persists the report and removes the lease", async (ctx) => {
-    if (!ready) return ctx.skip();
+    if (!ready) {
+      if (IN_CI) throw new Error("real PostgreSQL required for the concurrency suite in CI");
+      return ctx.skip();
+    }
     const { creator, analysis, scan } = await seedScan();
     const acq = await claim(admin!, creator, scan, "A", 90);
     expect(acq?.acquired).toBe(true);
@@ -180,7 +194,10 @@ describe("migration 0003 under real PostgreSQL concurrency", () => {
   }, 30_000);
 
   it("takeover racing completion + completion after ownership check: the superseded worker writes nothing", async (ctx) => {
-    if (!ready) return ctx.skip();
+    if (!ready) {
+      if (IN_CI) throw new Error("real PostgreSQL required for the concurrency suite in CI");
+      return ctx.skip();
+    }
     const { creator, analysis, scan } = await seedScan();
     const a = await claim(admin!, creator, scan, "A", 90);
     const tokenA = a!.out_token!;
@@ -223,7 +240,10 @@ describe("migration 0003 under real PostgreSQL concurrency", () => {
   }, 30_000);
 
   it("claimant blocked behind completion + report committed while claimant waits: the claimant gets READY, not a second generator", async (ctx) => {
-    if (!ready) return ctx.skip();
+    if (!ready) {
+      if (IN_CI) throw new Error("real PostgreSQL required for the concurrency suite in CI");
+      return ctx.skip();
+    }
     const { creator, analysis, scan } = await seedScan();
     const a = await claim(admin!, creator, scan, "A", 90);
     const tokenA = a!.out_token!;
@@ -266,7 +286,10 @@ describe("migration 0003 under real PostgreSQL concurrency", () => {
   }, 30_000);
 
   it("a stale takeover then the old worker's late completion writes nothing (fence/token)", async (ctx) => {
-    if (!ready) return ctx.skip();
+    if (!ready) {
+      if (IN_CI) throw new Error("real PostgreSQL required for the concurrency suite in CI");
+      return ctx.skip();
+    }
     const { creator, analysis, scan } = await seedScan();
     const a = await claim(admin!, creator, scan, "A", 90);
     const tokenA = a!.out_token!;
@@ -286,7 +309,10 @@ describe("migration 0003 under real PostgreSQL concurrency", () => {
   }, 30_000);
 
   it("rejects invalid arguments and refuses an incomplete payload", async (ctx) => {
-    if (!ready) return ctx.skip();
+    if (!ready) {
+      if (IN_CI) throw new Error("real PostgreSQL required for the concurrency suite in CI");
+      return ctx.skip();
+    }
     const { creator, analysis, scan } = await seedScan();
     await expect(claim(admin!, creator, scan, "", 90)).rejects.toThrow(/invalid arguments/);
     const a = await claim(admin!, creator, scan, "A", 90);
