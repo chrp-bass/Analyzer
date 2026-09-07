@@ -542,16 +542,82 @@ describe("migration 0003 fences the lease and locks the table to the service rol
     expect(complete).toMatch(/delete from report_claims/);
   });
 
-  it("enables RLS with no policies and revokes client access", () => {
+  const FUNCTIONS = [
+    "claim_report_lease",
+    "renew_report_lease",
+    "complete_report",
+    "release_report_lease",
+  ] as const;
+
+  function migration(): string {
     const { readFileSync } = require("node:fs") as typeof import("node:fs");
-    const sql = readFileSync("db/migrations/0003_report_claims.sql", "utf8");
+    return readFileSync("db/migrations/0003_report_claims.sql", "utf8");
+  }
+
+  it("has no direct client access to report_claims (RLS on, no policies, revoked)", () => {
+    const sql = migration();
     expect(sql).toMatch(/alter table report_claims enable row level security/);
     // No policy is ever created for report_claims (deny-by-default under RLS).
     expect(sql).not.toMatch(/create policy[\s\S]*report_claims/);
+    expect(sql).toMatch(/revoke all on table report_claims from public/);
     expect(sql).toMatch(/revoke all on table report_claims from anon, authenticated/);
-    // Functions are not callable by the browser roles.
-    for (const fn of ["claim_report_lease", "renew_report_lease", "complete_report", "release_report_lease"]) {
-      expect(sql).toMatch(new RegExp(`revoke all on function ${fn}[\\s\\S]*from public, anon, authenticated`));
+  });
+
+  it("grants EXECUTE on all four RPCs to service_role only", () => {
+    const sql = migration();
+    for (const fn of FUNCTIONS) {
+      expect(sql, fn).toMatch(new RegExp(`grant execute on function ${fn}\\([^)]*\\) to service_role`));
     }
+  });
+
+  it("revokes EXECUTE from PUBLIC, anon and authenticated on all four RPCs", () => {
+    const sql = migration();
+    for (const fn of FUNCTIONS) {
+      expect(sql, fn).toMatch(new RegExp(`revoke all on function ${fn}\\([^)]*\\) from public`));
+      expect(sql, fn).toMatch(new RegExp(`revoke all on function ${fn}\\([^)]*\\) from anon, authenticated`));
+    }
+  });
+
+  it("pins a fixed, safe search_path on every RPC", () => {
+    const sql = migration();
+    // One `set search_path = …` per function, and it is a fixed literal list
+    // (never a mutable or empty path that could be hijacked).
+    const setters = sql.match(/set search_path = pg_catalog, public, extensions/g) ?? [];
+    expect(setters.length).toBe(FUNCTIONS.length);
+  });
+
+  it("validates required inputs in every RPC", () => {
+    const sql = migration();
+    for (const fn of FUNCTIONS) {
+      const body = sql.slice(
+        sql.indexOf(`function ${fn}`),
+        // up to the next function definition, or end of file
+        (() => {
+          const rest = sql.indexOf("function ", sql.indexOf(`function ${fn}`) + 10);
+          return rest === -1 ? sql.length : rest;
+        })(),
+      );
+      expect(body, fn).toMatch(new RegExp(`raise exception '${fn}: invalid arguments'`));
+    }
+  });
+
+  it("completion validates lease ownership AND the claimed version inside the transaction", () => {
+    const sql = migration();
+    const complete = sql.slice(
+      sql.indexOf("function complete_report"),
+      sql.indexOf("function release_report_lease"),
+    );
+    // Ownership + version are checked together before any write.
+    expect(complete).toMatch(/worker = p_worker/);
+    expect(complete).toMatch(/lease_token = p_token/);
+    expect(complete).toMatch(/report_version = p_version/);
+    // And an incomplete payload is refused.
+    expect(complete).toMatch(/refusing to persist an incomplete payload/);
+    // The persist and the lease delete are in the one function body.
+    expect(complete).toMatch(/insert into reports/);
+    expect(complete).toMatch(/delete from report_claims/);
+    expect(complete.indexOf("insert into reports")).toBeLessThan(
+      complete.indexOf("delete from report_claims"),
+    );
   });
 });

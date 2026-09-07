@@ -145,6 +145,13 @@ exclusively through the new functions. Deploy in this order:
    -- report_claims has RLS on and no policies:
    select relrowsecurity from pg_class where relname='report_claims'; -- t
    select count(*) from pg_policies where tablename='report_claims';  -- 0
+   -- each RPC pins a fixed search_path and is executable only by service_role:
+   select proname, proconfig from pg_proc
+     where proname in ('claim_report_lease','renew_report_lease',
+                       'complete_report','release_report_lease');
+     -- proconfig each: {search_path=pg_catalog, public, extensions}
+   select has_function_privilege('service_role','complete_report(uuid,text,text,uuid,uuid,jsonb,text,text)','execute'); -- t
+   select has_function_privilege('anon','complete_report(uuid,text,text,uuid,uuid,jsonb,text,text)','execute');         -- f
    ```
 3. **(Optional) backfill** any pre-existing incomplete entitled reports
    (§4) before shipping the app, so no buyer meets a 503.

@@ -14,25 +14,27 @@
 --
 -- The `reports` table cannot be that lock: `reports.analysis_id` is NOT NULL
 -- and references `analyses(id)`, so a `reports` row cannot be inserted until
--- the analysis (itself a Soundcharts call) already exists. A lock that can
--- only be taken after the first upstream call is not a lock on upstream work.
+-- the analysis (itself a Soundcharts call) already exists.
 --
 -- FENCING. A lease is not identified by time. Each acquisition and each
 -- takeover mints a fresh immutable `lease_token` (uuid) and bumps a
 -- monotonically increasing `fence`. Every mutation — renew, complete,
 -- release — is gated on `(creator_id, scan_id, worker, lease_token)`, so a
 -- worker that lost the lease to a takeover can neither renew it, overwrite the
--- report, mark preparation complete, nor delete the successor's lease. A
--- stale-worker's late completion is a no-op.
+-- report, mark preparation complete, nor delete the successor's lease.
 --
 -- DB TIME. Freshness and renewal use `now()` inside the database, never an
--- application instance's clock. `claim_report_lease` decides staleness with
--- `claimed_at < now() - interval`; `renew_report_lease` sets
--- `claimed_at = now()`.
+-- application instance's clock.
 --
--- ATOMIC COMPLETION. `complete_report` writes the report and deletes the lease
--- in ONE function body — one transaction — and only if the caller still owns
--- the lease. There is no unfenced UPSERT-then-DELETE.
+-- ATOMIC COMPLETION. `complete_report` validates inputs, lease ownership, the
+-- claimed version and payload completeness, then writes the report and deletes
+-- the lease — all in ONE function body / transaction. No unfenced UPSERT
+-- followed by a separate DELETE.
+--
+-- SECURITY. Every function pins a fixed `search_path`, is SECURITY INVOKER,
+-- has EXECUTE revoked from PUBLIC / anon / authenticated and granted only to
+-- service_role. The table has RLS on with no policies and no anon/authenticated
+-- privileges — no client can read or write a claim by any path.
 -- =====================================================
 
 create extension if not exists "pgcrypto";
@@ -45,8 +47,7 @@ create table if not exists report_claims (
   -- Immutable per acquisition. Re-minted on every takeover, so a superseded
   -- worker's token can never match the current lease again.
   lease_token    uuid        not null default gen_random_uuid(),
-  -- Monotonically increasing across takeovers of one lease lineage. A second,
-  -- independent fencing signal alongside the token.
+  -- Monotonically increasing across takeovers of one lease lineage.
   fence          bigint      not null default 1,
   report_version text        not null,
   claimed_at     timestamptz not null default now(),
@@ -56,12 +57,14 @@ create table if not exists report_claims (
 create index if not exists report_claims_claimed_at_idx
   on report_claims (claimed_at);
 
--- ── RLS: deny all client access. Service role bypasses RLS. ─────────────────
--- No policies are created, so under RLS the anon and authenticated roles can
--- neither select, insert, update nor delete. The browser can never read or
--- write a claim; only server code holding the service-role key can.
+-- ── RLS + table privileges: no client access. ──────────────────────────────
+-- RLS with no policies denies anon/authenticated every operation; the explicit
+-- REVOKEs remove the broad default grants Supabase gives new public tables.
+-- service_role (which the server uses and which bypasses RLS) keeps access.
 alter table report_claims enable row level security;
+revoke all on table report_claims from public;
 revoke all on table report_claims from anon, authenticated;
+grant select, insert, update, delete on table report_claims to service_role;
 
 -- =====================================================
 -- claim_report_lease — atomic acquire-or-takeover, BEFORE any upstream work
@@ -70,13 +73,6 @@ revoke all on table report_claims from anon, authenticated;
 --   one row (acquired = true)  → this caller holds the lease; use lease_token/fence.
 --   one row (acquired = false) → a complete current-version report already exists.
 --   zero rows                  → a FRESH lease is held by someone else; poll.
---
--- The INSERT ... ON CONFLICT DO UPDATE ... WHERE is the atomic claim: a fresh
--- conflicting lease makes the WHERE false, so no row is updated or returned
--- (zero rows → held); a stale one is taken over with a NEW token and fence+1.
--- Two concurrent takeovers serialise on the row lock: the first refreshes
--- claimed_at, the second re-evaluates the WHERE against the fresh row and is
--- rejected.
 create or replace function claim_report_lease(
   p_creator uuid,
   p_scan text,
@@ -85,8 +81,18 @@ create or replace function claim_report_lease(
   p_stale_seconds integer
 ) returns table (acquired boolean, out_token uuid, out_fence bigint, out_claimed_at timestamptz)
 language plpgsql
+set search_path = pg_catalog, public, extensions
 as $$
 begin
+  -- Input validation.
+  if p_creator is null
+     or p_scan is null or length(p_scan) = 0
+     or p_worker is null or length(p_worker) = 0
+     or p_version is null or length(p_version) = 0
+     or p_stale_seconds is null or p_stale_seconds < 1 then
+    raise exception 'claim_report_lease: invalid arguments';
+  end if;
+
   -- A complete report on the current version already exists → nobody claims.
   if exists (
     select 1 from reports r
@@ -103,6 +109,10 @@ begin
     return;
   end if;
 
+  -- The atomic claim. A fresh conflicting lease makes the WHERE false, so no
+  -- row is updated or returned (zero rows → held); a stale one is taken over
+  -- with a NEW token and fence+1. Concurrent takeovers serialise on the row
+  -- lock: the second re-evaluates the WHERE against the refreshed row.
   return query
   insert into report_claims as rc (creator_id, scan_id, worker, lease_token, fence, report_version, claimed_at)
   values (p_creator, p_scan, p_worker, gen_random_uuid(), 1, p_version, now())
@@ -120,9 +130,6 @@ $$;
 -- =====================================================
 -- renew_report_lease — heartbeat, using DB time, fenced on the token
 -- =====================================================
--- Returns the fence when the caller still owns the lease; zero rows when it
--- has lost it (a takeover re-minted the token). `claimed_at = now()` is DB
--- time, never the caller's clock.
 create or replace function renew_report_lease(
   p_creator uuid,
   p_scan text,
@@ -130,8 +137,16 @@ create or replace function renew_report_lease(
   p_token uuid
 ) returns table (out_fence bigint)
 language plpgsql
+set search_path = pg_catalog, public, extensions
 as $$
 begin
+  if p_creator is null
+     or p_scan is null or length(p_scan) = 0
+     or p_worker is null or length(p_worker) = 0
+     or p_token is null then
+    raise exception 'renew_report_lease: invalid arguments';
+  end if;
+
   return query
   update report_claims
      set claimed_at = now()
@@ -144,11 +159,13 @@ end;
 $$;
 
 -- =====================================================
--- complete_report — atomic: persist report + release lease, fenced
+-- complete_report — atomic: validate + persist report + release lease, fenced
 -- =====================================================
--- One transaction. Only the current lease owner may complete. On success the
--- report is upserted and the lease deleted together; if ownership was lost the
--- function returns ok = false and writes NOTHING.
+-- ONE transaction. It validates inputs, then (inside the transaction)
+-- ownership AND the claimed version — the lease must still be held by this
+-- (worker, token) AND have been claimed for p_version — and refuses an
+-- incomplete payload. Only then does it UPSERT the report and DELETE the
+-- lease together. Ownership/version lost ⇒ ok = false, nothing written.
 create or replace function complete_report(
   p_creator uuid,
   p_scan text,
@@ -160,20 +177,44 @@ create or replace function complete_report(
   p_model text
 ) returns table (ok boolean, out_report_id uuid)
 language plpgsql
+set search_path = pg_catalog, public, extensions
 as $$
 declare
   v_id uuid;
 begin
-  -- Fenced ownership check. A superseded worker matches nothing here.
+  -- Input validation.
+  if p_creator is null
+     or p_scan is null or length(p_scan) = 0
+     or p_worker is null or length(p_worker) = 0
+     or p_token is null
+     or p_analysis is null
+     or p_payload is null
+     or p_version is null or length(p_version) = 0 then
+    raise exception 'complete_report: invalid arguments';
+  end if;
+
+  -- Fenced ownership AND version, checked inside the transaction. A superseded
+  -- worker, or a lease claimed under a different version, matches nothing.
   if not exists (
     select 1 from report_claims
     where creator_id = p_creator
       and scan_id = p_scan
       and worker = p_worker
       and lease_token = p_token
+      and report_version = p_version
   ) then
     return query select false, null::uuid;
     return;
+  end if;
+
+  -- Never persist an incomplete report. The reports row invariant is that a
+  -- present row is a complete report, so a partial payload is refused outright.
+  if coalesce(p_payload->>'signature', '') = ''
+     or coalesce(p_payload->>'rhodes', '') = ''
+     or coalesce(p_payload->>'throughline', '') = ''
+     or jsonb_typeof(p_payload->'placements') <> 'array'
+     or jsonb_array_length(p_payload->'placements') < 1 then
+    raise exception 'complete_report: refusing to persist an incomplete payload';
   end if;
 
   insert into reports (creator_id, scan_id, analysis_id, payload, generator_version, model)
@@ -198,8 +239,6 @@ $$;
 -- =====================================================
 -- release_report_lease — fenced delete of a failed attempt's lease
 -- =====================================================
--- Deletes ONLY the caller's own lease. A worker that lost ownership deletes
--- nothing, so it can never remove the successor's lease.
 create or replace function release_report_lease(
   p_creator uuid,
   p_scan text,
@@ -207,10 +246,18 @@ create or replace function release_report_lease(
   p_token uuid
 ) returns table (released boolean)
 language plpgsql
+set search_path = pg_catalog, public, extensions
 as $$
 declare
   v_count integer;
 begin
+  if p_creator is null
+     or p_scan is null or length(p_scan) = 0
+     or p_worker is null or length(p_worker) = 0
+     or p_token is null then
+    raise exception 'release_report_lease: invalid arguments';
+  end if;
+
   delete from report_claims
   where creator_id = p_creator
     and scan_id = p_scan
@@ -221,12 +268,21 @@ begin
 end;
 $$;
 
--- ── Function privileges: server/service role only. ──────────────────────────
--- These functions are SECURITY INVOKER (the default), so they run with the
--- caller's privileges and RLS still applies. Executing them from the browser
--- roles is additionally revoked, so only the service role (and postgres) can
--- call them at all.
-revoke all on function claim_report_lease(uuid, text, text, text, integer) from public, anon, authenticated;
-revoke all on function renew_report_lease(uuid, text, text, uuid) from public, anon, authenticated;
-revoke all on function complete_report(uuid, text, text, uuid, uuid, jsonb, text, text) from public, anon, authenticated;
-revoke all on function release_report_lease(uuid, text, text, uuid) from public, anon, authenticated;
+-- ── Function privileges: revoke from everyone, grant only to service_role. ───
+-- SECURITY INVOKER (the default) means RLS still applies; these REVOKE/GRANTs
+-- make the functions callable only by the server's service role.
+revoke all on function claim_report_lease(uuid, text, text, text, integer) from public;
+revoke all on function claim_report_lease(uuid, text, text, text, integer) from anon, authenticated;
+grant execute on function claim_report_lease(uuid, text, text, text, integer) to service_role;
+
+revoke all on function renew_report_lease(uuid, text, text, uuid) from public;
+revoke all on function renew_report_lease(uuid, text, text, uuid) from anon, authenticated;
+grant execute on function renew_report_lease(uuid, text, text, uuid) to service_role;
+
+revoke all on function complete_report(uuid, text, text, uuid, uuid, jsonb, text, text) from public;
+revoke all on function complete_report(uuid, text, text, uuid, uuid, jsonb, text, text) from anon, authenticated;
+grant execute on function complete_report(uuid, text, text, uuid, uuid, jsonb, text, text) to service_role;
+
+revoke all on function release_report_lease(uuid, text, text, uuid) from public;
+revoke all on function release_report_lease(uuid, text, text, uuid) from anon, authenticated;
+grant execute on function release_report_lease(uuid, text, text, uuid) to service_role;
