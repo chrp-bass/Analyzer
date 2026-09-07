@@ -4,28 +4,35 @@ import {
   type BeginClaimOutcome,
   type ClaimRow,
   type CompleteClaimInput,
+  type CompleteClaimOutcome,
+  type Lease,
+  type RenewOutcome,
   type ReportStore,
   type StoredReport,
 } from "@/lib/reports/store";
 import type { PaidSections } from "@/lib/fixtures/tracks";
 
 /**
- * An in-memory `ReportStore` that mirrors the guarantees Postgres gives the
- * `reports` (0002) and `report_claims` (0003) tables:
+ * An in-memory `ReportStore` that mirrors the fenced-lease guarantees the
+ * Postgres functions in migration 0003 give:
  *
- *   * rows are scoped to a creator, so one creator never sees another's;
  *   * `report_claims` has a (creator_id, scan_id) primary key, so the first
- *     `beginClaim` INSERT wins and every concurrent one loses — modelled here
- *     by each method running to completion without interleaving (no await
- *     between the existence check and the write), exactly the atomicity a
- *     single SQL statement gives;
- *   * a stale lease is taken over by a compare-and-swap on `claimed_at`.
+ *     `beginClaim` wins and concurrent ones lose — modelled by each method
+ *     running to completion without interleaving (no internal await), exactly
+ *     the atomicity a single SQL statement / plpgsql function gives;
+ *   * every acquisition and takeover mints a fresh immutable token and bumps a
+ *     monotonic fence;
+ *   * staleness and renewal use a DATABASE clock (`dbNow`), not the caller's;
+ *   * renew, complete and release succeed only for the current owner
+ *     (worker + token);
+ *   * `completeClaim` writes the report AND deletes the lease atomically — if
+ *     the delete step fails the report write is rolled back, so a caller can
+ *     never observe a persisted report with a dangling lease.
  *
- * Because the methods contain no internal awaits, two `beginClaim` calls from
- * two "instances" (separate in-flight tables, one shared store) cannot
- * interleave — the first to run acquires, the second sees the lease. That is
- * the same outcome the database's unique INSERT produces, so the
- * distributed-concurrency tests are evidence about real behaviour.
+ * Because the methods contain no internal awaits, two calls from two
+ * "instances" (separate in-flight tables, one shared store) cannot interleave
+ * — the same outcome the database produces — so the distributed-concurrency
+ * tests are evidence about real behaviour.
  */
 interface ReportRow {
   id: string;
@@ -42,21 +49,29 @@ interface ClaimRecord {
   creatorId: string;
   scanId: string;
   worker: string;
+  token: string;
+  fence: number;
   reportVersion: string;
   claimedAt: Date;
 }
 
 let seq = 0;
+let tokenSeq = 0;
 
 export class InMemoryReportStore implements ReportStore {
   reports: ReportRow[] = [];
   claims: ClaimRecord[] = [];
-  /** Counts report-row inserts, so tests can assert exactly one was created. */
+  /** Report-row inserts, so tests can assert exactly one row was created. */
   insertCount = 0;
-  /** Counts lease acquisitions, so tests can assert exactly one generator. */
+  /** Lease acquisitions (fresh + takeover), so tests assert one generator. */
   claimAcquisitions = 0;
-  /** Every method call, in order — the audit trail a test reads back. */
+  /** Method call trace, in order. */
   calls: string[] = [];
+
+  /** The database clock. Tests advance this to simulate time passing. */
+  dbNow: () => Date = () => new Date();
+  /** When set, `completeClaim`'s lease-delete step throws — to test atomicity. */
+  failCompleteDelete = false;
 
   seedReport(input: {
     creatorId: string;
@@ -75,7 +90,7 @@ export class InMemoryReportStore implements ReportStore {
       payload: input.payload,
       generatorVersion: input.generatorVersion,
       model: input.model ?? null,
-      createdAt: new Date().toISOString(),
+      createdAt: this.dbNow().toISOString(),
     };
     this.reports.push(row);
     return row;
@@ -87,8 +102,20 @@ export class InMemoryReportStore implements ReportStore {
     worker: string;
     reportVersion: string;
     claimedAt: Date;
-  }): void {
-    this.claims.push({ ...input });
+    token?: string;
+    fence?: number;
+  }): ClaimRecord {
+    const rec: ClaimRecord = {
+      creatorId: input.creatorId,
+      scanId: input.scanId,
+      worker: input.worker,
+      token: input.token ?? `tok_${++tokenSeq}`,
+      fence: input.fence ?? 1,
+      reportVersion: input.reportVersion,
+      claimedAt: input.claimedAt,
+    };
+    this.claims.push(rec);
+    return rec;
   }
 
   private findReport(userId: string, scanId: string): ReportRow | undefined {
@@ -97,6 +124,11 @@ export class InMemoryReportStore implements ReportStore {
 
   private findClaim(userId: string, scanId: string): ClaimRecord | undefined {
     return this.claims.find((c) => c.creatorId === userId && c.scanId === scanId);
+  }
+
+  private ownsClaim(userId: string, scanId: string, lease: Lease): ClaimRecord | undefined {
+    const c = this.findClaim(userId, scanId);
+    return c && c.worker === lease.worker && c.token === lease.token ? c : undefined;
   }
 
   private toReport(row: ReportRow): StoredReport {
@@ -120,7 +152,13 @@ export class InMemoryReportStore implements ReportStore {
     this.calls.push(`getClaim:${userId}:${scanId}`);
     const c = this.findClaim(userId, scanId);
     return c
-      ? { worker: c.worker, reportVersion: c.reportVersion, claimedAt: c.claimedAt }
+      ? {
+          worker: c.worker,
+          token: c.token,
+          fence: c.fence,
+          reportVersion: c.reportVersion,
+          claimedAt: c.claimedAt,
+        }
       : null;
   }
 
@@ -138,33 +176,52 @@ export class InMemoryReportStore implements ReportStore {
 
     const existing = this.findClaim(input.userId, input.scanId);
     if (!existing) {
-      this.claims.push({
+      const rec = this.seedClaim({
         creatorId: input.userId,
         scanId: input.scanId,
         worker: input.worker,
         reportVersion: input.generatorVersion,
-        claimedAt: input.startedAt,
+        claimedAt: this.dbNow(),
       });
       this.claimAcquisitions += 1;
-      return { outcome: "acquired" };
+      return { outcome: "acquired", lease: { worker: rec.worker, token: rec.token, fence: rec.fence } };
     }
 
-    const age = input.startedAt.getTime() - existing.claimedAt.getTime();
-    if (age < input.staleAfterMs) {
+    const ageMs = this.dbNow().getTime() - existing.claimedAt.getTime();
+    if (ageMs < input.staleAfterMs) {
       return { outcome: "held", startedAt: existing.claimedAt };
     }
-    // Stale lease: take it over (CAS is trivially atomic here — no await
-    // between read and write).
+    // Stale lease: take it over with a NEW token and a higher fence.
     existing.worker = input.worker;
+    existing.token = `tok_${++tokenSeq}`;
+    existing.fence += 1;
     existing.reportVersion = input.generatorVersion;
-    existing.claimedAt = input.startedAt;
+    existing.claimedAt = this.dbNow();
     this.claimAcquisitions += 1;
-    return { outcome: "acquired" };
+    return {
+      outcome: "acquired",
+      lease: { worker: existing.worker, token: existing.token, fence: existing.fence },
+    };
   }
 
-  async completeClaim(input: CompleteClaimInput): Promise<{ reportId: string }> {
-    this.calls.push(`completeClaim:${input.worker}`);
+  async renewClaim(userId: string, scanId: string, lease: Lease): Promise<RenewOutcome> {
+    this.calls.push(`renewClaim:${lease.worker}:${lease.token}`);
+    const owned = this.ownsClaim(userId, scanId, lease);
+    if (!owned) return { renewed: false };
+    owned.claimedAt = this.dbNow(); // DB time, not the caller's.
+    return { renewed: true, fence: owned.fence };
+  }
+
+  async completeClaim(input: CompleteClaimInput): Promise<CompleteClaimOutcome> {
+    this.calls.push(`completeClaim:${input.lease.worker}:${input.lease.token}`);
+    const owned = this.ownsClaim(input.userId, input.scanId, input.lease);
+    if (!owned) return { ok: false, reason: "lost" };
+
+    // Stage the report write, then release the lease. Model the plpgsql
+    // transaction: if the release step fails, roll the write back so a
+    // persisted report never coexists with a dangling lease.
     const existing = this.findReport(input.userId, input.scanId);
+    const snapshot = existing ? { ...existing } : null;
     let reportId: string;
     if (existing) {
       existing.analysisId = input.analysisId;
@@ -184,24 +241,59 @@ export class InMemoryReportStore implements ReportStore {
       this.insertCount += 1;
       reportId = row.id;
     }
-    // Release our lease.
-    this.claims = this.claims.filter(
-      (c) =>
-        !(c.creatorId === input.userId && c.scanId === input.scanId && c.worker === input.worker),
-    );
-    return { reportId };
+
+    try {
+      if (this.failCompleteDelete) throw new Error("simulated lease-delete failure");
+      this.claims = this.claims.filter((c) => c !== owned);
+    } catch (err) {
+      // Roll the transaction back.
+      if (snapshot && existing) Object.assign(existing, snapshot);
+      else {
+        this.reports = this.reports.filter((r) => r.id !== reportId);
+        this.insertCount -= 1;
+      }
+      throw err;
+    }
+
+    return { ok: true, reportId };
   }
 
-  async releaseClaim(userId: string, scanId: string, worker: string): Promise<void> {
-    this.calls.push(`releaseClaim:${worker}`);
-    this.claims = this.claims.filter(
-      (c) => !(c.creatorId === userId && c.scanId === scanId && c.worker === worker),
-    );
+  async releaseClaim(userId: string, scanId: string, lease: Lease): Promise<void> {
+    this.calls.push(`releaseClaim:${lease.worker}:${lease.token}`);
+    const owned = this.ownsClaim(userId, scanId, lease);
+    if (!owned) return; // fenced: cannot delete a successor's lease
+    this.claims = this.claims.filter((c) => c !== owned);
   }
 
   /** Every complete report currently held, for assertions. */
   completeReports(): ReportRow[] {
     return this.reports.filter((r) => isCompletePaidPayload(r.payload));
+  }
+}
+
+/** A running-heartbeat double whose tick the test drives manually. */
+export class ManualHeartbeat {
+  ticks = 0;
+  stopped = false;
+  private tick: (() => void | Promise<void>) | null = null;
+  intervalMs = 0;
+
+  /** Matches the `StartHeartbeat` signature. */
+  start = (intervalMs: number, tick: () => void | Promise<void>) => {
+    this.intervalMs = intervalMs;
+    this.tick = tick;
+    return {
+      stop: () => {
+        this.stopped = true;
+      },
+    };
+  };
+
+  /** Fire one heartbeat, as a real interval would. */
+  async beat(): Promise<void> {
+    if (this.stopped || !this.tick) return;
+    this.ticks += 1;
+    await this.tick();
   }
 }
 

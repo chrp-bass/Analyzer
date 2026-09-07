@@ -7,6 +7,7 @@ import type {
 import {
   isCompletePaidPayload,
   type ClaimRow,
+  type Lease,
   type ReportStore,
   type StoredReport,
 } from "@/lib/reports/store";
@@ -15,26 +16,25 @@ import { logTiming, timed, type ReportTiming, type TimingSink } from "@/lib/repo
 /**
  * Paid report preparation — the whole intelligence chain, BEFORE checkout.
  *
- *   claim (durable, atomic, before any upstream work)
+ *   claim (durable, atomic, fenced, before any upstream work)
  *   → Spotify identity + Soundcharts audio → CHRP scoring     (analysis)
  *   → Soundcharts enrichment endpoints                         (enrichments)
  *   → Christian context gate from genre metadata               (christian_context)
  *   → governed Dr. Rhodes generation                           (rhodes_generation)
- *   → persist report + release claim                           (report_persistence)
+ *   → persist report + release lease, atomically               (report_persistence)
  *
  * Only a scan whose report is persisted and complete may reach Stripe. After
  * payment the paid path reads that row and nothing else — it never enters
  * this module.
  *
- * CONCURRENCY. The correctness mechanism is the DURABLE DATABASE CLAIM
- * (`store.beginClaim`), acquired BEFORE analysis, enrichment or Anthropic
- * run. Of N requests for one scan across N Vercel instances, exactly one
- * receives `acquired` and performs upstream work; every other receives
- * `held` and returns `preparing` WITHOUT touching an upstream service. The
- * per-instance promise table below is only a fast-path that collapses
- * duplicate work inside a single instance; it is not, and must not be relied
- * on as, the lock. The tests prove one generator across two independent
- * instance tables sharing one store.
+ * CONCURRENCY & FENCING. The correctness mechanism is the DURABLE, FENCED
+ * DATABASE LEASE (`store.beginClaim`), acquired BEFORE analysis, enrichment or
+ * Anthropic run. Of N requests across N Vercel instances exactly one receives
+ * `acquired`; the rest receive `held` and return `preparing` WITHOUT touching
+ * an upstream service. A long generation renews the lease by heartbeat on
+ * DATABASE time. If the lease is lost to a takeover, this worker persists
+ * nothing — completion is fenced on the immutable lease token. The per-
+ * instance promise map is only a same-instance fast path, never the lock.
  *
  * Deliberately free of Supabase, Next and `server-only`: every decision here
  * is made over the injected `PrepareDeps`. `prepare.server.ts` supplies the
@@ -48,7 +48,8 @@ export type PrepareFailureReason =
   | "no_api_key"
   | "generation_failed"
   | "governor_rejected"
-  | "persist_failed";
+  | "persist_failed"
+  | "lease_lost";
 
 /** Readiness metadata. Never carries report content. */
 export interface ReportReadiness {
@@ -83,6 +84,24 @@ export interface EnrichmentBundle {
   song: unknown;
 }
 
+/** A running heartbeat, stoppable. */
+export interface HeartbeatController {
+  stop(): void;
+}
+export type StartHeartbeat = (
+  intervalMs: number,
+  tick: () => void | Promise<void>,
+) => HeartbeatController;
+
+const defaultStartHeartbeat: StartHeartbeat = (ms, tick) => {
+  const id = setInterval(() => {
+    void tick();
+  }, ms);
+  // Never let the heartbeat hold the process open.
+  (id as unknown as { unref?: () => void }).unref?.();
+  return { stop: () => clearInterval(id) };
+};
+
 export interface PrepareDeps {
   store: ReportStore;
   /** Stage 1: the same engine that produced the free reveal, persisted. */
@@ -99,16 +118,21 @@ export interface PrepareDeps {
   worker?: () => string;
   sink?: TimingSink;
   staleAfterMs?: number;
+  heartbeatMs?: number;
+  startHeartbeat?: StartHeartbeat;
   /** Per-instance in-flight table. Injectable so tests can model two instances. */
   inFlight?: Map<string, Promise<PrepareResult>>;
 }
 
 /**
- * How long a preparation lease stands before another worker may assume its
- * owner died (a timed-out function, a crashed instance) and take over.
- * Generation with the governor's retry runs well under this.
+ * Lease timing. The lease is considered stale after STALE_AFTER_MS on DB
+ * time; the holder renews every HEARTBEAT_MS so a generation that runs longer
+ * than STALE_AFTER_MS keeps its lease and is never taken over mid-flight.
+ * HEARTBEAT_MS is comfortably below STALE_AFTER_MS so a single missed beat
+ * does not surrender the lease.
  */
-export const DEFAULT_STALE_AFTER_MS = 4 * 60 * 1000;
+export const DEFAULT_STALE_AFTER_MS = 90 * 1000;
+export const DEFAULT_HEARTBEAT_MS = 25 * 1000;
 
 const defaultInFlight = new Map<string, Promise<PrepareResult>>();
 
@@ -188,6 +212,8 @@ async function runPreparation(
   };
   const now = deps.now ?? (() => new Date());
   const staleAfterMs = deps.staleAfterMs ?? DEFAULT_STALE_AFTER_MS;
+  const heartbeatMs = deps.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
+  const startHeartbeat = deps.startHeartbeat ?? defaultStartHeartbeat;
   const failed = (
     reason: PrepareFailureReason,
     detail?: string,
@@ -212,15 +238,14 @@ async function runPreparation(
     return ready(preexisting, true);
   }
 
-  // ── The durable atomic claim. Acquired BEFORE Soundcharts, enrichments or
-  //    Anthropic. Exactly one worker across all instances wins; a loser does
-  //    zero upstream work and is told to poll. ──────────────────────────────
+  // ── The durable, fenced atomic claim. Acquired BEFORE Soundcharts,
+  //    enrichments or Anthropic. Exactly one worker across all instances
+  //    wins; a loser does zero upstream work. ────────────────────────────────
   const worker = (deps.worker ?? randomWorker)();
   const claim = await deps.store.beginClaim({
     userId,
     scanId,
     worker,
-    startedAt: now(),
     generatorVersion: deps.generatorVersion,
     staleAfterMs,
   });
@@ -229,9 +254,24 @@ async function runPreparation(
     return { status: "preparing", startedAt: claim.startedAt.toISOString(), timings };
   }
 
-  // We hold the lease. Every exit from here on releases it.
+  const lease: Lease = claim.lease;
+
+  // Heartbeat: renew the lease on DB time while we generate. If a renewal
+  // reports we no longer own the lease (a takeover re-minted the token), flag
+  // it so we abort before persisting. Completion is fenced regardless, so
+  // this is an optimisation on top of a hard guarantee, not the guarantee.
+  let lostOwnership = false;
+  const heartbeat = startHeartbeat(heartbeatMs, async () => {
+    try {
+      const r = await deps.store.renewClaim(userId, scanId, lease);
+      if (!r.renewed) lostOwnership = true;
+    } catch (err) {
+      console.error(`[prepare] heartbeat renew failed for ${scanId}:`, err);
+    }
+  });
+
   const release = () =>
-    deps.store.releaseClaim(userId, scanId, worker).catch((err) => {
+    deps.store.releaseClaim(userId, scanId, lease).catch((err) => {
       console.error(`[prepare] could not release lease for ${scanId}:`, err);
     });
 
@@ -312,43 +352,73 @@ async function runPreparation(
       return failed(generated.reason, generated.detail);
     }
 
-    // ── 5. Persist report + release lease. ──────────────────────────────
+    // Lost the lease while generating? Do not attempt to persist — the
+    // successor owns this scan now. (completeClaim would also refuse, but
+    // stopping here avoids a pointless write attempt and a wasted release.)
+    if (lostOwnership) {
+      console.error(
+        `[prepare] lease for ${scanId} was taken over during generation; not persisting`,
+      );
+      return failed("lease_lost");
+    }
+
+    // ── 5. Persist report + release lease, ATOMICALLY and FENCED. ────────
+    let completion: Awaited<ReturnType<ReportStore["completeClaim"]>>;
     try {
-      const persisted = await timed(
+      completion = await timed(
         "report_persistence",
         scanId,
         () =>
           deps.store.completeClaim({
             userId,
             scanId,
-            worker,
+            lease,
             analysisId: analysis.analysisId,
             payload: generated.sections,
             generatorVersion: deps.generatorVersion,
             model: deps.model,
           }),
-        { sink, annotate: (r) => ({ detail: `report=${r.reportId}` }) },
-      );
-      return ready(
         {
-          id: persisted.reportId,
-          analysisId: analysis.analysisId,
-          payload: generated.sections,
-          generatorVersion: deps.generatorVersion,
-          model: deps.model,
-          createdAt: now().toISOString(),
+          sink,
+          annotate: (r) =>
+            r.ok
+              ? { detail: `report=${r.reportId}` }
+              : { outcome: "error", detail: "lost" },
         },
-        false,
       );
     } catch (err) {
+      // The atomic completion threw: nothing was committed (report write and
+      // lease delete are one transaction). Release our lease so a retry is
+      // clean, and fail closed.
       await release();
       console.error(`[prepare] persist failed for ${scanId}:`, err);
       return failed("persist_failed", err instanceof Error ? err.message : String(err));
     }
+
+    if (!completion.ok) {
+      // Ownership was lost; the successor's lease and report stand. We wrote
+      // nothing and must not release (fenced — it would be a no-op anyway).
+      console.error(`[prepare] completion refused for ${scanId}: lease lost`);
+      return failed("lease_lost");
+    }
+
+    return ready(
+      {
+        id: completion.reportId,
+        analysisId: analysis.analysisId,
+        payload: generated.sections,
+        generatorVersion: deps.generatorVersion,
+        model: deps.model,
+        createdAt: now().toISOString(),
+      },
+      false,
+    );
   } catch (err) {
     // Any unforeseen throw must not strand the lease.
     await release();
     return failed("generation_failed", err instanceof Error ? err.message : String(err));
+  } finally {
+    heartbeat.stop();
   }
 }
 
