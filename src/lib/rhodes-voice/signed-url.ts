@@ -51,7 +51,7 @@ export async function mintRhodesSignedUrl(
     };
   }
   const agentId = rhodesAgentId();
-  const url = `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${encodeURIComponent(
+  const url = `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(
     agentId,
   )}`;
 

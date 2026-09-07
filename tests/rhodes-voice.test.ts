@@ -230,6 +230,27 @@ describe("mintRhodesSignedUrl", () => {
     expect(headers["xi-api-key"]).toBe("test_key_do_not_leak");
   });
 
+  it("calls the ElevenLabs convai signed-URL endpoint at its canonical hyphenated path", async () => {
+    // Regression pin: the ElevenLabs endpoint is `.../get-signed-url`
+    // (hyphens), not `.../get_signed_url` (underscores). The underscored
+    // path returns 401 in production even under a valid key, so the
+    // exact string is worth encoding as a test rather than trusting
+    // memory.
+    process.env.ELEVENLABS_API_KEY = "test_key";
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ signed_url: "wss://api.elevenlabs.io/token/x" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
+    const [url] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain(
+      "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=",
+    );
+    expect(url).not.toContain("get_signed_url");
+  });
+
   it("returns the signed URL when ElevenLabs answers happily", async () => {
     process.env.ELEVENLABS_API_KEY = "test_key";
     const fetchImpl = vi.fn(async () =>
