@@ -1,37 +1,37 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  classifyExistingRow,
-  preparationMarker,
-  readPreparationMarker,
-  PREPARING_VERSION_PREFIX,
-  type BeginPreparationInput,
-  type BeginPreparationOutcome,
-  type CompletePreparationInput,
+  isCompletePaidPayload,
+  type BeginClaimInput,
+  type BeginClaimOutcome,
+  type ClaimRow,
+  type CompleteClaimInput,
   type ReportStore,
   type StoredReport,
 } from "@/lib/reports/store";
 
 /**
- * The production `ReportStore`: the `reports` table, reached with the
- * service-role key from server code only.
+ * The production `ReportStore`: the `reports` table (0002) plus the
+ * `report_claims` lease table (0003), reached with the service-role key from
+ * server code only.
  *
  * Service role bypasses RLS, so every method filters on `creator_id`
- * explicitly. The table itself has no owner-read policy — paid intelligence
- * is reachable only through the entitlement-checked resolver.
+ * explicitly. Neither table has an owner-read policy — a paid report is
+ * reachable only through the entitlement-checked resolver, and a claim is
+ * reachable to nobody but this code.
  *
- * No schema change. The preparation lock is the (creator_id, scan_id) unique
- * index: the first insert of a marker row wins, everyone else sees a
- * unique-violation and reads the row that beat them. Taking over a stale
- * marker is a conditional UPDATE keyed on the dead worker's id, so two
- * takeovers cannot both succeed.
+ * The atomic claim is the INSERT of a `report_claims` row under its
+ * (creator_id, scan_id) primary key. It runs BEFORE analysis, enrichment or
+ * generation. A stale lease is taken over by a compare-and-swap on
+ * `claimed_at`, so two takeovers can never both succeed.
  */
 
-const COLUMNS = "id,analysis_id,payload,generator_version,model,created_at";
+const REPORT_COLUMNS = "id,analysis_id,payload,generator_version,model,created_at";
+const CLAIM_COLUMNS = "worker,report_version,claimed_at";
 
 type Db = ReturnType<typeof createAdminClient>;
 
-type Row = {
+type ReportRowShape = {
   id: string;
   analysis_id: string;
   payload: unknown;
@@ -40,7 +40,13 @@ type Row = {
   created_at: string;
 };
 
-function toRecord(row: Row): StoredReport {
+type ClaimRowShape = {
+  worker: string;
+  report_version: string;
+  claimed_at: string;
+};
+
+function toReport(row: ReportRowShape): StoredReport {
   return {
     id: row.id,
     analysisId: row.analysis_id,
@@ -48,6 +54,14 @@ function toRecord(row: Row): StoredReport {
     generatorVersion: row.generator_version,
     model: row.model,
     createdAt: row.created_at,
+  };
+}
+
+function toClaim(row: ClaimRowShape): ClaimRow {
+  return {
+    worker: row.worker,
+    reportVersion: row.report_version,
+    claimedAt: new Date(row.claimed_at),
   };
 }
 
@@ -62,73 +76,101 @@ export function createSupabaseReportStore(db: Db = createAdminClient()): ReportS
   async function getReport(userId: string, scanId: string): Promise<StoredReport | null> {
     const { data, error } = await db
       .from("reports")
-      .select(COLUMNS)
+      .select(REPORT_COLUMNS)
       .eq("creator_id", userId)
       .eq("scan_id", scanId)
       .limit(1);
     if (error) throw error;
-    const row = (data as Row[] | null)?.[0];
-    return row ? toRecord(row) : null;
+    const row = (data as ReportRowShape[] | null)?.[0];
+    return row ? toReport(row) : null;
   }
 
-  async function takeOver(
-    existing: StoredReport,
-    input: BeginPreparationInput,
-  ): Promise<BeginPreparationOutcome> {
-    const marker = preparationMarker(input.worker, input.startedAt);
-    let query = db
-      .from("reports")
-      .update({
-        payload: marker,
-        analysis_id: input.analysisId,
-        generator_version: PREPARING_VERSION_PREFIX + input.generatorVersion,
-        model: null,
-      })
-      .eq("id", existing.id)
-      .eq("creator_id", input.userId);
-    const previous = readPreparationMarker(existing.payload);
-    // The predicate is what makes this atomic: it only matches the exact
-    // row state we observed, so a concurrent takeover matches nothing.
-    query = previous
-      ? query.contains("payload", { _chrp_preparing: { worker: previous.worker } })
-      : query.eq("generator_version", existing.generatorVersion);
-    const { data, error } = await query.select("id");
+  async function getClaim(userId: string, scanId: string): Promise<ClaimRow | null> {
+    const { data, error } = await db
+      .from("report_claims")
+      .select(CLAIM_COLUMNS)
+      .eq("creator_id", userId)
+      .eq("scan_id", scanId)
+      .limit(1);
     if (error) throw error;
-    if (data && data.length > 0) {
-      return { outcome: "acquired", reportId: existing.id };
-    }
-    return { outcome: "held", startedAt: input.startedAt };
+    const row = (data as ClaimRowShape[] | null)?.[0];
+    return row ? toClaim(row) : null;
   }
 
   return {
     getReport,
+    getClaim,
 
-    async beginPreparation(input) {
-      const { data, error } = await db
-        .from("reports")
-        .insert({
-          creator_id: input.userId,
-          scan_id: input.scanId,
-          analysis_id: input.analysisId,
-          payload: preparationMarker(input.worker, input.startedAt),
-          generator_version: PREPARING_VERSION_PREFIX + input.generatorVersion,
-          model: null,
-        })
-        .select("id")
-        .single();
-      if (!error) return { outcome: "acquired", reportId: (data as { id: string }).id };
+    async beginClaim(input: BeginClaimInput): Promise<BeginClaimOutcome> {
+      // A complete, current-version report already exists → nobody generates.
+      const existing = await getReport(input.userId, input.scanId);
+      if (
+        existing &&
+        isCompletePaidPayload(existing.payload) &&
+        existing.generatorVersion === input.generatorVersion
+      ) {
+        return { outcome: "ready", report: existing };
+      }
+
+      // The atomic claim: first INSERT under the (creator_id, scan_id) primary
+      // key wins. This precedes ALL upstream work.
+      const { error } = await db.from("report_claims").insert({
+        creator_id: input.userId,
+        scan_id: input.scanId,
+        worker: input.worker,
+        report_version: input.generatorVersion,
+        claimed_at: input.startedAt.toISOString(),
+      });
+      if (!error) return { outcome: "acquired" };
       if (!isUniqueViolation(error)) throw error;
 
-      const existing = await getReport(input.userId, input.scanId);
-      if (!existing) throw error;
+      // Someone already holds the lease. Fresh → poll. Stale → take over.
+      const claim = await getClaim(input.userId, input.scanId);
+      if (!claim) {
+        // Deleted between our failed insert and this read (the holder just
+        // finished or failed). Try once more to acquire.
+        const retry = await db.from("report_claims").insert({
+          creator_id: input.userId,
+          scan_id: input.scanId,
+          worker: input.worker,
+          report_version: input.generatorVersion,
+          claimed_at: input.startedAt.toISOString(),
+        });
+        if (!retry.error) return { outcome: "acquired" };
+        if (!isUniqueViolation(retry.error)) throw retry.error;
+        const again = await getClaim(input.userId, input.scanId);
+        return { outcome: "held", startedAt: again?.claimedAt ?? input.startedAt };
+      }
 
-      const verdict = classifyExistingRow(existing, input);
-      if (verdict.kind === "ready") return { outcome: "ready", report: existing };
-      if (verdict.kind === "held") return { outcome: "held", startedAt: verdict.startedAt };
-      return takeOver(existing, input);
+      const age = input.startedAt.getTime() - claim.claimedAt.getTime();
+      if (age < input.staleAfterMs) {
+        return { outcome: "held", startedAt: claim.claimedAt };
+      }
+
+      // Stale lease. Take it over with a compare-and-swap on claimed_at: only
+      // the caller whose observed timestamp still matches wins, so two
+      // concurrent takeovers cannot both succeed.
+      const { data: taken, error: casError } = await db
+        .from("report_claims")
+        .update({
+          worker: input.worker,
+          report_version: input.generatorVersion,
+          claimed_at: input.startedAt.toISOString(),
+        })
+        .eq("creator_id", input.userId)
+        .eq("scan_id", input.scanId)
+        .eq("claimed_at", claim.claimedAt.toISOString())
+        .select("worker");
+      if (casError) throw casError;
+      if (taken && taken.length > 0) return { outcome: "acquired" };
+      // Another worker won the takeover. Poll.
+      const current = await getClaim(input.userId, input.scanId);
+      return { outcome: "held", startedAt: current?.claimedAt ?? input.startedAt };
     },
 
-    async completePreparation(input: CompletePreparationInput) {
+    async completeClaim(input: CompleteClaimInput): Promise<{ reportId: string }> {
+      // Persist the report first — the reports row is the source of truth for
+      // "ready". Only then release the lease.
       const { data, error } = await db
         .from("reports")
         .upsert(
@@ -145,16 +187,24 @@ export function createSupabaseReportStore(db: Db = createAdminClient()): ReportS
         .select("id")
         .single();
       if (error) throw error;
+
+      await db
+        .from("report_claims")
+        .delete()
+        .eq("creator_id", input.userId)
+        .eq("scan_id", input.scanId)
+        .eq("worker", input.worker);
+
       return { reportId: (data as { id: string }).id };
     },
 
-    async abandonPreparation(userId, scanId, worker) {
+    async releaseClaim(userId, scanId, worker) {
       const { error } = await db
-        .from("reports")
+        .from("report_claims")
         .delete()
         .eq("creator_id", userId)
         .eq("scan_id", scanId)
-        .contains("payload", { _chrp_preparing: { worker } });
+        .eq("worker", worker);
       if (error) throw error;
     },
   };

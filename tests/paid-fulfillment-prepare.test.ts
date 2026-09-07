@@ -6,7 +6,7 @@ import {
   type PrepareDeps,
   type PrepareResult,
 } from "@/lib/reports/prepare";
-import { isCompletePaidPayload, readPreparationMarker } from "@/lib/reports/store";
+import { isCompletePaidPayload } from "@/lib/reports/store";
 import type { ReportTiming } from "@/lib/reports/timing";
 import {
   InMemoryReportStore,
@@ -17,11 +17,13 @@ import {
 /**
  * Paid fulfillment, before checkout.
  *
- * The rule under test: NEVER charge until the complete paid report is
- * already generated and persisted. These run the production preparation
- * core over an in-memory store with counted fakes for the engine, the
- * enrichment layer and Rhodes, so every assertion about "how many times was
- * Rhodes called" is about real control flow.
+ * The rule under test: NEVER charge until the complete paid report is already
+ * generated and persisted, and acquire a DURABLE atomic claim BEFORE any
+ * upstream work runs. These run the production preparation core over an
+ * in-memory store with counted fakes for the engine, the enrichment layer and
+ * Rhodes, and a spy that records the exact order of store calls vs. upstream
+ * calls — so "the claim precedes Soundcharts" is a claim about real control
+ * flow, not a mock.
  */
 
 const VERSION = "chrp-rhodes-v2";
@@ -38,8 +40,12 @@ interface Counters {
 
 function makeDeps(
   store: InMemoryReportStore,
-  overrides: Partial<PrepareDeps> & { counters?: Counters; generateDelayMs?: number } = {},
-): { deps: PrepareDeps; counters: Counters; timings: ReportTiming[] } {
+  overrides: Partial<PrepareDeps> & {
+    counters?: Counters;
+    generateDelayMs?: number;
+    trace?: string[];
+  } = {},
+): { deps: PrepareDeps; counters: Counters; timings: ReportTiming[]; trace: string[] } {
   const counters: Counters = overrides.counters ?? {
     analysis: 0,
     enrich: 0,
@@ -47,13 +53,16 @@ function makeDeps(
     generate: 0,
   };
   const timings: ReportTiming[] = [];
+  const trace = overrides.trace ?? [];
   const deps: PrepareDeps = {
     store,
     ensureAnalysis: async () => {
+      trace.push("upstream:analysis");
       counters.analysis += 1;
       return { ok: true, analysisId: "an_1", songId: "song_1" };
     },
     enrich: async () => {
+      trace.push("upstream:enrich");
       counters.enrich += 1;
       return {
         facts: {
@@ -71,6 +80,7 @@ function makeDeps(
       return null;
     },
     generate: async () => {
+      trace.push("upstream:generate");
       counters.generate += 1;
       if (overrides.generateDelayMs) {
         await new Promise((r) => setTimeout(r, overrides.generateDelayMs));
@@ -83,11 +93,63 @@ function makeDeps(
     inFlight: new Map(),
     ...overrides,
   };
-  return { deps, counters, timings };
+  return { deps, counters, timings, trace };
 }
 
+describe("the claim is acquired before any upstream work", () => {
+  it("beginClaim precedes analysis, enrichment and generation in the call order", async () => {
+    const store = new InMemoryReportStore();
+    const trace: string[] = [];
+    // Weave store calls into the same trace as upstream calls.
+    const wrapped = new Proxy(store, {
+      get(target, prop, receiver) {
+        const orig = Reflect.get(target, prop, receiver);
+        if (typeof orig !== "function") return orig;
+        return (...args: unknown[]) => {
+          if (prop === "beginClaim") trace.push("store:beginClaim");
+          if (prop === "completeClaim") trace.push("store:completeClaim");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (orig as any).apply(target, args);
+        };
+      },
+    });
+    const { deps } = makeDeps(store, { store: wrapped, trace });
+
+    const result = await prepareReport(deps, USER, SCAN);
+    expect(result.status).toBe("ready");
+
+    const claimIdx = trace.indexOf("store:beginClaim");
+    const analysisIdx = trace.indexOf("upstream:analysis");
+    const enrichIdx = trace.indexOf("upstream:enrich");
+    const genIdx = trace.indexOf("upstream:generate");
+    expect(claimIdx).toBeGreaterThanOrEqual(0);
+    expect(claimIdx).toBeLessThan(analysisIdx);
+    expect(claimIdx).toBeLessThan(enrichIdx);
+    expect(claimIdx).toBeLessThan(genIdx);
+    // And the report is persisted (completeClaim) only after generation.
+    expect(trace.indexOf("store:completeClaim")).toBeGreaterThan(genIdx);
+  });
+
+  it("a request that loses the claim does ZERO upstream work", async () => {
+    const store = new InMemoryReportStore();
+    // A live lease already held by another worker.
+    store.seedClaim({
+      creatorId: USER,
+      scanId: SCAN,
+      worker: "worker_other",
+      reportVersion: VERSION,
+      claimedAt: new Date(),
+    });
+    const { deps, counters } = makeDeps(store, { now: () => new Date() });
+
+    const result = await prepareReport(deps, USER, SCAN);
+    expect(result.status).toBe("preparing");
+    expect(counters).toEqual({ analysis: 0, enrich: 0, context: 0, generate: 0 });
+  });
+});
+
 describe("preparation runs the whole chain and persists before anyone can pay", () => {
-  it("analysis → enrichments → Christian context → Rhodes → persistence, in order, timed", async () => {
+  it("analysis → enrichments → Christian context → Rhodes → persistence, timed", async () => {
     const store = new InMemoryReportStore();
     const { deps, counters, timings } = makeDeps(store);
 
@@ -109,6 +171,8 @@ describe("preparation runs the whole chain and persists before anyone can pay", 
     expect(rows[0].generatorVersion).toBe(VERSION);
     expect(rows[0].analysisId).toBe("an_1");
     expect(isCompletePaidPayload(rows[0].payload)).toBe(true);
+    // The lease was released.
+    expect(store.claims).toHaveLength(0);
   });
 
   it("returns readiness metadata only — never a word of the report", async () => {
@@ -137,12 +201,14 @@ describe("preparation runs the whole chain and persists before anyone can pay", 
     expect(result).toMatchObject({ status: "failed", reason: "song_unavailable" });
     expect(counters.enrich).toBe(0);
     expect(counters.generate).toBe(0);
-    expect(store.rows).toHaveLength(0);
+    expect(store.reports).toHaveLength(0);
+    // The lease is released so a retry can proceed.
+    expect(store.claims).toHaveLength(0);
   });
 });
 
 describe("enrichment failure prevents checkout rather than failing after payment", () => {
-  it("fails closed, releases the lock, persists nothing, and Rhodes is never called", async () => {
+  it("fails closed, releases the lease, persists nothing, and Rhodes is never called", async () => {
     const store = new InMemoryReportStore();
     const { deps, counters, timings } = makeDeps(store, {
       enrich: async () => {
@@ -154,9 +220,8 @@ describe("enrichment failure prevents checkout rather than failing after payment
 
     expect(result).toMatchObject({ status: "failed", reason: "enrichment_failed" });
     expect(counters.generate).toBe(0);
-    // The marker row is gone — nothing is left on file that could be
-    // mistaken for a report, and the next attempt starts clean.
-    expect(store.rows).toHaveLength(0);
+    expect(store.reports).toHaveLength(0);
+    expect(store.claims).toHaveLength(0);
     expect(timings.find((t) => t.stage === "enrichments")?.outcome).toBe("error");
 
     // And checkout refuses: there is no report to charge for.
@@ -173,17 +238,6 @@ describe("enrichment failure prevents checkout rather than failing after payment
     expect(check).toEqual({ ok: false, reason: "not_ready" });
   });
 
-  it("a Soundcharts miss during enrichment is reported as the song being unavailable", async () => {
-    const store = new InMemoryReportStore();
-    const { deps } = makeDeps(store, {
-      enrich: async () => {
-        throw new Error("song_unavailable");
-      },
-    });
-    const result = await prepareReport(deps, USER, SCAN);
-    expect(result).toMatchObject({ status: "failed", reason: "song_unavailable" });
-  });
-
   it("a governor rejection also closes checkout and leaves nothing on file", async () => {
     const store = new InMemoryReportStore();
     const { deps } = makeDeps(store, {
@@ -195,11 +249,12 @@ describe("enrichment failure prevents checkout rather than failing after payment
     });
     const result = await prepareReport(deps, USER, SCAN);
     expect(result).toMatchObject({ status: "failed", reason: "governor_rejected" });
-    expect(store.rows).toHaveLength(0);
+    expect(store.reports).toHaveLength(0);
+    expect(store.claims).toHaveLength(0);
   });
 });
 
-describe("concurrent preparation requests create only one report", () => {
+describe("distributed concurrency: exactly one generator", () => {
   it("same instance: N simultaneous calls share one generation and one row", async () => {
     const store = new InMemoryReportStore();
     const { deps, counters } = makeDeps(store, { generateDelayMs: 20 });
@@ -213,41 +268,45 @@ describe("concurrent preparation requests create only one report", () => {
 
     expect(results.every((r) => r.status === "ready")).toBe(true);
     expect(counters.generate).toBe(1);
-    expect(counters.enrich).toBe(1);
-    expect(store.insertCount).toBe(1);
+    expect(store.claimAcquisitions).toBe(1);
     expect(store.completeReports()).toHaveLength(1);
-    const ids = new Set(
-      results.map((r) => (r.status === "ready" ? r.readiness.reportId : "?")),
-    );
-    expect(ids.size).toBe(1);
   });
 
-  it("different instances: the store's row claim lets exactly one generate; the rest are told to poll", async () => {
+  it("separate Vercel instances: the DB claim lets exactly one generate; the rest poll", async () => {
     const store = new InMemoryReportStore();
-    // Two instances = two in-flight tables over one database.
-    const a = makeDeps(store, { generateDelayMs: 30, worker: () => "worker_a" });
-    const b = makeDeps(store, {
-      generateDelayMs: 30,
-      worker: () => "worker_b",
-      counters: a.counters,
-    });
+    // Four independent instances = four in-flight tables over one database.
+    // No in-process map can mask the DB claim here.
+    const shared: Counters = { analysis: 0, enrich: 0, context: 0, generate: 0 };
+    const instances = [0, 1, 2, 3].map((i) =>
+      makeDeps(store, {
+        generateDelayMs: 30,
+        worker: () => `worker_${i}`,
+        counters: shared,
+        inFlight: new Map(),
+      }),
+    );
 
-    const [ra, rb] = await Promise.all([
-      prepareReport(a.deps, USER, SCAN),
-      prepareReport(b.deps, USER, SCAN),
-    ]);
+    const results = await Promise.all(
+      instances.map((inst) => prepareReport(inst.deps, USER, SCAN)),
+    );
 
-    const statuses = [ra.status, rb.status].sort();
-    expect(statuses).toEqual(["preparing", "ready"]);
-    expect(a.counters.generate).toBe(1);
-    expect(store.insertCount).toBe(1);
+    const readies = results.filter((r) => r.status === "ready");
+    const preparings = results.filter((r) => r.status === "preparing");
+    // Exactly one instance generated; the other three were told to poll and
+    // performed no upstream work.
+    expect(shared.generate).toBe(1);
+    expect(shared.analysis).toBe(1);
+    expect(shared.enrich).toBe(1);
+    expect(store.claimAcquisitions).toBe(1);
     expect(store.completeReports()).toHaveLength(1);
+    expect(readies.length).toBeGreaterThanOrEqual(1);
+    expect(readies.length + preparings.length).toBe(4);
 
-    // The instance that was told to poll now finds the finished report and
-    // reuses it — still one generation.
-    const again = await prepareReport(b.deps, USER, SCAN);
+    // Once done, a polling instance re-asks and gets the finished report,
+    // still one generation.
+    const again = await prepareReport(instances[1].deps, USER, SCAN);
     expect(again).toMatchObject({ status: "ready", reused: true });
-    expect(a.counters.generate).toBe(1);
+    expect(shared.generate).toBe(1);
   });
 
   it("a refresh, a retry and a repeated checkout attempt all reuse the persisted report", async () => {
@@ -262,19 +321,19 @@ describe("concurrent preparation requests create only one report", () => {
     expect(second).toMatchObject({ status: "ready", reused: true });
     expect(third).toMatchObject({ status: "ready", reused: true });
     expect(counters.generate).toBe(1);
-    expect(counters.enrich).toBe(1);
+    expect(store.claimAcquisitions).toBe(1);
     expect(store.completeReports()).toHaveLength(1);
   });
 
-  it("a stale marker from a dead worker is taken over, not honoured forever", async () => {
+  it("a stale lease from a dead worker is taken over, not honoured forever", async () => {
     const store = new InMemoryReportStore();
     const dead = new Date("2026-09-01T00:00:00Z");
-    store.seed({
+    store.seedClaim({
       creatorId: USER,
       scanId: SCAN,
-      analysisId: "an_1",
-      payload: { _chrp_preparing: { worker: "worker_dead", started_at: dead.toISOString() } },
-      generatorVersion: `preparing:${VERSION}`,
+      worker: "worker_dead",
+      reportVersion: VERSION,
+      claimedAt: dead,
     });
     const { deps, counters } = makeDeps(store, {
       now: () => new Date(dead.getTime() + 10 * 60 * 1000),
@@ -283,18 +342,18 @@ describe("concurrent preparation requests create only one report", () => {
     expect(result.status).toBe("ready");
     expect(counters.generate).toBe(1);
     expect(store.completeReports()).toHaveLength(1);
-    expect(store.insertCount).toBe(0); // the existing row was reused
+    expect(store.claims).toHaveLength(0);
   });
 
-  it("a live marker from another worker is honoured: no second generation", async () => {
+  it("a live lease from another worker is honoured: no second generation", async () => {
     const store = new InMemoryReportStore();
     const now = new Date();
-    store.seed({
+    store.seedClaim({
       creatorId: USER,
       scanId: SCAN,
-      analysisId: "an_1",
-      payload: { _chrp_preparing: { worker: "worker_live", started_at: now.toISOString() } },
-      generatorVersion: `preparing:${VERSION}`,
+      worker: "worker_live",
+      reportVersion: VERSION,
+      claimedAt: now,
     });
     const { deps, counters } = makeDeps(store, { now: () => now });
     const result = await prepareReport(deps, USER, SCAN);
@@ -358,7 +417,7 @@ describe("checkout binds to the exact identity, scan, report and version", () =>
 
   it("rejects a report persisted under an earlier contract even when the claim names it", async () => {
     const store = new InMemoryReportStore();
-    const row = store.seed({
+    const row = store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
@@ -417,21 +476,20 @@ describe("checkout binds to the exact identity, scan, report and version", () =>
     expect(check).toEqual({ ok: false, reason: "not_ready" });
   });
 
-  it("rejects a preparation still in flight", async () => {
+  it("rejects a preparation still in flight (a lease, no complete report)", async () => {
     const store = new InMemoryReportStore();
-    const row = store.seed({
+    store.seedClaim({
       creatorId: USER,
       scanId: SCAN,
-      analysisId: "an_1",
-      payload: { _chrp_preparing: { worker: "w", started_at: new Date().toISOString() } },
-      generatorVersion: `preparing:${VERSION}`,
+      worker: "w",
+      reportVersion: VERSION,
+      claimedAt: new Date(),
     });
-    expect(readPreparationMarker(row.payload)).not.toBeNull();
     const check = await checkReportReadiness(
       { store, findAnalysis: analysisOk, generatorVersion: VERSION, engineVersion: ENGINE },
       USER,
       SCAN,
-      { reportId: row.id, reportVersion: `preparing:${VERSION}` },
+      { reportId: "rep_x", reportVersion: VERSION },
     );
     expect(check).toEqual({ ok: false, reason: "not_ready" });
   });

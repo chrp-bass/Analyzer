@@ -9,9 +9,9 @@ import {
   GENERATOR_VERSION,
 } from "@/lib/reports/generate.server";
 import { createSupabaseReportStore } from "@/lib/reports/store.supabase";
+import { freeReportForScan } from "@/lib/reports/free-report.server";
 import {
   assembleAnalysisFacts,
-  freeReportForScan,
   EnrichmentError,
 } from "@/lib/reports/analysis-facts.server";
 import {

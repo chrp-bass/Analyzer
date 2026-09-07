@@ -9,7 +9,9 @@
     "lint": "next lint",
     "rhodes": "tsx scripts/rhodes-canonical.mts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "inventory:reports": "tsx scripts/inventory-incomplete-reports.mts",
+    "backfill:reports": "NODE_OPTIONS='--conditions=react-server' tsx scripts/backfill-reports.mts"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.24.0",

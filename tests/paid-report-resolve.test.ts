@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   resolveEntitledReportWith,
@@ -14,10 +14,11 @@ import {
 
 /**
  * The paid path after payment: verify entitlement → read persisted report →
- * render. Nothing else. These run the production resolver over an in-memory
- * report store, with the upstream layers (Soundcharts, enrichment, Anthropic)
- * represented by a single `recover` spy — the ONLY way the resolver can reach
- * any of them — so "never called" is a claim about real control flow.
+ * render. NOTHING ELSE. The resolver has no preparer dependency and imports
+ * no upstream client, so there is no code path from a paid read to
+ * Soundcharts, enrichment or Anthropic — proven both structurally (the
+ * import-graph test) and behaviourally (the store call trace shows only
+ * getReport).
  */
 
 const USER = "user_a";
@@ -49,14 +50,8 @@ function free(): FreeReport {
 function makeDeps(
   store: InMemoryReportStore,
   overrides: Partial<ResolveDeps> = {},
-): { deps: ResolveDeps; recover: ReturnType<typeof vi.fn>; timings: ReportTiming[] } {
+): { deps: ResolveDeps; timings: ReportTiming[] } {
   const timings: ReportTiming[] = [];
-  const recover = vi.fn(async () => ({
-    status: "failed" as const,
-    reason: "generation_failed" as const,
-    message: "no",
-    timings: [],
-  }));
   const deps: ResolveDeps = {
     access: async () => ({
       ok: true,
@@ -75,25 +70,24 @@ function makeDeps(
     userId: async () => USER,
     store,
     freeReport: async () => free(),
-    recover: recover as unknown as ResolveDeps["recover"],
     fixture: () => null,
     sink: (t) => timings.push(t),
     ...overrides,
   };
-  return { deps, recover, timings };
+  return { deps, timings };
 }
 
 describe("the paid path never requires live Soundcharts, enrichment or Anthropic after payment", () => {
-  it("serves the persisted report from the store and touches no upstream", async () => {
+  it("serves the persisted report from the store and touches nothing else", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
       payload: paidSections(),
       generatorVersion: "chrp-rhodes-v2",
     });
-    const { deps, recover, timings } = makeDeps(store);
+    const { deps, timings } = makeDeps(store);
 
     const resolved = await resolveEntitledReportWith(deps, SCAN);
 
@@ -102,56 +96,71 @@ describe("the paid path never requires live Soundcharts, enrichment or Anthropic
     expect(resolved.source).toBe("generated");
     expect(resolved.report.rhodes).toBe(paidSections().rhodes);
     expect(resolved.report.track.title).toBe("Safe");
-    expect(recover).not.toHaveBeenCalled();
     expect(timings.map((t) => t.stage)).toEqual([
       "entitlement_check",
       "persisted_report_retrieval",
     ]);
+    // The only store interaction is a single read. No claim, no write.
+    expect(store.calls).toEqual([`getReport:${USER}:${SCAN}`]);
   });
 
-  it("the resolver module imports no upstream client at all", () => {
+  it("the resolver module imports no upstream client, and no preparer", () => {
     const src = readFileSync("src/lib/reports/resolve.server.ts", "utf8");
     for (const upstream of [
       "@/lib/engine/soundcharts",
       "@/lib/engine/analyze.server",
-      "@/lib/rhodes\"",
+      "@/lib/engine/spotify",
       "@/lib/reports/generate.server",
+      "@/lib/reports/prepare.server",
+      "@/lib/reports/prepare\"",
+      "@/lib/reports/analysis-facts.server",
       "api.anthropic.com",
     ]) {
-      expect(src).not.toContain(upstream);
+      expect(src, upstream).not.toContain(upstream);
+    }
+  });
+
+  it("the free-report module it depends on also imports no upstream client", () => {
+    const src = readFileSync("src/lib/reports/free-report.server.ts", "utf8");
+    for (const upstream of [
+      "@/lib/engine/soundcharts",
+      "@/lib/engine/analyze.server",
+      "@/lib/reports/generate.server",
+      "@/lib/rhodes",
+    ]) {
+      expect(src, upstream).not.toContain(upstream);
     }
   });
 });
 
 describe("a saved report serves immediately", () => {
-  it("is a read: exactly one store lookup, no preparation", async () => {
+  it("is a read: exactly one store lookup, no claim, no preparation", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
       payload: paidSections(),
       generatorVersion: "chrp-rhodes-v2",
     });
-    const { deps, recover } = makeDeps(store);
+    const { deps } = makeDeps(store);
     await resolveEntitledReportWith(deps, SCAN);
-    expect(store.calls.filter((c) => c.startsWith("getReport"))).toHaveLength(1);
-    expect(store.calls.some((c) => c.startsWith("beginPreparation"))).toBe(false);
-    expect(recover).not.toHaveBeenCalled();
+    expect(store.calls).toEqual([`getReport:${USER}:${SCAN}`]);
+    expect(store.calls.some((c) => c.startsWith("beginClaim"))).toBe(false);
   });
 });
 
 describe("refresh and revisit serve the same saved report", () => {
   it("returns identical content on every read, without regenerating", async () => {
     const store = new InMemoryReportStore();
-    const row = store.seed({
+    const row = store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
       payload: paidSections({ rhodes: "The one reading this creator bought." }),
       generatorVersion: "chrp-rhodes-v2",
     });
-    const { deps, recover } = makeDeps(store);
+    const { deps } = makeDeps(store);
 
     const first = await resolveEntitledReportWith(deps, SCAN);
     const second = await resolveEntitledReportWith(deps, SCAN);
@@ -162,23 +171,23 @@ describe("refresh and revisit serve the same saved report", () => {
       if (r.ok) expect(r.report.rhodes).toBe("The one reading this creator bought.");
     }
     expect(JSON.stringify(first)).toBe(JSON.stringify(third));
-    expect(store.rows[0].id).toBe(row.id);
+    expect(store.reports[0].id).toBe(row.id);
     expect(store.completeReports()).toHaveLength(1);
-    expect(recover).not.toHaveBeenCalled();
+    expect(store.claims).toHaveLength(0);
   });
 });
 
 describe("unpaid users cannot retrieve persisted report contents", () => {
   it("returns the opaque 403 and never reads the store, even when a report is on file", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
       payload: paidSections(),
       generatorVersion: "chrp-rhodes-v2",
     });
-    const { deps, recover } = makeDeps(store, {
+    const { deps } = makeDeps(store, {
       access: async () => ({ ok: false, reason: "no_entitlement" }),
     });
 
@@ -186,12 +195,11 @@ describe("unpaid users cannot retrieve persisted report contents", () => {
 
     expect(resolved).toEqual({ ok: false, status: 403, error: "forbidden", entitled: false });
     expect(store.calls).toHaveLength(0);
-    expect(recover).not.toHaveBeenCalled();
   });
 
   it("an expired entitlement is denied identically", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
@@ -216,36 +224,34 @@ describe("unpaid users cannot retrieve persisted report contents", () => {
 
   it("another creator's report for the same scan is never served", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: "user_b",
       scanId: SCAN,
       analysisId: "an_b",
       payload: paidSections({ rhodes: "user_b's reading" }),
       generatorVersion: "chrp-rhodes-v2",
     });
-    const { deps } = makeDeps(store, { recover: async () => ({
-      status: "failed", reason: "generation_failed", message: "no", timings: [],
-    }) });
+    const { deps } = makeDeps(store);
     const resolved = await resolveEntitledReportWith(deps, SCAN);
-    // Entitled, but nothing complete on file for THIS creator, and recovery
-    // (stubbed) produced nothing — the other creator's row is invisible.
+    // Entitled, but nothing on file for THIS creator — 503, not the other
+    // creator's row, and no generation.
     expect(resolved.ok).toBe(false);
     if (!resolved.ok) expect(resolved.status).toBe(503);
+    expect(store.calls.some((c) => c.startsWith("beginClaim"))).toBe(false);
   });
 
   it("the preparation routes expose readiness only", () => {
     const prepareRoute = readFileSync("src/app/api/scan/prepare/route.ts", "utf8");
-    // The route never imports the resolver or reads a payload.
     expect(prepareRoute).not.toContain("resolveEntitledReport");
     expect(prepareRoute).not.toMatch(/payload/);
     expect(prepareRoute).toContain("...result.readiness");
   });
 });
 
-describe("existing entitled reports remain accessible after migration", () => {
-  it("a report persisted under the earlier contract still serves, unchanged, with no regeneration", async () => {
+describe("existing entitled reports remain accessible after migration — as a pure read", () => {
+  it("a report persisted under the earlier contract still serves, unchanged, with no work", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_legacy",
@@ -253,7 +259,7 @@ describe("existing entitled reports remain accessible after migration", () => {
       generatorVersion: "chrp-report-v1",
       model: "claude-3-5-sonnet",
     });
-    const { deps, recover } = makeDeps(store);
+    const { deps } = makeDeps(store);
 
     const resolved = await resolveEntitledReportWith(deps, SCAN);
 
@@ -261,50 +267,34 @@ describe("existing entitled reports remain accessible after migration", () => {
     if (!resolved.ok) return;
     expect(resolved.report.rhodes).toBe(legacyPaidSections().rhodes);
     expect(resolved.report.consider).toBeUndefined();
-    expect(recover).not.toHaveBeenCalled();
+    expect(store.calls).toEqual([`getReport:${USER}:${SCAN}`]);
+    expect(store.claims).toHaveLength(0);
     expect(store.completeReports()).toHaveLength(1);
-    expect(store.rows[0].generatorVersion).toBe("chrp-report-v1");
+    expect(store.reports[0].generatorVersion).toBe("chrp-report-v1");
   });
 
-  it("an entitled report whose persisted payload is incomplete is recovered through the same idempotent preparer", async () => {
+  it("an entitled report with an INCOMPLETE payload gets an honest 503 — never a regeneration on the read path", async () => {
     const store = new InMemoryReportStore();
-    store.seed({
+    store.seedReport({
       creatorId: USER,
       scanId: SCAN,
       analysisId: "an_1",
       payload: { rhodes: "" }, // a broken earlier write
       generatorVersion: "chrp-rhodes-v2",
     });
-    const recover = vi.fn(async () => {
-      store.rows[0].payload = paidSections({ rhodes: "recovered" });
-      return {
-        status: "ready" as const,
-        reused: false,
-        readiness: {
-          scanId: SCAN,
-          reportId: store.rows[0].id,
-          reportVersion: "chrp-rhodes-v2",
-          analysisId: "an_1",
-        },
-        timings: [],
-      };
-    });
-    const { deps } = makeDeps(store, { recover });
+    const { deps } = makeDeps(store);
     const resolved = await resolveEntitledReportWith(deps, SCAN);
-    expect(recover).toHaveBeenCalledTimes(1);
-    expect(resolved.ok).toBe(true);
-    if (resolved.ok) expect(resolved.report.rhodes).toBe("recovered");
-  });
 
-  it("the voice route can never trigger recovery", async () => {
-    const store = new InMemoryReportStore();
-    const { deps, recover } = makeDeps(store);
-    const resolved = await resolveEntitledReportWith(deps, SCAN, { recover: false });
     expect(resolved.ok).toBe(false);
     if (!resolved.ok) {
       expect(resolved.status).toBe(503);
       expect(resolved.entitled).toBe(true);
+      expect(resolved.detail).toMatch(/being prepared/);
     }
-    expect(recover).not.toHaveBeenCalled();
+    // The read did NOT claim, generate, or overwrite the row. Recovery is the
+    // offline backfill's job, not the buyer's read.
+    expect(store.calls).toEqual([`getReport:${USER}:${SCAN}`]);
+    expect(store.claims).toHaveLength(0);
+    expect(store.reports[0].payload).toEqual({ rhodes: "" });
   });
 });

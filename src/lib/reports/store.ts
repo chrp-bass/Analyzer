@@ -4,21 +4,25 @@ import type { PaidSections } from "@/lib/fixtures/tracks";
  * The persistence contract for paid reports.
  *
  * Same discipline as `EntitlementStore` in commerce/credit-service: the
- * rules that decide whether a report is READY, whether a second preparation
- * may start, and what a buyer is charged against are written over plain
- * records, and this interface is the only thing the Supabase implementation
- * and the in-memory test store have to agree on. A passing test is therefore
- * evidence about production behaviour, not about a mock.
+ * rules that decide whether a report is READY and whether a second
+ * preparation may start are written over plain records, and this interface
+ * is the only thing the Supabase implementation and the in-memory test store
+ * have to agree on. A passing test is therefore evidence about production
+ * behaviour, not about a mock.
  *
- * The `reports` table (0002_song_memory.sql) is unchanged. Readiness and the
- * preparation lock are both expressed through the existing columns:
+ * Two tables back this contract (0002 + 0003):
  *
- *   * a row whose `payload` is a COMPLETE PaidSections is a ready report;
- *   * a row whose `payload` is a `PreparationMarker` is a preparation in
- *     flight — the unique index on (creator_id, scan_id) is what makes
- *     claiming that row a race exactly one worker can win;
- *   * `generator_version` is the report/methodology version the row was
- *     produced under. Checkout binds to it.
+ *   * `reports`       — the persisted report. Its presence with a COMPLETE
+ *                       payload is the ONLY source of truth for "a report
+ *                       exists". Post-payment reads consult only this.
+ *   * `report_claims` — a short-lived LEASE. A row here means a worker is
+ *                       generating right now. It is inserted BEFORE any
+ *                       upstream work (Soundcharts / enrichment / Anthropic),
+ *                       and deleted when generation finishes or fails.
+ *
+ * The atomic claim is the INSERT of a `report_claims` row under its
+ * (creator_id, scan_id) primary key: of N racing inserters exactly one wins.
+ * A stale lease is taken over by a compare-and-swap on `claimed_at`.
  */
 
 export interface StoredReport {
@@ -30,37 +34,11 @@ export interface StoredReport {
   createdAt: string;
 }
 
-/** What a placeholder row carries while a worker is generating. */
-export interface PreparationMarker {
-  _chrp_preparing: {
-    worker: string;
-    started_at: string;
-  };
-}
-
-export const PREPARING_VERSION_PREFIX = "preparing:";
-
-export function preparationMarker(
-  worker: string,
-  startedAt: Date,
-): PreparationMarker {
-  return {
-    _chrp_preparing: { worker, started_at: startedAt.toISOString() },
-  };
-}
-
-export function readPreparationMarker(
-  payload: unknown,
-): { worker: string; startedAt: Date } | null {
-  if (!payload || typeof payload !== "object") return null;
-  const m = (payload as Partial<PreparationMarker>)._chrp_preparing;
-  if (!m || typeof m !== "object") return null;
-  if (typeof m.worker !== "string" || typeof m.started_at !== "string") {
-    return null;
-  }
-  const startedAt = new Date(m.started_at);
-  if (Number.isNaN(startedAt.getTime())) return null;
-  return { worker: m.worker, startedAt };
+/** A live preparation lease. */
+export interface ClaimRow {
+  worker: string;
+  reportVersion: string;
+  claimedAt: Date;
 }
 
 function nonEmptyString(v: unknown): v is string {
@@ -77,13 +55,12 @@ function nonEmptyString(v: unknown): v is string {
  * earlier contract is still complete — it must keep serving after this
  * migration exactly as it did before.
  *
- * A preparation marker, an empty object, or a partial write all fail this,
- * which is what keeps an in-flight or broken generation from ever being
- * delivered as the product.
+ * A partial or empty payload fails this, which is what keeps a broken write
+ * from ever being delivered as the product — and what the offline backfill
+ * uses to find reports that need regenerating out of band.
  */
 export function isCompletePaidPayload(payload: unknown): payload is PaidSections {
   if (!payload || typeof payload !== "object") return false;
-  if (readPreparationMarker(payload)) return false;
   const p = payload as Record<string, unknown>;
   if (!nonEmptyString(p.signature)) return false;
   if (!nonEmptyString(p.rhodes)) return false;
@@ -98,88 +75,62 @@ export function isCompletePaidPayload(payload: unknown): payload is PaidSections
   );
 }
 
-export interface BeginPreparationInput {
+export interface BeginClaimInput {
   userId: string;
   scanId: string;
-  analysisId: string;
   worker: string;
   startedAt: Date;
   /** The version this preparation will produce. */
   generatorVersion: string;
-  /** A marker older than this may be taken over — its worker is presumed dead. */
+  /** A lease older than this may be taken over — its worker is presumed dead. */
   staleAfterMs: number;
 }
 
-export type BeginPreparationOutcome =
-  /** This worker holds the lock and must generate. */
-  | { outcome: "acquired"; reportId: string }
+export type BeginClaimOutcome =
+  /** This worker holds the lease and must generate. */
+  | { outcome: "acquired" }
   /** A complete, current-version report already exists. Nothing to do. */
   | { outcome: "ready"; report: StoredReport }
-  /** Another worker is generating right now. Poll; do not generate. */
+  /** Another worker holds a live lease. Poll readiness; do NOT generate. */
   | { outcome: "held"; startedAt: Date };
 
-export interface CompletePreparationInput {
+export interface CompleteClaimInput {
   userId: string;
   scanId: string;
   analysisId: string;
   payload: PaidSections;
   generatorVersion: string;
   model: string;
+  /** The lease this worker holds; released as part of completing. */
+  worker: string;
 }
 
 export interface ReportStore {
-  /** The row for (user, scan), whatever state it is in. */
+  /** The persisted report row for (user, scan), whatever its payload. */
   getReport(userId: string, scanId: string): Promise<StoredReport | null>;
 
-  /**
-   * Claim the right to generate. Must be safe under concurrency: of N
-   * simultaneous callers exactly one receives `acquired`; the rest receive
-   * `held` (or `ready`, if a complete current report already exists).
-   */
-  beginPreparation(input: BeginPreparationInput): Promise<BeginPreparationOutcome>;
-
-  /** Replace the marker (or an older report) with the generated payload. */
-  completePreparation(input: CompletePreparationInput): Promise<{ reportId: string }>;
+  /** The live lease for (user, scan), or null when nobody is preparing. */
+  getClaim(userId: string, scanId: string): Promise<ClaimRow | null>;
 
   /**
-   * Release a lock this worker holds without producing a report. Must be a
-   * no-op when the row is no longer this worker's marker.
+   * Acquire the generation lease. Called BEFORE any upstream work. Must be
+   * safe under concurrency: of N simultaneous callers exactly one receives
+   * `acquired`; the rest receive `held` (or `ready`, if a complete
+   * current-version report already exists). A lease older than
+   * `staleAfterMs` is taken over atomically.
    */
-  abandonPreparation(userId: string, scanId: string, worker: string): Promise<void>;
-}
+  beginClaim(input: BeginClaimInput): Promise<BeginClaimOutcome>;
 
-/**
- * What to do when a preparation finds a row already in place. Shared by the
- * Supabase store and the in-memory test store so the policy exists once:
- *
- *   ready    — complete, current version, same analysis: nothing to do.
- *   held     — a live marker from another worker: poll, never generate.
- *   takeover — a stale marker (its worker is presumed dead), or a report
- *              from an earlier contract / a superseded analysis: this worker
- *              may claim the row and regenerate.
- */
-export function classifyExistingRow(
-  existing: StoredReport,
-  input: Pick<
-    BeginPreparationInput,
-    "analysisId" | "generatorVersion" | "startedAt" | "staleAfterMs"
-  >,
-):
-  | { kind: "ready" }
-  | { kind: "held"; startedAt: Date }
-  | { kind: "takeover" } {
-  const marker = readPreparationMarker(existing.payload);
-  if (marker) {
-    const age = input.startedAt.getTime() - marker.startedAt.getTime();
-    if (age < input.staleAfterMs) return { kind: "held", startedAt: marker.startedAt };
-    return { kind: "takeover" };
-  }
-  if (
-    isCompletePaidPayload(existing.payload) &&
-    existing.generatorVersion === input.generatorVersion &&
-    existing.analysisId === input.analysisId
-  ) {
-    return { kind: "ready" };
-  }
-  return { kind: "takeover" };
+  /**
+   * Persist the generated report and release this worker's lease. The report
+   * write and the lease delete are the transition from "preparing" to
+   * "ready".
+   */
+  completeClaim(input: CompleteClaimInput): Promise<{ reportId: string }>;
+
+  /**
+   * Release a lease this worker holds without producing a report (a failed
+   * attempt). A no-op when the lease is no longer this worker's.
+   */
+  releaseClaim(userId: string, scanId: string, worker: string): Promise<void>;
 }

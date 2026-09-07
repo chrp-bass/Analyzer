@@ -6,7 +6,7 @@ import type {
 } from "@/lib/scan/fulfillment.server";
 import {
   isCompletePaidPayload,
-  readPreparationMarker,
+  type ClaimRow,
   type ReportStore,
   type StoredReport,
 } from "@/lib/reports/store";
@@ -15,27 +15,30 @@ import { logTiming, timed, type ReportTiming, type TimingSink } from "@/lib/repo
 /**
  * Paid report preparation — the whole intelligence chain, BEFORE checkout.
  *
- *   Spotify identity + Soundcharts audio → CHRP scoring     (analysis)
- *   → Soundcharts enrichment endpoints                       (enrichments)
- *   → Christian context gate from genre metadata             (christian_context)
- *   → governed Dr. Rhodes generation                         (rhodes_generation)
- *   → persisted to the protected `reports` table             (report_persistence)
+ *   claim (durable, atomic, before any upstream work)
+ *   → Spotify identity + Soundcharts audio → CHRP scoring     (analysis)
+ *   → Soundcharts enrichment endpoints                         (enrichments)
+ *   → Christian context gate from genre metadata               (christian_context)
+ *   → governed Dr. Rhodes generation                           (rhodes_generation)
+ *   → persist report + release claim                           (report_persistence)
  *
  * Only a scan whose report is persisted and complete may reach Stripe. After
- * payment the paid path reads that row and nothing else.
+ * payment the paid path reads that row and nothing else — it never enters
+ * this module.
+ *
+ * CONCURRENCY. The correctness mechanism is the DURABLE DATABASE CLAIM
+ * (`store.beginClaim`), acquired BEFORE analysis, enrichment or Anthropic
+ * run. Of N requests for one scan across N Vercel instances, exactly one
+ * receives `acquired` and performs upstream work; every other receives
+ * `held` and returns `preparing` WITHOUT touching an upstream service. The
+ * per-instance promise table below is only a fast-path that collapses
+ * duplicate work inside a single instance; it is not, and must not be relied
+ * on as, the lock. The tests prove one generator across two independent
+ * instance tables sharing one store.
  *
  * Deliberately free of Supabase, Next and `server-only`: every decision here
- * is made over the injected `PrepareDeps`, so the guarantees that protect a
- * buyer — one generation per scan, no charge without a report, enrichment
- * failure closing checkout — are tested against the same code production
- * runs. `prepare.server.ts` supplies the real dependencies.
- *
- * Idempotency has two layers:
- *   1. In-process: concurrent calls for the same (user, scan) on one instance
- *      share one promise.
- *   2. Cross-instance: `ReportStore.beginPreparation` claims the row under
- *      the (creator_id, scan_id) unique index, so of N simultaneous callers
- *      on N instances exactly one generates and the rest are told to poll.
+ * is made over the injected `PrepareDeps`. `prepare.server.ts` supplies the
+ * real engine, Soundcharts layer, Rhodes generator and store.
  */
 
 export type PrepareFailureReason =
@@ -101,7 +104,7 @@ export interface PrepareDeps {
 }
 
 /**
- * How long a preparation marker stands before another worker may assume its
+ * How long a preparation lease stands before another worker may assume its
  * owner died (a timed-out function, a crashed instance) and take over.
  * Generation with the governor's retry runs well under this.
  */
@@ -113,18 +116,6 @@ function randomWorker(): string {
   return `w_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function isReadyReport(
-  stored: StoredReport | null,
-  generatorVersion: string,
-  analysisId?: string,
-): boolean {
-  if (!stored) return false;
-  if (!isCompletePaidPayload(stored.payload)) return false;
-  if (stored.generatorVersion !== generatorVersion) return false;
-  if (analysisId && stored.analysisId !== analysisId) return false;
-  return true;
-}
-
 export function readinessOf(stored: StoredReport, scanId: string): ReportReadiness {
   return {
     scanId,
@@ -132,6 +123,17 @@ export function readinessOf(stored: StoredReport, scanId: string): ReportReadine
     reportVersion: stored.generatorVersion,
     analysisId: stored.analysisId,
   };
+}
+
+function isReusable(
+  stored: StoredReport | null,
+  generatorVersion: string,
+): stored is StoredReport {
+  return (
+    !!stored &&
+    isCompletePaidPayload(stored.payload) &&
+    stored.generatorVersion === generatorVersion
+  );
 }
 
 /** Buyer-facing copy for a preparation failure. Never leaks internals. */
@@ -185,6 +187,7 @@ async function runPreparation(
     emit(t);
   };
   const now = deps.now ?? (() => new Date());
+  const staleAfterMs = deps.staleAfterMs ?? DEFAULT_STALE_AFTER_MS;
   const failed = (
     reason: PrepareFailureReason,
     detail?: string,
@@ -202,143 +205,154 @@ async function runPreparation(
     timings,
   });
 
-  // ── 1. Analysis ──────────────────────────────────────────────────────────
-  const analysis = await timed(
-    "analysis",
-    scanId,
-    () => deps.ensureAnalysis(userId, scanId),
-    {
-      sink,
-      annotate: (r) =>
-        r.ok
-          ? { detail: `analysis=${r.analysisId}` }
-          : { outcome: "error", detail: r.reason },
-    },
-  );
-  if (!analysis.ok) return failed(analysis.reason, analysis.detail);
-
-  // ── Already prepared? A complete report under the current contract for
-  //    this exact analysis is reused, so a refresh, a retry or a second tab
-  //    costs nothing. ─────────────────────────────────────────────────────
-  const stored = await deps.store.getReport(userId, scanId);
-  if (stored && isReadyReport(stored, deps.generatorVersion, analysis.analysisId)) {
-    return ready(stored, true);
+  // ── Fast path: a complete current report already on file. No claim, no
+  //    upstream work. ────────────────────────────────────────────────────
+  const preexisting = await deps.store.getReport(userId, scanId);
+  if (isReusable(preexisting, deps.generatorVersion)) {
+    return ready(preexisting, true);
   }
 
-  // ── Claim the row. Exactly one worker across all instances wins. ────────
+  // ── The durable atomic claim. Acquired BEFORE Soundcharts, enrichments or
+  //    Anthropic. Exactly one worker across all instances wins; a loser does
+  //    zero upstream work and is told to poll. ──────────────────────────────
   const worker = (deps.worker ?? randomWorker)();
-  const begin = await deps.store.beginPreparation({
+  const claim = await deps.store.beginClaim({
     userId,
     scanId,
-    analysisId: analysis.analysisId,
     worker,
     startedAt: now(),
     generatorVersion: deps.generatorVersion,
-    staleAfterMs: deps.staleAfterMs ?? DEFAULT_STALE_AFTER_MS,
+    staleAfterMs,
   });
-  if (begin.outcome === "ready") return ready(begin.report, true);
-  if (begin.outcome === "held") {
-    return { status: "preparing", startedAt: begin.startedAt.toISOString(), timings };
+  if (claim.outcome === "ready") return ready(claim.report, true);
+  if (claim.outcome === "held") {
+    return { status: "preparing", startedAt: claim.startedAt.toISOString(), timings };
   }
 
-  const abandon = () =>
-    deps.store.abandonPreparation(userId, scanId, worker).catch((err) => {
-      console.error(`[prepare] could not release marker for ${scanId}:`, err);
+  // We hold the lease. Every exit from here on releases it.
+  const release = () =>
+    deps.store.releaseClaim(userId, scanId, worker).catch((err) => {
+      console.error(`[prepare] could not release lease for ${scanId}:`, err);
     });
 
-  // ── 2. Enrichments ──────────────────────────────────────────────────────
-  let bundle: EnrichmentBundle;
   try {
-    bundle = await timed(
-      "enrichments",
+    // ── 1. Analysis (Soundcharts + Spotify). AFTER the claim. ──────────────
+    const analysis = await timed(
+      "analysis",
       scanId,
-      () => deps.enrich(userId, scanId, analysis.analysisId),
-      { sink },
-    );
-  } catch (err) {
-    await abandon();
-    const detail = err instanceof Error ? err.message : String(err);
-    console.error(`[prepare] enrichment failed for ${scanId}: ${detail}`);
-    return failed(
-      detail === "song_unavailable" ? "song_unavailable" : "enrichment_failed",
-      detail,
-    );
-  }
-
-  // ── 3. Christian context ────────────────────────────────────────────────
-  let context: ChristianContext | null;
-  try {
-    context = await timed(
-      "christian_context",
-      scanId,
-      async () => deps.christianContext(bundle.song),
+      () => deps.ensureAnalysis(userId, scanId),
       {
         sink,
-        annotate: (c) => ({ detail: c ? `tradition=${c.tradition}` : "gate=closed" }),
+        annotate: (r) =>
+          r.ok
+            ? { detail: `analysis=${r.analysisId}` }
+            : { outcome: "error", detail: r.reason },
       },
     );
-  } catch (err) {
-    await abandon();
-    return failed("context_failed", err instanceof Error ? err.message : String(err));
-  }
-  const facts: AnalysisFacts = context
-    ? { ...bundle.facts, christianContext: context }
-    : bundle.facts;
+    if (!analysis.ok) {
+      await release();
+      return failed(analysis.reason, analysis.detail);
+    }
 
-  // ── 4. Rhodes ───────────────────────────────────────────────────────────
-  let generated: GenerationResult;
-  try {
-    generated = await timed("rhodes_generation", scanId, () => deps.generate(facts), {
-      sink,
-      annotate: (r) => (r.ok ? {} : { outcome: "error", detail: r.reason }),
-    });
-  } catch (err) {
-    await abandon();
-    return failed("generation_failed", err instanceof Error ? err.message : String(err));
-  }
-  if (!generated.ok) {
-    await abandon();
-    console.error(
-      `[prepare] generation failed for ${scanId}: ${generated.reason} — ${generated.detail}`,
-    );
-    return failed(generated.reason, generated.detail);
-  }
+    // ── 2. Enrichments ──────────────────────────────────────────────────
+    let bundle: EnrichmentBundle;
+    try {
+      bundle = await timed(
+        "enrichments",
+        scanId,
+        () => deps.enrich(userId, scanId, analysis.analysisId),
+        { sink },
+      );
+    } catch (err) {
+      await release();
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[prepare] enrichment failed for ${scanId}: ${detail}`);
+      return failed(
+        detail === "song_unavailable" ? "song_unavailable" : "enrichment_failed",
+        detail,
+      );
+    }
 
-  // ── 5. Persist ──────────────────────────────────────────────────────────
-  try {
-    const persisted = await timed(
-      "report_persistence",
-      scanId,
-      () =>
-        deps.store.completePreparation({
-          userId,
-          scanId,
+    // ── 3. Christian context ────────────────────────────────────────────
+    let context: ChristianContext | null;
+    try {
+      context = await timed(
+        "christian_context",
+        scanId,
+        async () => deps.christianContext(bundle.song),
+        {
+          sink,
+          annotate: (c) => ({ detail: c ? `tradition=${c.tradition}` : "gate=closed" }),
+        },
+      );
+    } catch (err) {
+      await release();
+      return failed("context_failed", err instanceof Error ? err.message : String(err));
+    }
+    const facts: AnalysisFacts = context
+      ? { ...bundle.facts, christianContext: context }
+      : bundle.facts;
+
+    // ── 4. Rhodes ───────────────────────────────────────────────────────
+    let generated: GenerationResult;
+    try {
+      generated = await timed("rhodes_generation", scanId, () => deps.generate(facts), {
+        sink,
+        annotate: (r) => (r.ok ? {} : { outcome: "error", detail: r.reason }),
+      });
+    } catch (err) {
+      await release();
+      return failed("generation_failed", err instanceof Error ? err.message : String(err));
+    }
+    if (!generated.ok) {
+      await release();
+      console.error(
+        `[prepare] generation failed for ${scanId}: ${generated.reason} — ${generated.detail}`,
+      );
+      return failed(generated.reason, generated.detail);
+    }
+
+    // ── 5. Persist report + release lease. ──────────────────────────────
+    try {
+      const persisted = await timed(
+        "report_persistence",
+        scanId,
+        () =>
+          deps.store.completeClaim({
+            userId,
+            scanId,
+            worker,
+            analysisId: analysis.analysisId,
+            payload: generated.sections,
+            generatorVersion: deps.generatorVersion,
+            model: deps.model,
+          }),
+        { sink, annotate: (r) => ({ detail: `report=${r.reportId}` }) },
+      );
+      return ready(
+        {
+          id: persisted.reportId,
           analysisId: analysis.analysisId,
           payload: generated.sections,
           generatorVersion: deps.generatorVersion,
           model: deps.model,
-        }),
-      { sink, annotate: (r) => ({ detail: `report=${r.reportId}` }) },
-    );
-    return ready(
-      {
-        id: persisted.reportId,
-        analysisId: analysis.analysisId,
-        payload: generated.sections,
-        generatorVersion: deps.generatorVersion,
-        model: deps.model,
-        createdAt: now().toISOString(),
-      },
-      false,
-    );
+          createdAt: now().toISOString(),
+        },
+        false,
+      );
+    } catch (err) {
+      await release();
+      console.error(`[prepare] persist failed for ${scanId}:`, err);
+      return failed("persist_failed", err instanceof Error ? err.message : String(err));
+    }
   } catch (err) {
-    await abandon();
-    console.error(`[prepare] persist failed for ${scanId}:`, err);
-    return failed("persist_failed", err instanceof Error ? err.message : String(err));
+    // Any unforeseen throw must not strand the lease.
+    await release();
+    return failed("generation_failed", err instanceof Error ? err.message : String(err));
   }
 }
 
-// ─── Readiness (no work) ─────────────────────────────────────────────────────
+// ─── Readiness (no work, no upstream) ────────────────────────────────────────
 
 export type ReadinessState =
   | { status: "ready"; readiness: ReportReadiness }
@@ -355,13 +369,12 @@ export async function readReadiness(
   staleAfterMs: number = DEFAULT_STALE_AFTER_MS,
 ): Promise<ReadinessState> {
   const stored = await store.getReport(userId, scanId);
-  if (!stored) return { status: "none" };
-  if (isReadyReport(stored, generatorVersion)) {
+  if (isReusable(stored, generatorVersion)) {
     return { status: "ready", readiness: readinessOf(stored, scanId) };
   }
-  const marker = readPreparationMarker(stored.payload);
-  if (marker && now.getTime() - marker.startedAt.getTime() < staleAfterMs) {
-    return { status: "preparing", startedAt: marker.startedAt.toISOString() };
+  const claim: ClaimRow | null = await store.getClaim(userId, scanId);
+  if (claim && now.getTime() - claim.claimedAt.getTime() < staleAfterMs) {
+    return { status: "preparing", startedAt: claim.claimedAt.toISOString() };
   }
   return { status: "none" };
 }
@@ -395,7 +408,8 @@ export type ReadinessCheck =
  * scan, produced from the analysis currently on file, under the current
  * report and engine versions — and, when the client names what it prepared,
  * only when that name matches exactly. Anything stale or mismatched is
- * refused before Stripe is contacted.
+ * refused before Stripe is contacted. Reads only the `reports` and `analyses`
+ * tables; never generates.
  */
 export async function checkReportReadiness(
   deps: {

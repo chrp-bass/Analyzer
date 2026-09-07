@@ -1,8 +1,5 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isFixtureKey } from "@/lib/scan-id";
-import { getFreeReport } from "@/lib/fixtures/report.server";
-import { analysisToFreeReport } from "@/lib/engine/analysis-mapping";
 import type { AnalysisFacts } from "@/lib/reports/generate.server";
 import type { FreeReport, Mode } from "@/lib/fixtures/tracks";
 import { soundchartsSongByIsrcSafe } from "@/lib/engine/analyze.server";
@@ -33,83 +30,6 @@ export class EnrichmentError extends Error {
     super(message);
     this.name = "EnrichmentError";
   }
-}
-
-/**
- * The free reveal for a scan.
- *
- * Fixture tracks resolve from the bundle. A real song resolves from its
- * persisted analysis — the same engine output the free reveal was rendered
- * from at scan time, mapped through the one shared adapter so the paid report
- * and the free reveal can never disagree about what was measured.
- */
-export async function freeReportForScan(
-  db: Db | null,
-  userId: string,
-  scanId: string,
-  trackKey: string,
-): Promise<FreeReport | null> {
-  if (isFixtureKey(trackKey)) return getFreeReport(trackKey);
-  if (!db) return null;
-
-  const { data } = await db
-    .from("analyses")
-    .select(
-      "epi_score,mode,scores,circumplex,analyzed_at,status,songs!inner(title,artist_name,isrc)",
-    )
-    .eq("creator_id", userId)
-    .eq("scan_id", scanId)
-    .limit(1);
-
-  type Row = {
-    epi_score: number | null;
-    mode: string | null;
-    scores: {
-      focus?: number;
-      calm?: number;
-      motivation?: number;
-      balance?: number;
-    } | null;
-    circumplex: { valence?: number; arousal?: number } | null;
-    analyzed_at: string | null;
-    status: string;
-    songs: {
-      title: string;
-      artist_name: string | null;
-      isrc: string | null;
-    } | null;
-  };
-
-  const row = (data as unknown as Row[] | null)?.[0];
-  // Only a COMPLETED analysis describes a song. Anything else has nothing
-  // honest to report yet.
-  if (!row || row.status !== "complete" || !row.songs) return null;
-  if (row.epi_score === null || !row.mode || !row.scores) return null;
-
-  return analysisToFreeReport(
-    {
-      song: {
-        songId: null,
-        isrc: row.songs.isrc ?? "",
-        songName: row.songs.title,
-        artistName: row.songs.artist_name,
-        artworkUrl: null,
-      },
-      scores: {
-        focus: row.scores.focus ?? 0,
-        calm: row.scores.calm ?? 0,
-        motivation: row.scores.motivation ?? 0,
-        balance: row.scores.balance ?? 0,
-      },
-      epiScore: row.epi_score,
-      mode: row.mode,
-      circumplex: {
-        valence: row.circumplex?.valence ?? 0,
-        arousal: row.circumplex?.arousal ?? 0,
-      },
-    },
-    row.analyzed_at ? new Date(row.analyzed_at) : new Date(),
-  );
 }
 
 /**

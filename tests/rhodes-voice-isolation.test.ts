@@ -59,7 +59,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("voice failure never affects report rendering", () => {
-  it("the voice route reads the persisted report with recovery disabled", async () => {
+  it("the voice route reads the persisted report through the pure resolver", async () => {
     resolveMock.mockResolvedValueOnce(report());
     mintMock.mockResolvedValueOnce({ ok: true, signedUrl: "wss://x", agentId: "a" });
     await POST(
@@ -68,7 +68,7 @@ describe("voice failure never affects report rendering", () => {
         body: JSON.stringify({ scanId: "scn_x" }),
       }),
     );
-    expect(resolveMock).toHaveBeenCalledWith("scn_x", { recover: false });
+    expect(resolveMock).toHaveBeenCalledWith("scn_x");
   });
 
   it("an ElevenLabs outage is a small 503 from the voice route, nothing more", async () => {
@@ -95,6 +95,7 @@ describe("voice failure never affects report rendering", () => {
     for (const path of [
       "src/app/api/report/[id]/route.ts",
       "src/lib/reports/resolve.server.ts",
+      "src/lib/reports/free-report.server.ts",
       "src/lib/reports/prepare.ts",
       "src/lib/reports/prepare.server.ts",
     ]) {

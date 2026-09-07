@@ -1,12 +1,9 @@
 import {
-  classifyExistingRow,
   isCompletePaidPayload,
-  preparationMarker,
-  readPreparationMarker,
-  PREPARING_VERSION_PREFIX,
-  type BeginPreparationInput,
-  type BeginPreparationOutcome,
-  type CompletePreparationInput,
+  type BeginClaimInput,
+  type BeginClaimOutcome,
+  type ClaimRow,
+  type CompleteClaimInput,
   type ReportStore,
   type StoredReport,
 } from "@/lib/reports/store";
@@ -14,17 +11,23 @@ import type { PaidSections } from "@/lib/fixtures/tracks";
 
 /**
  * An in-memory `ReportStore` that mirrors the guarantees Postgres gives the
- * `reports` table in 0002_song_memory.sql:
+ * `reports` (0002) and `report_claims` (0003) tables:
  *
  *   * rows are scoped to a creator, so one creator never sees another's;
- *   * (creator_id, scan_id) is unique, so claiming the row is a race exactly
- *     one worker wins — the second insert is a unique violation;
- *   * a conditional update matches only the row state it was told about.
+ *   * `report_claims` has a (creator_id, scan_id) primary key, so the first
+ *     `beginClaim` INSERT wins and every concurrent one loses — modelled here
+ *     by each method running to completion without interleaving (no await
+ *     between the existence check and the write), exactly the atomicity a
+ *     single SQL statement gives;
+ *   * a stale lease is taken over by a compare-and-swap on `claimed_at`.
  *
- * The policy (`classifyExistingRow`) is the production one. Only storage
- * differs, so the preparation tests are evidence about real behaviour.
+ * Because the methods contain no internal awaits, two `beginClaim` calls from
+ * two "instances" (separate in-flight tables, one shared store) cannot
+ * interleave — the first to run acquires, the second sees the lease. That is
+ * the same outcome the database's unique INSERT produces, so the
+ * distributed-concurrency tests are evidence about real behaviour.
  */
-interface Row {
+interface ReportRow {
   id: string;
   creatorId: string;
   scanId: string;
@@ -35,16 +38,27 @@ interface Row {
   createdAt: string;
 }
 
+interface ClaimRecord {
+  creatorId: string;
+  scanId: string;
+  worker: string;
+  reportVersion: string;
+  claimedAt: Date;
+}
+
 let seq = 0;
 
 export class InMemoryReportStore implements ReportStore {
-  rows: Row[] = [];
-  /** Counts real inserts, so tests can assert exactly one row was ever created. */
+  reports: ReportRow[] = [];
+  claims: ClaimRecord[] = [];
+  /** Counts report-row inserts, so tests can assert exactly one was created. */
   insertCount = 0;
+  /** Counts lease acquisitions, so tests can assert exactly one generator. */
+  claimAcquisitions = 0;
   /** Every method call, in order — the audit trail a test reads back. */
   calls: string[] = [];
 
-  seed(input: {
+  seedReport(input: {
     creatorId: string;
     scanId: string;
     analysisId: string;
@@ -52,8 +66,8 @@ export class InMemoryReportStore implements ReportStore {
     generatorVersion: string;
     model?: string | null;
     id?: string;
-  }): Row {
-    const row: Row = {
+  }): ReportRow {
+    const row: ReportRow = {
       id: input.id ?? `rep_${++seq}`,
       creatorId: input.creatorId,
       scanId: input.scanId,
@@ -63,15 +77,29 @@ export class InMemoryReportStore implements ReportStore {
       model: input.model ?? null,
       createdAt: new Date().toISOString(),
     };
-    this.rows.push(row);
+    this.reports.push(row);
     return row;
   }
 
-  private find(userId: string, scanId: string): Row | undefined {
-    return this.rows.find((r) => r.creatorId === userId && r.scanId === scanId);
+  seedClaim(input: {
+    creatorId: string;
+    scanId: string;
+    worker: string;
+    reportVersion: string;
+    claimedAt: Date;
+  }): void {
+    this.claims.push({ ...input });
   }
 
-  private toRecord(row: Row): StoredReport {
+  private findReport(userId: string, scanId: string): ReportRow | undefined {
+    return this.reports.find((r) => r.creatorId === userId && r.scanId === scanId);
+  }
+
+  private findClaim(userId: string, scanId: string): ClaimRecord | undefined {
+    return this.claims.find((c) => c.creatorId === userId && c.scanId === scanId);
+  }
+
+  private toReport(row: ReportRow): StoredReport {
     return {
       id: row.id,
       analysisId: row.analysisId,
@@ -84,71 +112,96 @@ export class InMemoryReportStore implements ReportStore {
 
   async getReport(userId: string, scanId: string): Promise<StoredReport | null> {
     this.calls.push(`getReport:${userId}:${scanId}`);
-    const row = this.find(userId, scanId);
-    return row ? this.toRecord(row) : null;
+    const row = this.findReport(userId, scanId);
+    return row ? this.toReport(row) : null;
   }
 
-  async beginPreparation(input: BeginPreparationInput): Promise<BeginPreparationOutcome> {
-    this.calls.push(`beginPreparation:${input.worker}`);
-    const existing = this.find(input.userId, input.scanId);
+  async getClaim(userId: string, scanId: string): Promise<ClaimRow | null> {
+    this.calls.push(`getClaim:${userId}:${scanId}`);
+    const c = this.findClaim(userId, scanId);
+    return c
+      ? { worker: c.worker, reportVersion: c.reportVersion, claimedAt: c.claimedAt }
+      : null;
+  }
+
+  async beginClaim(input: BeginClaimInput): Promise<BeginClaimOutcome> {
+    this.calls.push(`beginClaim:${input.worker}`);
+    // A complete, current-version report already exists → nobody generates.
+    const report = this.findReport(input.userId, input.scanId);
+    if (
+      report &&
+      isCompletePaidPayload(report.payload) &&
+      report.generatorVersion === input.generatorVersion
+    ) {
+      return { outcome: "ready", report: this.toReport(report) };
+    }
+
+    const existing = this.findClaim(input.userId, input.scanId);
     if (!existing) {
-      // The insert wins.
-      const row = this.seed({
+      this.claims.push({
         creatorId: input.userId,
         scanId: input.scanId,
-        analysisId: input.analysisId,
-        payload: preparationMarker(input.worker, input.startedAt),
-        generatorVersion: PREPARING_VERSION_PREFIX + input.generatorVersion,
+        worker: input.worker,
+        reportVersion: input.generatorVersion,
+        claimedAt: input.startedAt,
       });
-      this.insertCount += 1;
-      return { outcome: "acquired", reportId: row.id };
+      this.claimAcquisitions += 1;
+      return { outcome: "acquired" };
     }
-    const verdict = classifyExistingRow(this.toRecord(existing), input);
-    if (verdict.kind === "ready") return { outcome: "ready", report: this.toRecord(existing) };
-    if (verdict.kind === "held") return { outcome: "held", startedAt: verdict.startedAt };
-    // Takeover. Nothing awaits between the classification above and this
-    // write, so — like the conditional UPDATE in production — no second
-    // caller can observe the same state and also succeed.
-    existing.payload = preparationMarker(input.worker, input.startedAt);
-    existing.analysisId = input.analysisId;
-    existing.generatorVersion = PREPARING_VERSION_PREFIX + input.generatorVersion;
-    existing.model = null;
-    return { outcome: "acquired", reportId: existing.id };
+
+    const age = input.startedAt.getTime() - existing.claimedAt.getTime();
+    if (age < input.staleAfterMs) {
+      return { outcome: "held", startedAt: existing.claimedAt };
+    }
+    // Stale lease: take it over (CAS is trivially atomic here — no await
+    // between read and write).
+    existing.worker = input.worker;
+    existing.reportVersion = input.generatorVersion;
+    existing.claimedAt = input.startedAt;
+    this.claimAcquisitions += 1;
+    return { outcome: "acquired" };
   }
 
-  async completePreparation(input: CompletePreparationInput): Promise<{ reportId: string }> {
-    this.calls.push(`completePreparation:${input.scanId}`);
-    const existing = this.find(input.userId, input.scanId);
+  async completeClaim(input: CompleteClaimInput): Promise<{ reportId: string }> {
+    this.calls.push(`completeClaim:${input.worker}`);
+    const existing = this.findReport(input.userId, input.scanId);
+    let reportId: string;
     if (existing) {
       existing.analysisId = input.analysisId;
       existing.payload = input.payload;
       existing.generatorVersion = input.generatorVersion;
       existing.model = input.model;
-      return { reportId: existing.id };
+      reportId = existing.id;
+    } else {
+      const row = this.seedReport({
+        creatorId: input.userId,
+        scanId: input.scanId,
+        analysisId: input.analysisId,
+        payload: input.payload,
+        generatorVersion: input.generatorVersion,
+        model: input.model,
+      });
+      this.insertCount += 1;
+      reportId = row.id;
     }
-    const row = this.seed({
-      creatorId: input.userId,
-      scanId: input.scanId,
-      analysisId: input.analysisId,
-      payload: input.payload,
-      generatorVersion: input.generatorVersion,
-      model: input.model,
-    });
-    this.insertCount += 1;
-    return { reportId: row.id };
+    // Release our lease.
+    this.claims = this.claims.filter(
+      (c) =>
+        !(c.creatorId === input.userId && c.scanId === input.scanId && c.worker === input.worker),
+    );
+    return { reportId };
   }
 
-  async abandonPreparation(userId: string, scanId: string, worker: string): Promise<void> {
-    this.calls.push(`abandonPreparation:${worker}`);
-    const existing = this.find(userId, scanId);
-    if (!existing) return;
-    if (readPreparationMarker(existing.payload)?.worker !== worker) return;
-    this.rows = this.rows.filter((r) => r !== existing);
+  async releaseClaim(userId: string, scanId: string, worker: string): Promise<void> {
+    this.calls.push(`releaseClaim:${worker}`);
+    this.claims = this.claims.filter(
+      (c) => !(c.creatorId === userId && c.scanId === scanId && c.worker === worker),
+    );
   }
 
   /** Every complete report currently held, for assertions. */
-  completeReports(): Row[] {
-    return this.rows.filter((r) => isCompletePaidPayload(r.payload));
+  completeReports(): ReportRow[] {
+    return this.reports.filter((r) => isCompletePaidPayload(r.payload));
   }
 }
 
