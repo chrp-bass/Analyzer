@@ -125,10 +125,10 @@ describe("buildRhodesVoiceContext", () => {
     const ctx = buildRhodesVoiceContext(makeReport());
     expect(ctx.firstMessage).toContain('"Safe"');
     expect(ctx.firstMessage.startsWith("I'm Dr. Rhodes.")).toBe(true);
-    // Two short sentences plus one grounded signal — about twelve seconds.
+    // One introduction plus one grounded sentence of ≤18 words — about ten seconds.
     const words = ctx.firstMessage.split(/\s+/).filter(Boolean).length;
-    expect(words).toBeGreaterThanOrEqual(20);
-    expect(words).toBeLessThanOrEqual(48);
+    expect(words).toBeGreaterThanOrEqual(13);
+    expect(words).toBeLessThanOrEqual(27);
   });
 
   it("survives an empty placement/buyer list without inventing categories", () => {
@@ -151,7 +151,7 @@ describe("buildRhodesVoiceContext", () => {
 describe("composeFirstRead", () => {
   it("opens as Dr. Rhodes, names the song, and ends on the governed signature", () => {
     const line = composeFirstRead(makeReport());
-    expect(line.startsWith("I'm Dr. Rhodes. I've reviewed what Chirp found in \"Safe\"")).toBe(true);
+    expect(line.startsWith("I'm Dr. Rhodes. Chirp found something useful in \"Safe\": ")).toBe(true);
     expect(line.endsWith("A settled architecture that never asks for attention.")).toBe(true);
   });
 

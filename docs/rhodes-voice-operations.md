@@ -187,7 +187,7 @@ provider's exact reason text is printed once in the browser console
 
 | category | meaning | action |
 | --- | --- | --- |
-| `override_rejected` | the agent's **Security** tab does not allow the `first_message` override we send | the client already reconnects once WITHOUT overrides (`retry result=without_overrides`) and Rhodes speaks the agent's configured first message. To restore the personalised opening, enable *First message* under Security → Overrides on the agent |
+| `override_rejected` | the agent's **Security** tab does not allow the `first_message` override we send | only reachable if a future server version sends an override (production sends none). The client reconnects once with dynamic variables only (`retry result=drop_override`, then `session-started result=context_only_after_rejection`) |
 | `dynamic_variables_missing` | the agent prompt/first message references a `{{variable}}` the client does not send | add the variable to `context.ts` or remove it from the agent |
 | `auth` | signed URL expired / signature invalid / agent requires authorization | mint-to-connect took too long, or the agent's auth mode changed |
 | `quota` | credits, concurrency or plan limits | ElevenLabs plan |

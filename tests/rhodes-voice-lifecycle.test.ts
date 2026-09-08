@@ -184,6 +184,25 @@ describe("our own teardown can never be reported as a provider failure", () => {
   });
 });
 
+describe("initiation shape is logged accurately", () => {
+  it("the production payload (dynamic variables, no override) is logged as with_context", async () => {
+    const h = harness();
+    await h.session.start();
+    // The harness payload carries a firstMessage override; the production
+    // server sends `overrides: {}`. Both shapes must be named truthfully.
+    expect(h.events.find((e) => e.event === "websocket-opening")?.fields.result).toBe("with_override");
+    const plain = harness();
+    plain.fetchSession.mockImplementation(async () => ({
+      ok: true as const,
+      payload: { ...payload(7), overrides: {} },
+    }));
+    await plain.session.start();
+    expect(plain.events.find((e) => e.event === "websocket-opening")?.fields.result).toBe("with_context");
+    expect(plain.events.find((e) => e.event === "session-started")?.fields.result).toBe("with_context");
+    expect(JSON.stringify(plain.events)).not.toMatch(/with_overrides|without_overrides/);
+  });
+});
+
 describe("provider-side post-open failures", () => {
   it("a proven override rejection: logged with conversation id + close code, ONE fresh-URL reconnect WITHOUT overrides, then live", async () => {
     const h = harness();
@@ -213,10 +232,10 @@ describe("provider-side post-open failures", () => {
       result: "close",
     });
     expect(h.events.find((e) => e.event === "retry")?.fields).toMatchObject({
-      result: "without_overrides",
+      result: "drop_override",
       category: "override_rejected",
     });
-    expect(h.events.filter((e) => e.event === "session-started").at(-1)?.fields.result).toBe("without_overrides");
+    expect(h.events.filter((e) => e.event === "session-started").at(-1)?.fields.result).toBe("context_only_after_rejection");
     // The provider's exact words reach the console only, never a structured log.
     expect(h.debug.some((l) => l.includes("Override for agent.first_message is not allowed"))).toBe(true);
     expect(JSON.stringify(h.events)).not.toContain("Override for agent.first_message");

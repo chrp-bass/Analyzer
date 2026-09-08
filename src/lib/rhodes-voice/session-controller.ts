@@ -89,8 +89,30 @@ export interface ConnectCallbacks {
 }
 
 export interface ConnectOptions {
-  /** Send `overrides` (first message) with the initiation payload. */
+  /**
+   * Permit a `conversation_config_override` in the initiation payload IF the
+   * server supplied one. The production server supplies none: the report is
+   * bound through dynamic variables only, and the agent's own first message
+   * and prompt reference them. After a proven override rejection this is
+   * false, so a supplied override is deliberately dropped.
+   */
   withOverrides: boolean;
+}
+
+/** True when the server actually supplied a config override worth sending. */
+export function hasOverrides(o: SessionPayload["overrides"] | undefined): boolean {
+  return Boolean(o && o.agent && (o.agent.firstMessage || o.agent.prompt?.prompt));
+}
+
+/**
+ * What the initiation payload carries, as logged. `with_context` is the
+ * production path: dynamic variables, no override.
+ */
+export type InitiationShape = "with_context" | "with_override" | "context_only_after_rejection";
+
+export function initiationShape(payload: SessionPayload, options: ConnectOptions): InitiationShape {
+  if (!options.withOverrides) return "context_only_after_rejection";
+  return hasOverrides(payload.overrides) ? "with_override" : "with_context";
 }
 
 export interface LiveConversation {
@@ -293,11 +315,8 @@ export class RhodesVoiceSession {
         this.set({ song: payload.song });
 
         // 3. Connect immediately — the URL is short-lived.
-        this.log("websocket-opening", {
-          stage: "websocket",
-          attempt,
-          result: options.withOverrides ? "with_overrides" : "without_overrides",
-        });
+        const shape = initiationShape(payload, options);
+        this.log("websocket-opening", { stage: "websocket", attempt, result: shape });
         const opened = this.now();
         try {
           const conv = await this.deps.connect(payload, this.callbacks(), options);
@@ -310,11 +329,7 @@ export class RhodesVoiceSession {
           this.openedAt = this.now();
           this.log("websocket-open", { stage: "websocket", ms: this.openedAt - opened, attempt });
           this.set({ status: "listening", note: null, retryable: false });
-          this.log("session-started", {
-            stage: "conversation",
-            attempt,
-            result: options.withOverrides ? "with_overrides" : "without_overrides",
-          });
+          this.log("session-started", { stage: "conversation", attempt, result: shape });
           return "started";
         } catch (err) {
           const preOpen = (this.deps.isPreOpenFailure ?? defaultIsPreOpen)(err);
@@ -380,7 +395,7 @@ export class RhodesVoiceSession {
       this.log("retry", {
         stage: "websocket",
         attempt: 1,
-        result: "without_overrides",
+        result: "drop_override",
         category: failure.category,
       });
       void this.connectFlow({ withOverrides: false }).finally(() => {
