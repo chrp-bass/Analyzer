@@ -21,7 +21,6 @@ vi.mock("@/lib/reports/resolve.server", () => ({
 }));
 vi.mock("@/lib/rhodes-voice/signed-url", () => ({
   mintRhodesSignedUrl: vi.fn(),
-  rhodesAgentId: () => "vv1j1yrAGF0RdxJOSGIJ",
 }));
 
 import { resolveEntitledReport } from "@/lib/reports/resolve.server";
@@ -129,6 +128,8 @@ describe("POST /api/rhodes/session", () => {
       ok: true,
       signedUrl: "wss://api.elevenlabs.io/token/xyz",
       agentId: "vv1j1yrAGF0RdxJOSGIJ",
+      attempts: 1,
+      ms: 5,
     });
     const res = await POST(req({ scanId: "scan-mine" }));
     expect(res.status).toBe(200);
@@ -149,17 +150,40 @@ describe("POST /api/rhodes/session", () => {
     mintMock.mockResolvedValueOnce({
       ok: false,
       reason: "not_configured",
-      detail: "ELEVENLABS_API_KEY is not configured",
+      code: "missing_api_key",
+      variable: "ELEVENLABS_API_KEY",
+      hint: "is not set",
     });
-    // Silence the expected error log for this failure branch.
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await POST(req({ scanId: "scan-mine" }));
     // 503 — voice unavailable — the report itself keeps working, and the
-    // client falls back to the written intelligence.
+    // client falls back to the written intelligence. Not retryable: it is
+    // an operator's configuration problem, not a transient.
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.error).toBe("voice_unavailable");
-    spy.mockRestore();
+    expect(body).toEqual({ error: "voice_unavailable", retryable: false });
+    expect(res.headers.get("X-Rhodes-Request-Id")).toMatch(/^[A-Za-z0-9]{8,32}$/);
+  });
+
+  it("a definitive upstream refusal (401 invalid key) is a non-retryable 502 with no upstream detail", async () => {
+    resolveMock.mockResolvedValueOnce(goodReport());
+    mintMock.mockResolvedValueOnce({
+      ok: false,
+      reason: "upstream_error",
+      category: "invalid_api_key",
+      retryable: false,
+      upstreamStatus: 401,
+      attempts: 1,
+      ms: 140,
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const res = await POST(req({ scanId: "scan-mine" }));
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "voice_unavailable", retryable: false });
+    // The sanitised category reaches the server log, nothing more.
+    expect(warn.mock.calls.map((c) => String(c[0])).join("\n")).toMatch(
+      /\[rhodes-voice\] event=graceful-degradation request_id=[A-Za-z0-9]+ stage=session .*upstream_status=401 category=invalid_api_key/,
+    );
+    warn.mockRestore();
   });
 
   it("never leaks the ELEVENLABS_API_KEY into the response body", async () => {
@@ -170,6 +194,8 @@ describe("POST /api/rhodes/session", () => {
       ok: true,
       signedUrl: "wss://api.elevenlabs.io/token/xyz",
       agentId: "vv1j1yrAGF0RdxJOSGIJ",
+      attempts: 1,
+      ms: 5,
     });
     const res = await POST(req({ scanId: "scan-mine" }));
     const raw = await res.text();

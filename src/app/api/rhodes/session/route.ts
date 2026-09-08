@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { resolveEntitledReport } from "@/lib/reports/resolve.server";
 import { buildRhodesVoiceContext } from "@/lib/rhodes-voice/context";
 import { mintRhodesSignedUrl } from "@/lib/rhodes-voice/signed-url";
+import { logRhodesVoice, newRhodesRequestId } from "@/lib/rhodes-voice/log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const NO_STORE = { "Cache-Control": "private, no-store" } as const;
 
 /**
  * POST /api/rhodes/session
@@ -20,28 +23,33 @@ export const dynamic = "force-dynamic";
  * failure we return the SAME opaque 403 the JSON route uses, so a caller
  * cannot use this endpoint to enumerate scans or entitlements.
  *
- * On success we:
- *   - mint a short-lived ElevenLabs signed WebSocket URL for the production
- *     private agent (the permanent API key never leaves the server), and
+ * Only after entitlement AND the persisted-report read succeed do we:
+ *   - validate the server-only ElevenLabs configuration (typed error → 503),
+ *   - mint ONE fresh signed WebSocket URL (never cached, never reused), and
  *   - hand back the minimum governed context Rhodes needs: a flat variables
  *     map for dynamic-context substitution, and Rhodes's own first-read text.
  *
  * Nothing here re-runs Soundcharts, re-scores the song, or generates new
- * intelligence. The context is read verbatim from the persisted report.
+ * intelligence. The context is read verbatim from the persisted report. A
+ * voice failure of any kind is a small, typed response — the report the
+ * client already rendered is untouched.
  */
 export async function POST(req: Request) {
+  const requestId = newRhodesRequestId();
+  const headers = { ...NO_STORE, "X-Rhodes-Request-Id": requestId };
+
   let payload: unknown;
   try {
     payload = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_body" }, { status: 400, headers });
   }
   const scanId =
     payload && typeof payload === "object"
       ? (payload as { scanId?: unknown }).scanId
       : undefined;
   if (typeof scanId !== "string" || scanId.length === 0) {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_body" }, { status: 400, headers });
   }
 
   // The single source of truth for report authorisation. Any denial — no
@@ -49,7 +57,7 @@ export async function POST(req: Request) {
   // returns the same opaque error the JSON report route returns.
   // The resolver is a pure read: it serves the persisted report or an honest
   // 503. It cannot start a generation, so voice can never delay or fail
-  // report fulfillment.
+  // report fulfillment. ElevenLabs is not contacted on any denial.
   const resolved = await resolveEntitledReport(scanId);
   if (!resolved.ok) {
     const body: Record<string, unknown> = { error: resolved.error };
@@ -57,33 +65,52 @@ export async function POST(req: Request) {
       body.entitled = true;
       if (resolved.detail) body.detail = resolved.detail;
     }
-    return NextResponse.json(body, { status: resolved.status });
+    return NextResponse.json(body, { status: resolved.status, headers });
   }
 
   // Mint the signed URL AFTER we have already confirmed the caller owns this
-  // report — a failure here is an operational one (missing key, ElevenLabs
-  // down) that must not degrade the report itself. The client falls back to
-  // the written report gracefully on 503.
-  const signed = await mintRhodesSignedUrl();
+  // report — a failure here is an operational one (bad configuration,
+  // ElevenLabs down) that must not degrade the report itself. The client
+  // shows a small voice-only note and the written report stays on screen.
+  const signed = await mintRhodesSignedUrl({ requestId });
   if (!signed.ok) {
-    // A missing key is not a security event; it is a configuration one. The
-    // detail is a status hint, not the key itself.
-    const status = signed.reason === "not_configured" ? 503 : 502;
-    console.error(
-      `[rhodes-voice] signed-url failed: ${signed.reason} — ${signed.detail}`,
-    );
+    if (signed.reason === "not_configured") {
+      // Typed configuration defect. Already logged as
+      // `configuration-invalid code=… variable=…` by the facade.
+      return NextResponse.json(
+        { error: "voice_unavailable", retryable: false },
+        { status: 503, headers },
+      );
+    }
+    logRhodesVoice("graceful-degradation", {
+      requestId,
+      stage: "session",
+      category: signed.category,
+      upstreamStatus: signed.upstreamStatus,
+      attempt: signed.attempts,
+      ms: signed.ms,
+    });
+    // Transient upstream trouble → 503 (the panel offers "Try again");
+    // a definitive upstream refusal → 502 (an operator problem, not a retry).
     return NextResponse.json(
-      { error: "voice_unavailable" },
-      { status, headers: { "Cache-Control": "private, no-store" } },
+      { error: "voice_unavailable", retryable: signed.retryable },
+      { status: signed.retryable ? 503 : 502, headers },
     );
   }
 
   const ctx = buildRhodesVoiceContext(resolved.report);
+  logRhodesVoice("session-started", {
+    requestId,
+    stage: "handoff",
+    ms: signed.ms,
+    attempt: signed.attempts,
+  });
 
   return NextResponse.json(
     {
       signedUrl: signed.signedUrl,
       agentId: signed.agentId,
+      requestId,
       overrides: {
         agent: {
           // Rhodes speaks his own opening — the personalised first read. The
@@ -94,6 +121,6 @@ export async function POST(req: Request) {
       dynamicVariables: ctx.variables,
       song: ctx.song,
     },
-    { headers: { "Cache-Control": "private, no-store" } },
+    { headers },
   );
 }

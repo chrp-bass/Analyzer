@@ -20,7 +20,6 @@ vi.mock("@/lib/reports/resolve.server", () => ({
 }));
 vi.mock("@/lib/rhodes-voice/signed-url", () => ({
   mintRhodesSignedUrl: vi.fn(),
-  rhodesAgentId: () => "vv1j1yrAGF0RdxJOSGIJ",
 }));
 
 import { resolveEntitledReport } from "@/lib/reports/resolve.server";
@@ -61,7 +60,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("voice failure never affects report rendering", () => {
   it("the voice route reads the persisted report through the pure resolver", async () => {
     resolveMock.mockResolvedValueOnce(report());
-    mintMock.mockResolvedValueOnce({ ok: true, signedUrl: "wss://x", agentId: "a" });
+    mintMock.mockResolvedValueOnce({ ok: true, signedUrl: "wss://x", agentId: "a", attempts: 1, ms: 5 });
     await POST(
       new Request("http://test.local/api/rhodes/session", {
         method: "POST",
@@ -71,12 +70,16 @@ describe("voice failure never affects report rendering", () => {
     expect(resolveMock).toHaveBeenCalledWith("scn_x");
   });
 
-  it("an ElevenLabs outage is a small 503 from the voice route, nothing more", async () => {
+  it("an ElevenLabs outage is a small, retryable 503 from the voice route, nothing more", async () => {
     resolveMock.mockResolvedValueOnce(report());
     mintMock.mockResolvedValueOnce({
       ok: false,
       reason: "upstream_error",
-      detail: "ElevenLabs get_signed_url returned 502",
+      category: "upstream_unavailable",
+      retryable: true,
+      upstreamStatus: 502,
+      attempts: 3,
+      ms: 900,
     });
     const res = await POST(
       new Request("http://test.local/api/rhodes/session", {
@@ -84,9 +87,9 @@ describe("voice failure never affects report rendering", () => {
         body: JSON.stringify({ scanId: "scn_x" }),
       }),
     );
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body).toEqual({ error: "voice_unavailable" });
+    expect(body).toEqual({ error: "voice_unavailable", retryable: true });
     // The failure state is small: no stack, no upstream body, no key.
     expect(JSON.stringify(body)).not.toMatch(/elevenlabs|xi-api-key|sk_/i);
   });
@@ -113,6 +116,7 @@ describe("voice failure never affects report rendering", () => {
     expect(body.indexOf("<RhodesVoice")).toBeGreaterThan(body.indexOf("report.signature"));
 
     const voice = readFileSync("src/components/report/RhodesVoice.tsx", "utf8");
+    const controller = readFileSync("src/lib/rhodes-voice/session-controller.ts", "utf8");
     // Nothing auto-plays: the only invocation of startConversation is the
     // button's onClick, and the mount effect only tears down.
     const effects = voice.match(/useEffect\(\(\) => \{[\s\S]*?\}, \[[^\]]*\]\);/g) ?? [];
@@ -123,7 +127,10 @@ describe("voice failure never affects report rendering", () => {
     }
     expect(voice).toMatch(/onClick=\{startConversation\}/);
     // Every failure branch keeps the report usable and says so.
-    expect(voice.match(/The report below is unaffected|You can still read the report below/g)?.length ?? 0)
+    expect(controller.match(/The report below is unaffected|You can still read the report below/g)?.length ?? 0)
       .toBeGreaterThanOrEqual(4);
+    // The panel never redirects, throws, opens a modal or touches the page
+    // outside its own section.
+    expect(voice).not.toMatch(/router\.|redirect\(|window\.location|throw new|<dialog|alert\(/);
   });
 });

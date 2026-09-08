@@ -73,6 +73,36 @@ describe("POST /api/rhodes/session runtime call graph", () => {
     expect(forbidden).toEqual([]);
   });
 
+  it("never reaches checkout, Stripe, email, or the claim/prepare routes", () => {
+    const forbidden = Array.from(graph).filter(
+      (f) =>
+        /stripe/i.test(f) ||
+        /checkout/i.test(f) ||
+        /commerce\/(checkout|purchase|webhook)/.test(f) ||
+        /lib\/email/.test(f) ||
+        /purchase-email/.test(f) ||
+        /api\/scan\/(prepare|claim)/.test(f),
+    );
+    expect(forbidden).toEqual([]);
+    // And no reachable module even names the Stripe SDK or the Anthropic SDK.
+    for (const f of Array.from(graph)) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).not.toMatch(/from\s+["']stripe["']/);
+      expect(src, f).not.toMatch(/from\s+["']@anthropic-ai\//);
+    }
+  });
+
+  it("the ONLY report dependency is the persisted-report resolver (pure read)", () => {
+    const route = readFileSync("src/app/api/rhodes/session/route.ts", "utf8");
+    const imports = Array.from(route.matchAll(/from\s+["']([^"']+)["']/g)).map((m) => m[1]);
+    expect(imports.filter((i) => i.startsWith("@/lib/reports/"))).toEqual([
+      "@/lib/reports/resolve.server",
+    ]);
+    // The resolver itself performs no generation — pinned elsewhere, but the
+    // voice route must not grow a second path to the report.
+    expect(route).not.toMatch(/import[^;]*\b(prepare|generate|getFullReport|createSupabaseReportStore|ReportStore)\b[^;]*from/);
+  });
+
   it("never reaches the live Soundcharts, Spotify, or analyze upstream", () => {
     const forbidden = Array.from(graph).filter(
       (f) =>

@@ -20,10 +20,8 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import type { ReportPayload } from "@/lib/fixtures/tracks";
 import { buildRhodesVoiceContext } from "@/lib/rhodes-voice/context";
 import { composeFirstRead } from "@/lib/rhodes-voice/first-read";
-import {
-  mintRhodesSignedUrl,
-  rhodesAgentId,
-} from "@/lib/rhodes-voice/signed-url";
+import { mintRhodesSignedUrl } from "@/lib/rhodes-voice/signed-url";
+import type { RhodesVoiceLogger } from "@/lib/rhodes-voice/log";
 
 /**
  * A minimal but production-shaped governed report. The scoring layer wrote
@@ -174,126 +172,159 @@ describe("composeFirstRead", () => {
   });
 });
 
-describe("rhodesAgentId", () => {
-  const prev = process.env.ELEVENLABS_RHODES_AGENT_ID;
-  afterEach(() => {
-    // `process.env.X = undefined` stores the literal string "undefined";
-    // deleting is the only way to actually unset.
-    if (prev === undefined) delete process.env.ELEVENLABS_RHODES_AGENT_ID;
-    else process.env.ELEVENLABS_RHODES_AGENT_ID = prev;
-  });
+describe("mintRhodesSignedUrl (facade)", () => {
+  const VALID_ENV = {
+    ELEVENLABS_API_KEY: "sk_test_key_do_not_leak_0123456789",
+    ELEVENLABS_RHODES_AGENT_ID: "vv1j1yrAGF0RdxJOSGIJ",
+  };
+  const silent: RhodesVoiceLogger = () => {};
+  afterEach(() => vi.restoreAllMocks());
 
-  it("falls back to the canonical production agent id when unset", () => {
-    delete process.env.ELEVENLABS_RHODES_AGENT_ID;
-    expect(rhodesAgentId()).toBe("vv1j1yrAGF0RdxJOSGIJ");
-  });
-
-  it("respects an explicit env override", () => {
-    process.env.ELEVENLABS_RHODES_AGENT_ID = "customAgent123";
-    expect(rhodesAgentId()).toBe("customAgent123");
-  });
-});
-
-describe("mintRhodesSignedUrl", () => {
-  const priorKey = process.env.ELEVENLABS_API_KEY;
-  afterEach(() => {
-    if (priorKey === undefined) delete process.env.ELEVENLABS_API_KEY;
-    else process.env.ELEVENLABS_API_KEY = priorKey;
-    vi.restoreAllMocks();
-  });
-
-  it("refuses without an API key (never asks upstream, never leaks)", async () => {
-    delete process.env.ELEVENLABS_API_KEY;
+  it("refuses without an API key — never asks upstream, returns a typed configuration error", async () => {
     const fetchImpl = vi.fn();
-    const result = await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
+    const result = await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: { ELEVENLABS_RHODES_AGENT_ID: "vv1j1yrAGF0RdxJOSGIJ" },
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+    });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("not_configured");
+    if (!result.ok) {
+      expect(result.reason).toBe("not_configured");
+      if (result.reason === "not_configured") {
+        expect(result.code).toBe("missing_api_key");
+        expect(result.variable).toBe("ELEVENLABS_API_KEY");
+      }
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("has NO hard-coded agent id fallback — a missing agent id is a typed configuration error", async () => {
+    const fetchImpl = vi.fn();
+    const result = await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: { ELEVENLABS_API_KEY: VALID_ENV.ELEVENLABS_API_KEY },
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.reason === "not_configured") {
+      expect(result.code).toBe("missing_agent_id");
+      expect(result.variable).toBe("ELEVENLABS_RHODES_AGENT_ID");
+    } else {
+      throw new Error("expected not_configured");
+    }
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("passes the key in a header — never in the URL query string", async () => {
-    process.env.ELEVENLABS_API_KEY = "test_key_do_not_leak";
     const fetchImpl = vi.fn(async () =>
       new Response(
         JSON.stringify({ signed_url: "wss://api.elevenlabs.io/x/y" }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
-    const result = await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
+    const result = await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: VALID_ENV,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+    });
     expect(result.ok).toBe(true);
-    const call = fetchImpl.mock.calls[0];
-    const [url, init] = call as unknown as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     // The key never appears in the URL — an in-flight log capture would
     // otherwise persist it against every request.
-    expect(url).not.toContain("test_key_do_not_leak");
+    expect(url).not.toContain(VALID_ENV.ELEVENLABS_API_KEY);
     const headers = init.headers as Record<string, string>;
-    expect(headers["xi-api-key"]).toBe("test_key_do_not_leak");
+    expect(headers["xi-api-key"]).toBe(VALID_ENV.ELEVENLABS_API_KEY);
   });
 
-  it("calls the ElevenLabs convai signed-URL endpoint at its canonical hyphenated path", async () => {
+  it("calls the ElevenLabs convai signed-URL endpoint at its canonical hyphenated path with GET", async () => {
     // Regression pin: the ElevenLabs endpoint is `.../get-signed-url`
     // (hyphens), not `.../get_signed_url` (underscores). The underscored
-    // path returns 401 in production even under a valid key, so the
-    // exact string is worth encoding as a test rather than trusting
-    // memory.
-    process.env.ELEVENLABS_API_KEY = "test_key";
+    // path returns 401 in production even under a valid key.
     const fetchImpl = vi.fn(async () =>
       new Response(
         JSON.stringify({ signed_url: "wss://api.elevenlabs.io/token/x" }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
-    await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
-    const [url] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toContain(
-      "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=",
+    await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: VALID_ENV,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+    });
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(
+      "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=vv1j1yrAGF0RdxJOSGIJ",
     );
     expect(url).not.toContain("get_signed_url");
+    expect(init.method).toBe("GET");
   });
 
-  it("returns the signed URL when ElevenLabs answers happily", async () => {
-    process.env.ELEVENLABS_API_KEY = "test_key";
+  it("returns the signed URL and the configured agent id when ElevenLabs answers happily", async () => {
     const fetchImpl = vi.fn(async () =>
       new Response(
         JSON.stringify({ signed_url: "wss://api.elevenlabs.io/token/abc" }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
-    const result = await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
+    const result = await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: VALID_ENV,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+    });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.signedUrl).toBe("wss://api.elevenlabs.io/token/abc");
       expect(result.agentId).toBe("vv1j1yrAGF0RdxJOSGIJ");
+      expect(result.attempts).toBe(1);
     }
   });
 
-  it("treats a non-2xx upstream as an upstream error, without leaking the body", async () => {
-    process.env.ELEVENLABS_API_KEY = "test_key";
+  it("treats a non-2xx upstream as a categorised upstream error, without leaking the body", async () => {
     const fetchImpl = vi.fn(async () =>
-      new Response("plan gate exceeded and here is my quota row", {
-        status: 429,
-      }),
+      new Response("plan gate exceeded and here is my quota row", { status: 429 }),
     );
-    const result = await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
+    const result = await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: VALID_ENV,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+      maxAttempts: 1,
+    });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("upstream_error");
+    if (!result.ok && result.reason === "upstream_error") {
+      expect(result.category).toBe("rate_limited");
+      expect(result.upstreamStatus).toBe(429);
       // The response body must never propagate.
-      expect(result.detail).not.toContain("plan gate exceeded");
-      expect(result.detail).toContain("429");
+      expect(JSON.stringify(result)).not.toContain("plan gate exceeded");
+    } else {
+      throw new Error("expected upstream_error");
     }
   });
 
   it("rejects a response missing signed_url so a garbage URL never reaches the client", async () => {
-    process.env.ELEVENLABS_API_KEY = "test_key";
     const fetchImpl = vi.fn(async () =>
       new Response(JSON.stringify({ nope: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
-    const result = await mintRhodesSignedUrl(fetchImpl as unknown as typeof fetch);
+    const result = await mintRhodesSignedUrl({
+      requestId: "r1",
+      env: VALID_ENV,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      log: silent,
+    });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("upstream_error");
+    if (!result.ok && result.reason === "upstream_error") {
+      expect(result.category).toBe("malformed_response");
+      expect(result.retryable).toBe(false);
+    } else {
+      throw new Error("expected upstream_error");
+    }
   });
 });
