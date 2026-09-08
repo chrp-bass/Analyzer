@@ -114,6 +114,7 @@ describe("RhodesVoiceSession", () => {
       "websocket-open",
       "session-started",
     ]);
+    expect(h.connect.mock.calls[0][2]).toEqual({ withOverrides: true });
     // Ordering: microphone strictly before the session endpoint.
     expect(h.mic.mock.invocationCallOrder[0]).toBeLessThan(h.fetchSession.mock.invocationCallOrder[0]);
   });
@@ -251,7 +252,7 @@ describe("RhodesVoiceSession", () => {
     await h.session.stop();
     expect(h.conversations[0].endSession).toHaveBeenCalledTimes(1);
     expect(h.session.getState().status).toBe("ended");
-    expect(h.events.at(-1)).toMatchObject({ event: "session-stopped", fields: { result: "closed" } });
+    expect(h.events.at(-1)).toMatchObject({ event: "session-stopped", fields: { result: "closed_by_user" } });
     // A second session after stop mints a fresh URL.
     await h.session.start();
     expect(h.fetchSession).toHaveBeenCalledTimes(2);
@@ -308,13 +309,13 @@ describe("RhodesVoiceSession", () => {
     expect(h.session.getState().status).toBe("listening");
     h.conversations[0].callbacks.onUserTurn();
     expect(h.session.getState().status).toBe("speaking");
-    h.conversations[0].callbacks.onDisconnected("agent");
+    h.conversations[0].callbacks.onDisconnected({ reason: "agent", closeCode: 1000 });
     expect(h.session.getState().status).toBe("ended");
     expect(h.session.isBusy()).toBe(false);
 
     const h2 = harness();
     await h2.session.start();
-    h2.conversations[0].callbacks.onDisconnected("error");
+    h2.conversations[0].callbacks.onDisconnected({ reason: "error", closeCode: 1011, closeReason: "Voice not found" });
     expect(h2.session.getState()).toMatchObject({ status: "error", note: NOTES.snag, retryable: true });
   });
 });
@@ -335,10 +336,10 @@ describe("browser-side code never sees a credential", () => {
     }
   });
 
-  it("the panel only ever talks to /api/rhodes/session and the SDK", () => {
+  it("the panel only ever talks to /api/rhodes/session, its outcome log, and the SDK", () => {
     const src = readFileSync("src/components/report/RhodesVoice.tsx", "utf8");
     const fetches = src.match(/fetch\(\s*"([^"]+)"/g) ?? [];
-    expect(fetches).toEqual(['fetch("/api/rhodes/session"']);
+    expect(fetches).toEqual(['fetch("/api/rhodes/session"', 'fetch("/api/rhodes/session/outcome"']);
     expect(src).not.toMatch(/\/api\/(scan|report|checkout|prepare|claim)/);
   });
 });

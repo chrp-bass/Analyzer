@@ -22,7 +22,11 @@ rendered entitled report
        │          definitive → 502 {retryable:false}
        └─ Conversation.startSession({ signedUrl, connectionType:"websocket" })
             pre-open failure → ONE fresh mint + reconnect; then panel note
+            post-open provider close → classified (close code + reason)
+              override_rejected / silent 1006 → ONE fresh mint WITHOUT overrides
+              anything else (auth, quota, voice, llm, …) → panel note, no retry
             stop / unmount / pagehide → endSession (socket + microphone closed)
+       └─ POST /api/rhodes/session/outcome   browser lifecycle → production log
 ```
 
 Modules (all under `src/lib/rhodes-voice/`):
@@ -34,6 +38,8 @@ Modules (all under `src/lib/rhodes-voice/`):
 | `signed-url.ts` | server facade the route calls (config → client) |
 | `log.ts` | closed-schema `[rhodes-voice]` structured logging (values allow-listed) |
 | `session-controller.ts` | browser lifecycle state machine (no React, no SDK) |
+| `close-reason.ts` | classifies a post-open provider close/error into a category; decides the single override-free reconnect |
+| `api/rhodes/session/outcome` | write-only, entitlement-gated telemetry: browser lifecycle events → `[rhodes-voice]` production log |
 | `context.ts`, `first-read.ts` | pure adapters over the persisted report |
 
 The signed URL is minted once per attempt, handed to the browser once, used
@@ -159,9 +165,32 @@ Read `category=` from `[rhodes-voice] event=signed-url-failed` (server logs).
 Retry policy: max 3 attempts, 4 s per attempt, 9 s total, exponential
 backoff with full jitter (250 ms base, 2 s cap). Never on 400/401/403/404/422.
 
-Client-side (browser console, same `[rhodes-voice]` shape):
-`websocket-failed result=pre_open` → one fresh mint and reconnect;
-`microphone-denied` → no server call; `graceful-degradation` → panel note.
+### Post-open (WebSocket opened, then closed) — `event=provider-failure`
+
+The browser reports these to the outcome route, so they appear in
+`vercel logs … -q "rhodes-voice"` with `stage=browser`, the same `request_id`
+as the mint, the ElevenLabs `conversation_id`, and the `close_code`. The
+provider's exact reason text is printed once in the browser console
+(`[rhodes-voice] provider reason: …`), never in a structured log.
+
+| category | meaning | action |
+| --- | --- | --- |
+| `override_rejected` | the agent's **Security** tab does not allow the `first_message` override we send | the client already reconnects once WITHOUT overrides (`retry result=without_overrides`) and Rhodes speaks the agent's configured first message. To restore the personalised opening, enable *First message* under Security → Overrides on the agent |
+| `dynamic_variables_missing` | the agent prompt/first message references a `{{variable}}` the client does not send | add the variable to `context.ts` or remove it from the agent |
+| `auth` | signed URL expired / signature invalid / agent requires authorization | mint-to-connect took too long, or the agent's auth mode changed |
+| `quota` | credits, concurrency or plan limits | ElevenLabs plan |
+| `voice_unavailable` | the agent's TTS voice is missing or inaccessible to this workspace | reassign a voice on the agent |
+| `llm` | model / LLM configuration failure | check the agent's LLM settings |
+| `max_duration` | provider ended the session at its configured cap | expected |
+| `network` (close 1006, empty reason) | silent drop | treated like a rejection once (override-free reconnect), then reported |
+| `unknown` | unrecognised reason | read the console excerpt; file with ElevenLabs quoting `conversation_id` |
+
+Every teardown WE perform is logged as `session-stopped result=closed_by_<user|unmount|pagehide>`
+and can never be reported as a provider failure (the lifecycle suite pins this).
+
+Client-side pre-open (`websocket-failed result=pre_open`) → one fresh mint and
+reconnect; `microphone-denied` → no server call; `graceful-degradation` →
+panel note.
 
 ## 8. Confirming agent / workspace ownership without exposing secrets
 
@@ -177,7 +206,8 @@ Client-side (browser console, same `[rhodes-voice]` shape):
   session creation). Never copy the value anywhere to check it — the
   server's `category=` classification is the check.
 * Do not add a diagnostic route, public or hidden. The route's own sanitised
-  log line is the diagnostic.
+  log line is the diagnostic. (The outcome route is write-only telemetry:
+  entitlement-gated, closed field set, returns 204 and nothing else.)
 
 ## 9. Rules
 

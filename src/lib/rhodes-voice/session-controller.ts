@@ -15,9 +15,13 @@
  *   - every connection attempt uses a freshly minted signed URL; a URL that
  *     failed to open is discarded and never reused;
  *   - a pre-open WebSocket failure permits exactly ONE fresh-URL retry;
- *   - stop, failure, navigation and unmount all end the conversation (which
- *     closes the WebSocket and releases the microphone) and abort any
- *     in-flight request;
+ *   - a POST-open provider failure is classified from the close code and
+ *     reason. Only a proven override rejection (or a silent, reason-less
+ *     close) earns ONE fresh-URL reconnect without the config override; every
+ *     other provider failure is reported as-is, never retried;
+ *   - our own teardown (stop, dispose from unmount / pagehide) can never be
+ *     mistaken for a provider failure: `live` is cleared BEFORE the socket is
+ *     closed, and the teardown source is logged;
  *   - no failure escapes: `start()` never rejects, so the report around the
  *     panel is untouched by anything that goes wrong inside it.
  *
@@ -27,6 +31,11 @@
  */
 
 import type { RhodesVoiceEvent, RhodesVoiceLogFields } from "./log";
+import {
+  classifyProviderFailure,
+  warrantsOverrideFreeRetry,
+  type ProviderFailure,
+} from "./close-reason";
 
 export type VoiceStatus =
   | "idle"
@@ -49,6 +58,7 @@ export interface VoiceState {
 export interface SessionPayload {
   signedUrl: string;
   agentId: string;
+  requestId?: string;
   overrides: {
     agent?: { firstMessage?: string; prompt?: { prompt?: string } };
   };
@@ -60,16 +70,34 @@ export type SessionFetchResult =
   | { ok: true; payload: SessionPayload }
   | { ok: false; status: number; retryable: boolean };
 
+/** What the SDK tells us when the conversation ends. */
+export interface DisconnectDetails {
+  reason: "user" | "agent" | "error";
+  closeCode?: number;
+  closeReason?: string;
+  message?: string;
+}
+
 export interface ConnectCallbacks {
+  /** The provider accepted the initiation and created a conversation. */
+  onConnected(conversationId: string): void;
   onAgentSpeaking(): void;
   onUserTurn(): void;
-  onDisconnected(reason: "user" | "agent" | "error"): void;
-  onError(): void;
+  onDisconnected(details: DisconnectDetails): void;
+  /** A provider `error` event or an SDK-level error while the session is open. */
+  onError(message: string): void;
+}
+
+export interface ConnectOptions {
+  /** Send `overrides` (first message) with the initiation payload. */
+  withOverrides: boolean;
 }
 
 export interface LiveConversation {
   endSession(): Promise<unknown>;
 }
+
+export type TeardownSource = "user" | "unmount" | "pagehide" | "scan-change" | "dispose";
 
 export interface VoiceSessionDeps {
   /** Resolve when the browser has granted microphone access; reject otherwise. */
@@ -77,9 +105,15 @@ export interface VoiceSessionDeps {
   /** POST /api/rhodes/session. Must honour `signal`. */
   fetchSession(scanId: string, signal: AbortSignal): Promise<SessionFetchResult>;
   /** Open the WebSocket conversation with this (fresh) payload. */
-  connect(payload: SessionPayload, callbacks: ConnectCallbacks): Promise<LiveConversation>;
+  connect(
+    payload: SessionPayload,
+    callbacks: ConnectCallbacks,
+    options: ConnectOptions,
+  ): Promise<LiveConversation>;
   /** Structured `[rhodes-voice]` logging. */
   log?: (event: RhodesVoiceEvent, fields?: RhodesVoiceLogFields) => void;
+  /** Console-only: the provider's exact words for the human running the test. */
+  debug?: (line: string) => void;
   /**
    * Whether a `connect` rejection happened BEFORE the conversation opened
    * (handshake refused, socket closed before metadata). Only such failures
@@ -88,6 +122,7 @@ export interface VoiceSessionDeps {
    */
   isPreOpenFailure?(err: unknown): boolean;
   requestId?(): string;
+  now?(): number;
 }
 
 export const NOTES = {
@@ -100,6 +135,8 @@ export const NOTES = {
 
 /** How many connection attempts one click may make. Exactly one retry. */
 export const MAX_CONNECT_ATTEMPTS = 2;
+/** A post-open provider failure later than this is a mid-conversation drop, not a rejection. */
+export const OVERRIDE_FALLBACK_WINDOW_MS = 10_000;
 
 const defaultIsPreOpen = (err: unknown): boolean =>
   !!err && typeof err === "object" && (err as { name?: unknown }).name === "SessionConnectionError";
@@ -115,6 +152,11 @@ export class RhodesVoiceSession {
   private abort: AbortController | null = null;
   private disposed = false;
   private readonly usedSignedUrls = new Set<string>();
+  /** Per click: the request id every log line of this attempt carries. */
+  private requestId = "";
+  private conversationId: string | undefined;
+  private openedAt = 0;
+  private overrideFreeRetryUsed = false;
 
   constructor(
     private readonly scanId: string,
@@ -142,6 +184,10 @@ export class RhodesVoiceSession {
     return this.inFlight || this.live !== null;
   }
 
+  private now(): number {
+    return (this.deps.now ?? Date.now)();
+  }
+
   private set(patch: Partial<VoiceState>): void {
     this.state = { ...this.state, ...patch };
     this.listeners.forEach((fn) => fn(this.state));
@@ -149,9 +195,21 @@ export class RhodesVoiceSession {
 
   private log(event: RhodesVoiceEvent, fields?: RhodesVoiceLogFields): void {
     try {
-      this.deps.log?.(event, fields);
+      this.deps.log?.(event, {
+        requestId: this.requestId || undefined,
+        conversationId: this.conversationId,
+        ...fields,
+      });
     } catch {
       /* logging must never affect the session */
+    }
+  }
+
+  private debug(line: string): void {
+    try {
+      this.deps.debug?.(line);
+    } catch {
+      /* never */
     }
   }
 
@@ -162,27 +220,41 @@ export class RhodesVoiceSession {
   async start(): Promise<"started" | "ignored" | "mic_denied" | "failed"> {
     if (this.disposed || this.inFlight || this.live) return "ignored";
     this.inFlight = true;
-    const requestId = (this.deps.requestId ?? defaultRequestId)();
+    this.requestId = (this.deps.requestId ?? defaultRequestId)();
+    this.conversationId = undefined;
+    this.overrideFreeRetryUsed = false;
     this.set({ status: "requesting_mic", note: null, retryable: false });
-    this.log("session-requested", { requestId, stage: "click" });
+    this.log("session-requested", { stage: "click" });
 
     try {
       // 1. Microphone consent BEFORE anything is minted. A denial is a user
       //    decision, not an error worth an upstream round-trip.
-      this.log("microphone-requested", { requestId, stage: "microphone" });
+      this.log("microphone-requested", { stage: "microphone" });
       try {
         await this.deps.requestMicrophone();
       } catch {
-        this.log("microphone-denied", { requestId, stage: "microphone" });
+        this.log("microphone-denied", { stage: "microphone" });
         this.set({ status: "error", note: NOTES.mic, retryable: true });
         return "mic_denied";
       }
-      this.log("microphone-granted", { requestId, stage: "microphone" });
+      this.log("microphone-granted", { stage: "microphone" });
       if (this.disposed) return "failed";
 
-      this.set({ status: "connecting" });
-      this.abort = new AbortController();
+      return await this.connectFlow({ withOverrides: true });
+    } finally {
+      this.inFlight = false;
+    }
+  }
 
+  /**
+   * Mint a FRESH signed URL and connect, up to MAX_CONNECT_ATTEMPTS times
+   * (a pre-open failure earns the one retry). Shared by the first attempt and
+   * by the evidence-gated override-free reconnect.
+   */
+  private async connectFlow(options: ConnectOptions): Promise<"started" | "failed"> {
+    this.set({ status: "connecting" });
+    this.abort = new AbortController();
+    try {
       for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt++) {
         // 2. A FRESH signed URL for every attempt. Never reuse one.
         let fetched: SessionFetchResult;
@@ -190,14 +262,13 @@ export class RhodesVoiceSession {
           fetched = await this.deps.fetchSession(this.scanId, this.abort.signal);
         } catch {
           if (this.disposed) return "failed";
-          this.log("graceful-degradation", { requestId, stage: "session", result: "fetch_threw", attempt });
+          this.log("graceful-degradation", { stage: "session", result: "fetch_threw", attempt });
           this.set({ status: "error", note: NOTES.connect, retryable: true });
           return "failed";
         }
         if (this.disposed) return "failed";
         if (!fetched.ok) {
           this.log("graceful-degradation", {
-            requestId,
             stage: "session",
             upstreamStatus: fetched.status,
             result: fetched.retryable ? "retryable" : "not_retryable",
@@ -214,7 +285,7 @@ export class RhodesVoiceSession {
         const payload = fetched.payload;
         if (this.usedSignedUrls.has(payload.signedUrl)) {
           // Defensive: a reused URL would mean the server cached one. Refuse.
-          this.log("graceful-degradation", { requestId, stage: "websocket", result: "reused_url_refused", attempt });
+          this.log("graceful-degradation", { stage: "websocket", result: "reused_url_refused", attempt });
           this.set({ status: "error", note: NOTES.open, retryable: true });
           return "failed";
         }
@@ -222,74 +293,162 @@ export class RhodesVoiceSession {
         this.set({ song: payload.song });
 
         // 3. Connect immediately — the URL is short-lived.
-        this.log("websocket-opening", { requestId, stage: "websocket", attempt });
-        const opened = Date.now();
+        this.log("websocket-opening", {
+          stage: "websocket",
+          attempt,
+          result: options.withOverrides ? "with_overrides" : "without_overrides",
+        });
+        const opened = this.now();
         try {
-          const conv = await this.deps.connect(payload, this.callbacks());
+          const conv = await this.deps.connect(payload, this.callbacks(), options);
           if (this.disposed) {
             // Unmounted while the handshake was in flight: close at once.
             await conv.endSession().catch(() => {});
             return "failed";
           }
           this.live = conv;
-          this.log("websocket-open", { requestId, stage: "websocket", ms: Date.now() - opened, attempt });
+          this.openedAt = this.now();
+          this.log("websocket-open", { stage: "websocket", ms: this.openedAt - opened, attempt });
           this.set({ status: "listening", note: null, retryable: false });
-          this.log("session-started", { requestId, stage: "conversation", attempt });
+          this.log("session-started", {
+            stage: "conversation",
+            attempt,
+            result: options.withOverrides ? "with_overrides" : "without_overrides",
+          });
           return "started";
         } catch (err) {
           const preOpen = (this.deps.isPreOpenFailure ?? defaultIsPreOpen)(err);
+          const e = err as { closeCode?: number; closeReason?: string; message?: string } | null;
           this.log("websocket-failed", {
-            requestId,
             stage: "websocket",
-            ms: Date.now() - opened,
+            ms: this.now() - opened,
             attempt,
             result: preOpen ? "pre_open" : "other",
+            closeCode: typeof e?.closeCode === "number" ? e.closeCode : undefined,
+            category: classifyProviderFailure({
+              closeCode: e?.closeCode,
+              reason: e?.closeReason,
+              message: e?.message,
+            }).category,
           });
+          this.debug(`[rhodes-voice] pre-open failure: ${String(e?.message ?? err)}`);
           if (this.disposed) return "failed";
           if (preOpen && attempt < MAX_CONNECT_ATTEMPTS) {
             // The failed URL is already recorded as used; loop mints a new one.
-            this.log("retry", { requestId, stage: "websocket", attempt: attempt + 1 });
+            this.log("retry", { stage: "websocket", attempt: attempt + 1, result: "fresh_url" });
             continue;
           }
-          this.log("graceful-degradation", { requestId, stage: "websocket", result: "gave_up", attempt });
+          this.log("graceful-degradation", { stage: "websocket", result: "gave_up", attempt });
           this.set({ status: "error", note: NOTES.open, retryable: true });
           return "failed";
         }
       }
       return "failed";
     } finally {
-      this.inFlight = false;
       this.abort = null;
     }
   }
 
+  /**
+   * A provider-side failure AFTER the conversation opened. Classified from
+   * the close code/reason; logged with the conversation id so the ElevenLabs
+   * record can be found. Exactly one evidence-gated reconnect without the
+   * config override, and only when the reason proves an override rejection
+   * (or the provider closed silently within the window).
+   */
+  private handleProviderFailure(failure: ProviderFailure, source: "close" | "error"): void {
+    const sinceOpen = this.openedAt ? this.now() - this.openedAt : undefined;
+    this.log("provider-failure", {
+      stage: "conversation",
+      ms: sinceOpen,
+      closeCode: failure.closeCode,
+      category: failure.category,
+      result: source,
+    });
+    if (failure.excerpt) this.debug(`[rhodes-voice] provider reason: ${failure.excerpt}`);
+
+    const withinWindow = sinceOpen !== undefined && sinceOpen <= OVERRIDE_FALLBACK_WINDOW_MS;
+    if (
+      !this.disposed &&
+      !this.inFlight &&
+      !this.overrideFreeRetryUsed &&
+      withinWindow &&
+      warrantsOverrideFreeRetry(failure)
+    ) {
+      this.overrideFreeRetryUsed = true;
+      this.inFlight = true;
+      this.log("retry", {
+        stage: "websocket",
+        attempt: 1,
+        result: "without_overrides",
+        category: failure.category,
+      });
+      void this.connectFlow({ withOverrides: false }).finally(() => {
+        this.inFlight = false;
+      });
+      return;
+    }
+    this.set({ status: "error", note: NOTES.snag, retryable: true });
+    this.log("graceful-degradation", { stage: "conversation", result: "provider_failure", category: failure.category });
+  }
+
   private callbacks(): ConnectCallbacks {
     return {
+      onConnected: (conversationId) => {
+        this.conversationId = conversationId;
+        this.log("websocket-open", { stage: "provider", result: "conversation_created" });
+      },
       onAgentSpeaking: () => {
         if (this.live) this.set({ status: "listening" });
       },
       onUserTurn: () => {
         if (this.live) this.set({ status: "speaking" });
       },
-      onDisconnected: (reason) => {
+      onDisconnected: (details) => {
+        // Our own teardown clears `live` BEFORE closing the socket, so a
+        // disconnect that arrives with `live` unset is ours, never the provider's.
         if (!this.live) return;
         this.live = null;
-        this.log("websocket-closed", { stage: "websocket", result: reason });
-        if (reason === "error") {
-          this.set({ status: "error", note: NOTES.snag, retryable: true });
+        const sinceOpen = this.openedAt ? this.now() - this.openedAt : undefined;
+        this.log("websocket-closed", {
+          stage: "websocket",
+          ms: sinceOpen,
+          result: details.reason,
+          closeCode: details.closeCode,
+        });
+        if (details.reason === "error") {
+          this.handleProviderFailure(
+            classifyProviderFailure({
+              closeCode: details.closeCode,
+              reason: details.closeReason,
+              message: details.message,
+            }),
+            "close",
+          );
         } else {
           this.set({ status: "ended" });
         }
       },
-      onError: () => {
-        this.log("graceful-degradation", { stage: "conversation", result: "sdk_error" });
+      onError: (message) => {
+        if (!this.live) return; // an error during our own teardown is not a provider failure
+        const failure = classifyProviderFailure({ message });
+        // The SDK keeps the socket open after a server `error` event; the
+        // provider decides whether to close. Report, but do not tear down
+        // twice — the close, if it comes, is handled above.
+        this.log("provider-failure", {
+          stage: "conversation",
+          ms: this.openedAt ? this.now() - this.openedAt : undefined,
+          category: failure.category,
+          result: "error_event",
+        });
+        if (failure.excerpt) this.debug(`[rhodes-voice] provider error: ${failure.excerpt}`);
         this.set({ status: "error", note: NOTES.snag, retryable: true });
       },
     };
   }
 
-  /** End the conversation on the creator's request. */
-  async stop(): Promise<void> {
+  /** End the conversation on the creator's request (or on teardown). */
+  async stop(source: TeardownSource = "user"): Promise<void> {
     const c = this.live;
     this.live = null;
     if (c) {
@@ -299,7 +458,11 @@ export class RhodesVoiceSession {
         /* the socket is going away regardless */
       }
     }
-    this.log("session-stopped", { stage: "conversation", result: c ? "closed" : "nothing_open" });
+    this.log("session-stopped", {
+      stage: "conversation",
+      result: c ? `closed_by_${source}` : `nothing_open_${source}`,
+      ms: this.openedAt && c ? this.now() - this.openedAt : undefined,
+    });
     if (!this.disposed) this.set({ status: "ended", note: null, retryable: false });
   }
 
@@ -308,12 +471,12 @@ export class RhodesVoiceSession {
    * conversation (closing the WebSocket and releasing the microphone), and
    * makes every later call a no-op.
    */
-  async dispose(): Promise<void> {
+  async dispose(source: TeardownSource = "dispose"): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this.abort?.abort();
     this.abort = null;
-    await this.stop();
+    await this.stop(source);
     this.listeners.clear();
   }
 }
