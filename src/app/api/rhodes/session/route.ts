@@ -98,7 +98,18 @@ export async function POST(req: Request) {
     );
   }
 
+  // Bind THIS persisted report to THIS conversation through dynamic
+  // variables. The agent's prompt and first message reference them; nothing
+  // is overridden. Deterministic and bounded — the budget report is logged,
+  // never silent.
   const ctx = buildRhodesVoiceContext(resolved.report);
+  logRhodesVoice("context-built", {
+    requestId,
+    stage: "context",
+    chars: ctx.budget.chars,
+    // e.g. "complete:10" (ten sections, nothing trimmed) or "trimmed_pitch.where:11".
+    result: `${ctx.budget.trimmed.length ? `trimmed_${ctx.budget.trimmed.join(".")}` : "complete"}:${ctx.budget.sections.length}`,
+  });
   logRhodesVoice("session-started", {
     requestId,
     stage: "handoff",
@@ -111,13 +122,10 @@ export async function POST(req: Request) {
       signedUrl: signed.signedUrl,
       agentId: signed.agentId,
       requestId,
-      overrides: {
-        agent: {
-          // Rhodes speaks his own opening — the personalised first read. The
-          // ElevenLabs canonical SOT still governs everything after this line.
-          firstMessage: ctx.firstMessage,
-        },
-      },
+      // No conversation_config_override: the agent rejects overrides (close
+      // 1008, seen in production) and none is needed — the first message is
+      // templated on the agent from `song_title` / `first_signal`.
+      overrides: {},
       dynamicVariables: ctx.variables,
       song: ctx.song,
     },

@@ -1,85 +1,63 @@
 /**
- * Compose Rhodes's short opening read for the voice moment.
+ * Rhodes's spoken opening for the voice moment.
  *
- * DESIGN INTENT (from the integration brief):
- *   > "I analyzed this, and there is one thing I think you should see."
- *   > Not: "Here is your AI-generated audio summary."
+ * Two short sentences the creator hears first (about twelve seconds), then
+ * ONE report-grounded signal. Never a summary of the report, never a pitch,
+ * never a recital of scores.
  *
- * The read is:
- *   - 20–40 seconds at Clyde's cadence (approximately 55–120 words)
- *   - grounded in the SAME governed intelligence the written report displays
- *   - specific to the actual song and artist
- *   - one high-value defensible observation, briefly explained
- *   - never a recital of five scores, never methodology, never a sales pitch
+ *   "I'm Dr. Rhodes. I've reviewed what Chirp found in "{{song_title}}" — and
+ *    there's one signal I think you should see first. {{first_signal}}"
  *
- * We do NOT call any model here. Rhodes has already written for this song —
- * `report.signature`, `report.rhodes`, and `report.consider` are governed
- * outputs of the canonical Rhodes generation. We select and shape one short
- * spoken opening from those strings, so what the voice says is provably
- * consistent with the written report the creator will read next.
+ * The template lives on the ElevenLabs agent as its first message and is
+ * filled by dynamic variables; `composeFirstRead` renders the same template
+ * server-side so the two can never drift (a test pins them equal).
+ *
+ * `firstSignal` selects the single most useful governed sentence — Rhodes has
+ * already written for this song, so what the voice opens with is provably
+ * consistent with the written report the creator is reading.
  */
 
 import type { ReportPayload } from "@/lib/fixtures/tracks";
+import { RHODES_VOICE_FIRST_MESSAGE } from "./agent-prompt";
+import { asSpokenData } from "./text";
 
-/** Trim, collapse internal whitespace, drop trailing punctuation. */
-function normalise(s: string | undefined | null): string {
-  if (!s) return "";
-  return s.replace(/\s+/g, " ").trim();
+/** Hard cap so the opening stays near twelve seconds at Rhodes's cadence. */
+export const FIRST_SIGNAL_MAX_CHARS = 200;
+
+/** Split prose into sentences, keeping terminal punctuation. */
+function sentences(text: string): string[] {
+  return (text.match(/[^.!?]+[.!?]+/g) ?? (text.trim() ? [text.trim()] : [])).map((s) => s.trim());
 }
 
 /**
- * Pick the single most useful sentence from a paragraph.
- *
- * Rhodes's written prose tends to open with the observation and follow with a
- * brief explanation; the first sentence is almost always the most quotable.
- * When the first sentence is unusually short (a title fragment, say), the
- * second joins it so the spoken read has room to land.
+ * One concise, report-grounded observation. Prefers the emotional signature
+ * (already a single governed statement); falls back to the first sentence of
+ * the governed analysis; then to the throughline. Never invents.
  */
-function pickSentence(text: string, minChars = 60, maxChars = 220): string {
-  const parts = text.match(/[^.!?]+[.!?]+/g) ?? [text];
-  let acc = "";
-  for (const raw of parts) {
-    const s = raw.trim();
-    if (!s) continue;
-    if (!acc) {
-      acc = s;
-      if (acc.length >= minChars) return acc.slice(0, maxChars);
-      continue;
-    }
-    if (acc.length + 1 + s.length > maxChars) return acc.slice(0, maxChars);
-    acc = `${acc} ${s}`;
-    if (acc.length >= minChars) return acc.slice(0, maxChars);
-  }
-  return (acc || text).slice(0, maxChars);
+export function firstSignal(report: ReportPayload): string {
+  const candidates = [
+    ...sentences(asSpokenData(report.signature)),
+    ...sentences(asSpokenData(report.rhodes)),
+    ...sentences(asSpokenData(report.throughline)),
+  ].filter((s) => s.length >= 24);
+  const pick =
+    candidates.find((s) => s.length <= FIRST_SIGNAL_MAX_CHARS) ??
+    (candidates[0] ? candidates[0].slice(0, FIRST_SIGNAL_MAX_CHARS - 1).trimEnd() + "…" : "");
+  return pick || "The report opens with the emotional signature Chirp measured for this song.";
 }
 
-/**
- * The opening. Two beats: (1) name the song and what stood out, (2) the
- * defensible observation from the governed prose. The final sentence invites
- * the creator into the report without pitching it.
- */
+/** Fill the agent's first-message template exactly as ElevenLabs would. */
+export function renderFirstMessage(vars: { song_title: string; first_signal: string }): string {
+  return RHODES_VOICE_FIRST_MESSAGE.replace(/\{\{song_title\}\}/g, vars.song_title).replace(
+    /\{\{first_signal\}\}/g,
+    vars.first_signal,
+  );
+}
+
+/** The opening as the creator hears it. */
 export function composeFirstRead(report: ReportPayload): string {
-  const title = report.track.title.trim();
-  const artist = report.track.artist.trim();
-
-  const observation =
-    pickSentence(normalise(report.rhodes)) ||
-    pickSentence(normalise(report.signature)) ||
-    // A well-formed governed report always has one of these; this branch
-    // exists only to keep the voice moment tolerant of legacy payloads.
-    "There's a distinct emotional-performance shape here worth reading closely.";
-
-  const modeLine = report.epi?.mode
-    ? `The reading came out in ${report.epi.mode} — that's the room this song opens.`
-    : "";
-
-  // Two short paragraphs, roughly 55–95 words. Voice Rhodes speaks it as one
-  // continuous opening: introduction, observation, invitation.
-  const opening = `I sat with "${title}" by ${artist} for a while before saying anything.`;
-  const invite =
-    "I put the rest of what I noticed in the report below. When you've read through it, I'm right here if you want to talk it out.";
-
-  return [opening, observation, modeLine, invite]
-    .filter((s) => s.trim().length > 0)
-    .join(" ");
+  return renderFirstMessage({
+    song_title: asSpokenData(report.track.title),
+    first_signal: firstSignal(report),
+  });
 }

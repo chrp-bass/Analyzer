@@ -32,7 +32,8 @@ export type RhodesVoiceEvent =
   | "session-started"
   | "session-stopped"
   | "graceful-degradation"
-  | "provider-failure";
+  | "provider-failure"
+  | "context-built";
 
 export interface RhodesVoiceLogFields {
   requestId?: string;
@@ -48,6 +49,8 @@ export interface RhodesVoiceLogFields {
   conversationId?: string;
   /** WebSocket close code, when the provider closed the socket. */
   closeCode?: number;
+  /** Size of the report context handed to the agent (characters). */
+  chars?: number;
 }
 
 const FIELD_ORDER: Array<[keyof RhodesVoiceLogFields, string]> = [
@@ -62,6 +65,7 @@ const FIELD_ORDER: Array<[keyof RhodesVoiceLogFields, string]> = [
   ["variable", "variable"],
   ["conversationId", "conversation_id"],
   ["closeCode", "close_code"],
+  ["chars", "chars"],
 ];
 
 /** Short, URL-safe tokens only. Anything else is replaced, never truncated. */

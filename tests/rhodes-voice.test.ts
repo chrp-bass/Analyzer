@@ -84,7 +84,7 @@ function makeReport(overrides: Partial<ReportPayload> = {}): ReportPayload {
 }
 
 describe("buildRhodesVoiceContext", () => {
-  it("packages exactly the governed values — never re-derives them", () => {
+  it("packages exactly the governed values as report context — never re-derives them", () => {
     const report = makeReport();
     const ctx = buildRhodesVoiceContext(report);
 
@@ -93,7 +93,7 @@ describe("buildRhodesVoiceContext", () => {
     expect(ctx.variables.song_title).toBe("Safe");
     expect(ctx.variables.song_artist).toBe("The Brevet");
 
-    // The five scores + EPI + mode come out of the report unchanged. Any
+    // The scores + EPI + mode come out of the report unchanged. Any
     // re-derivation here would let voice truth drift from written truth.
     expect(ctx.variables.focus_score).toBe("71");
     expect(ctx.variables.calm_score).toBe("68");
@@ -102,50 +102,40 @@ describe("buildRhodesVoiceContext", () => {
     expect(ctx.variables.epi_score).toBe("62");
     expect(ctx.variables.epi_mode).toBe("Flow");
 
-    // Governed prose is included verbatim (subject only to length caps).
-    expect(ctx.variables.signature).toBe(report.signature);
-    expect(ctx.variables.throughline).toBe(report.throughline);
-    expect(ctx.variables.consider).toBe(report.consider);
-
-    // Placement titles and buyer categories are lifted — not invented.
-    expect(ctx.variables.placement_titles).toBe(
-      "Reflective long-form, Editorial spot",
-    );
-    expect(ctx.variables.buyer_categories).toBe(
-      "Documentary supervisors, Editorial licensors",
-    );
+    // Governed prose reaches the report context verbatim.
+    const rc = ctx.variables.report_context;
+    expect(rc).toContain(`EMOTIONAL SIGNATURE: ${report.signature}`);
+    expect(rc).toContain(`THROUGHLINE: ${report.throughline}`);
+    expect(rc).toContain(report.consider);
+    expect(rc).toContain("PLACEMENTS: Reflective long-form: Documentary and interior scenes. | Editorial spot: Contemplative brand narratives.");
+    expect(rc).toContain("BUYERS / INDUSTRY: Documentary supervisors");
+    expect(rc).toContain("Editorial licensors");
   });
 
-  it("caps runaway prose fields so the WebSocket handshake stays small", () => {
-    const long = "x".repeat(2000);
+  it("holds the report context to the documented budget", () => {
+    const long = "x".repeat(20000);
     const ctx = buildRhodesVoiceContext(
-      makeReport({ signature: long, throughline: long, consider: long }),
+      makeReport({ signature: long, throughline: long, consider: long, rhodes: long, audience: long }),
     );
-    // Every capped field ends with the truncation glyph and stays under limit.
-    expect(ctx.variables.signature.length).toBeLessThanOrEqual(480);
-    expect(ctx.variables.throughline.length).toBeLessThanOrEqual(480);
-    expect(ctx.variables.consider.length).toBeLessThanOrEqual(480);
+    expect(ctx.variables.report_context.length).toBeLessThanOrEqual(7000);
+    expect(ctx.budget.chars).toBe(ctx.variables.report_context.length);
   });
 
-  it("produces a first-read that names THIS song by title and artist", () => {
+  it("produces a short, creator-facing opening that names THIS song", () => {
     const ctx = buildRhodesVoiceContext(makeReport());
-    expect(ctx.firstMessage).toContain("Safe");
-    expect(ctx.firstMessage).toContain("The Brevet");
-    // The first read cites the governed prose, so voice/written cannot drift.
-    expect(ctx.firstMessage.length).toBeGreaterThan(80);
-    // And is short enough to speak in 20-40 seconds (roughly 55-140 words).
+    expect(ctx.firstMessage).toContain('"Safe"');
+    expect(ctx.firstMessage.startsWith("I'm Dr. Rhodes.")).toBe(true);
+    // Two short sentences plus one grounded signal — about twelve seconds.
     const words = ctx.firstMessage.split(/\s+/).filter(Boolean).length;
-    expect(words).toBeGreaterThanOrEqual(40);
-    expect(words).toBeLessThanOrEqual(150);
+    expect(words).toBeGreaterThanOrEqual(20);
+    expect(words).toBeLessThanOrEqual(48);
   });
 
   it("survives an empty placement/buyer list without inventing categories", () => {
-    const ctx = buildRhodesVoiceContext(
-      makeReport({ placements: [], buyers: [] }),
-    );
-    // A missing category is an empty string, never a fabricated stand-in.
-    expect(ctx.variables.placement_titles).toBe("");
-    expect(ctx.variables.buyer_categories).toBe("");
+    const ctx = buildRhodesVoiceContext(makeReport({ placements: [], buyers: [] }));
+    // A missing section is omitted, never a fabricated stand-in.
+    expect(ctx.variables.report_context).not.toContain("PLACEMENTS");
+    expect(ctx.variables.report_context).not.toContain("BUYERS");
   });
 
   it("does not leak any environment secret through the returned payload", () => {
@@ -159,16 +149,15 @@ describe("buildRhodesVoiceContext", () => {
 });
 
 describe("composeFirstRead", () => {
-  it("opens with the song's title and quotes the governed reading", () => {
+  it("opens as Dr. Rhodes, names the song, and ends on the governed signature", () => {
     const line = composeFirstRead(makeReport());
-    expect(line.startsWith("I sat with \"Safe\"")).toBe(true);
-    // The Rhodes v2 governed reading is quoted, so voice cannot invent claims.
-    expect(line).toContain("Safe holds its posture");
+    expect(line.startsWith("I'm Dr. Rhodes. I've reviewed what Chirp found in \"Safe\"")).toBe(true);
+    expect(line.endsWith("A settled architecture that never asks for attention.")).toBe(true);
   });
 
-  it("falls back to signature when the reading is empty", () => {
-    const line = composeFirstRead(makeReport({ rhodes: "" }));
-    expect(line).toContain("settled architecture");
+  it("falls back to the governed reading when the signature is empty", () => {
+    const line = composeFirstRead(makeReport({ signature: "" }));
+    expect(line).toContain("Safe holds its posture with quiet confidence.");
   });
 });
 

@@ -222,6 +222,19 @@ describe("provider-side post-open failures", () => {
     expect(JSON.stringify(h.events)).not.toContain("Override for agent.first_message");
   });
 
+  it("the override-free reconnect carries the SAME dynamic variables (same persisted report) on a fresh signed URL", async () => {
+    const h = harness();
+    await h.session.start();
+    h.tick(300);
+    h.conversations[0].callbacks.onDisconnected({ reason: "error", closeCode: 1008, closeReason: "Override not allowed" });
+    await h.flush();
+    const [first, second] = h.connect.mock.calls as unknown as Array<[SessionPayload, ConnectCallbacks, ConnectOptions]>;
+    expect(second[2].withOverrides).toBe(false);
+    expect(second[0].dynamicVariables).toEqual(first[0].dynamicVariables);
+    expect(second[0].song).toEqual(first[0].song);
+    expect(second[0].signedUrl).not.toBe(first[0].signedUrl);
+  });
+
   it("a silent, reason-less 1006 close right after open also earns the single override-free reconnect", async () => {
     const h = harness();
     await h.session.start();

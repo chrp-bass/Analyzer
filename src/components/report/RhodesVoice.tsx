@@ -73,14 +73,19 @@ async function fetchSession(scanId: string, signal: AbortSignal): Promise<Sessio
   return { ok: true, payload: (await res.json()) as SessionPayload };
 }
 
+function hasOverrides(o: SessionPayload["overrides"] | undefined): boolean {
+  return Boolean(o && o.agent && (o.agent.firstMessage || o.agent.prompt?.prompt));
+}
+
 async function connect(payload: SessionPayload, cb: ConnectCallbacks, options: ConnectOptions) {
   // The signed URL is used exactly here, exactly once, and not retained.
   return Conversation.startSession({
     signedUrl: payload.signedUrl,
     connectionType: "websocket",
-    // The first-message override is sent only while the agent is known to
-    // accept it; the controller drops it after a proven override rejection.
-    ...(options.withOverrides ? { overrides: payload.overrides } : {}),
+    // Personalisation travels as dynamic variables. A config override is sent
+    // only if the server supplied one AND the controller still allows it (it
+    // drops overrides after a proven rejection). Today the server sends none.
+    ...(options.withOverrides && hasOverrides(payload.overrides) ? { overrides: payload.overrides } : {}),
     dynamicVariables: payload.dynamicVariables,
     onConnect: ({ conversationId }) => cb.onConnected(conversationId),
     onModeChange: ({ mode }) => {
