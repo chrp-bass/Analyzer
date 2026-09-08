@@ -31,6 +31,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Conversation } from "@elevenlabs/client";
 import {
   RhodesVoiceSession,
+  hasOverrides,
   type ConnectCallbacks,
   type ConnectOptions,
   type SessionFetchResult,
@@ -71,10 +72,6 @@ async function fetchSession(scanId: string, signal: AbortSignal): Promise<Sessio
     return { ok: false, status: res.status, retryable };
   }
   return { ok: true, payload: (await res.json()) as SessionPayload };
-}
-
-function hasOverrides(o: SessionPayload["overrides"] | undefined): boolean {
-  return Boolean(o && o.agent && (o.agent.firstMessage || o.agent.prompt?.prompt));
 }
 
 async function connect(payload: SessionPayload, cb: ConnectCallbacks, options: ConnectOptions) {

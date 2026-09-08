@@ -1,49 +1,65 @@
 /**
  * Rhodes's spoken opening for the voice moment.
  *
- * Two short sentences the creator hears first (about twelve seconds), then
- * ONE report-grounded signal. Never a summary of the report, never a pitch,
- * never a recital of scores.
+ * One short introduction, then ONE complete report-grounded sentence the
+ * creator hears first. About ten seconds. Never a summary of the report,
+ * never a pitch, never a recital of scores, never listener framing.
  *
- *   "I'm Dr. Rhodes. I've reviewed what Chirp found in "{{song_title}}" — and
- *    there's one signal I think you should see first. {{first_signal}}"
+ *   "I'm Dr. Rhodes. Chirp found something useful in "{{song_title}}": {{first_signal}}"
  *
  * The template lives on the ElevenLabs agent as its first message and is
  * filled by dynamic variables; `composeFirstRead` renders the same template
  * server-side so the two can never drift (a test pins them equal).
  *
- * `firstSignal` selects the single most useful governed sentence — Rhodes has
- * already written for this song, so what the voice opens with is provably
- * consistent with the written report the creator is reading.
+ * `firstSignal` selects ONE complete governed sentence of at most
+ * FIRST_SIGNAL_MAX_WORDS spoken words. Rhodes has already written for this
+ * song, so what the voice opens with is provably consistent with the written
+ * report. When no governed sentence fits, the fallback is a measured fact
+ * from the same report — never an invention.
  */
 
 import type { ReportPayload } from "@/lib/fixtures/tracks";
 import { RHODES_VOICE_FIRST_MESSAGE } from "./agent-prompt";
 import { asSpokenData } from "./text";
 
-/** Hard cap so the opening stays near twelve seconds at Rhodes's cadence. */
-export const FIRST_SIGNAL_MAX_CHARS = 200;
+/** One complete sentence, at most this many spoken words. */
+export const FIRST_SIGNAL_MAX_WORDS = 18;
+const FIRST_SIGNAL_MIN_WORDS = 4;
 
-/** Split prose into sentences, keeping terminal punctuation. */
-function sentences(text: string): string[] {
-  return (text.match(/[^.!?]+[.!?]+/g) ?? (text.trim() ? [text.trim()] : [])).map((s) => s.trim());
+/** Split prose into complete sentences, keeping terminal punctuation. */
+export function completeSentences(text: string): string[] {
+  return (text.match(/[^.!?]+[.!?]+(?=\s|$)/g) ?? []).map((s) => s.trim()).filter(Boolean);
+}
+
+export function wordCount(s: string): number {
+  return s.split(/\s+/).filter(Boolean).length;
+}
+
+/** A measured, always-available fallback drawn from the same report. */
+function measuredFallback(report: ReportPayload): string {
+  const epi = report.epi;
+  if (epi && typeof epi.score === "number" && epi.mode) {
+    return `Chirp places it in ${asSpokenData(epi.mode)} mode at an EPI of ${epi.score}.`;
+  }
+  return "Chirp measured a clear emotional signature in this song.";
 }
 
 /**
- * One concise, report-grounded observation. Prefers the emotional signature
- * (already a single governed statement); falls back to the first sentence of
- * the governed analysis; then to the throughline. Never invents.
+ * One complete, report-grounded sentence of at most 18 words. Candidates in
+ * order of preference: the emotional signature, the governed analysis, the
+ * throughline. Sentences that are too long are skipped, never cut.
  */
 export function firstSignal(report: ReportPayload): string {
   const candidates = [
-    ...sentences(asSpokenData(report.signature)),
-    ...sentences(asSpokenData(report.rhodes)),
-    ...sentences(asSpokenData(report.throughline)),
-  ].filter((s) => s.length >= 24);
-  const pick =
-    candidates.find((s) => s.length <= FIRST_SIGNAL_MAX_CHARS) ??
-    (candidates[0] ? candidates[0].slice(0, FIRST_SIGNAL_MAX_CHARS - 1).trimEnd() + "…" : "");
-  return pick || "The report opens with the emotional signature Chirp measured for this song.";
+    ...completeSentences(asSpokenData(report.signature)),
+    ...completeSentences(asSpokenData(report.rhodes)),
+    ...completeSentences(asSpokenData(report.throughline)),
+  ];
+  const fit = candidates.find((s) => {
+    const n = wordCount(s);
+    return n >= FIRST_SIGNAL_MIN_WORDS && n <= FIRST_SIGNAL_MAX_WORDS;
+  });
+  return fit ?? measuredFallback(report);
 }
 
 /** Fill the agent's first-message template exactly as ElevenLabs would. */
@@ -57,7 +73,7 @@ export function renderFirstMessage(vars: { song_title: string; first_signal: str
 /** The opening as the creator hears it. */
 export function composeFirstRead(report: ReportPayload): string {
   return renderFirstMessage({
-    song_title: asSpokenData(report.track.title),
+    song_title: asSpokenData(report.track?.title, 200) || "this song",
     first_signal: firstSignal(report),
   });
 }

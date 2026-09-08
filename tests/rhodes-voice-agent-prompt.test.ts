@@ -75,17 +75,18 @@ describe("system prompt", () => {
 });
 
 describe("first message", () => {
-  it("is the two-sentence creator-facing opening followed by exactly one grounded signal", () => {
-    expect(first).toBe(
-      "I'm Dr. Rhodes. I've reviewed what Chirp found in \"{{song_title}}\" — and there's one signal I think you should see first. {{first_signal}}",
-    );
+  it("is the exact creator-facing opening: one introduction, then one grounded signal", () => {
+    expect(first).toBe("I'm Dr. Rhodes. Chirp found something useful in \"{{song_title}}\": {{first_signal}}");
     const rendered = renderFirstMessage({ song_title: "Safe", first_signal: "A settled architecture that never asks for attention." });
     // "Dr." is an abbreviation, not a sentence end.
     const sentences = rendered.replace("Dr.", "Dr").match(/[^.!?]+[.!?]+/g) ?? [];
-    expect(sentences.length).toBe(3); // two fixed sentences + one signal sentence
-    expect(rendered.split(/\s+/).length).toBeLessThanOrEqual(48);
+    expect(sentences.length).toBe(2); // the introduction + the one signal sentence
+    // ~12 seconds at Rhodes's cadence is at most ~30 words; the fixed part is 9.
+    expect(rendered.split(/\s+/).length).toBeLessThanOrEqual(9 + 18);
     expect(rendered).toContain("Chirp");
     expect(rendered).not.toMatch(/\bCHRP\b/);
+    // Addressed to the creator about their song; no listener framing.
+    expect(rendered).not.toMatch(/listener|audience|fans|people who/i);
   });
 
   it("renders identically on the server and (by template) on the agent", () => {
@@ -108,6 +109,39 @@ describe("first message", () => {
       .replace("{{song_title}}", ctx.variables.song_title)
       .replace("{{first_signal}}", ctx.variables.first_signal);
     expect(ctx.firstMessage).toBe(agentRendered);
+  });
+});
+
+describe("every placeholder has a safe fallback", () => {
+  it("an almost-empty payload still fills every variable with a spoken, non-empty, non-garbage value", () => {
+    const empty = {
+      report_meta: { id: "", version: "", scanned_at: "", scanned_at_display: "" },
+      track: { title: "", artist: "" },
+      epi: undefined,
+      chrp_scores: undefined,
+      hpv: undefined,
+      creator: { name: "", tracks_scored: 0, tease: "" },
+      free_statement: "",
+      signature: "",
+      rhodes: "",
+      placements: undefined,
+      throughline: "",
+      where_this_music_lives: undefined,
+    } as unknown as ReportPayload;
+    const ctx = buildRhodesVoiceContext(empty);
+    for (const v of RHODES_VOICE_VARIABLES) {
+      const value = ctx.variables[v];
+      expect(value, v).toBeTypeOf("string");
+      expect(value.length, v).toBeGreaterThan(0);
+      expect(value, v).not.toMatch(/undefined|null|NaN|\[object/);
+    }
+    expect(ctx.variables.song_title).toBe("this song");
+    expect(ctx.variables.song_artist).toBe("the artist");
+    expect(ctx.variables.epi_score).toBe("n/a");
+    expect(ctx.variables.epi_mode).toBe("n/a");
+    expect(ctx.variables.first_signal).toBe("Chirp measured a clear emotional signature in this song.");
+    expect(ctx.variables.report_context).toBe('SONG: "this song" by the artist.');
+    expect(ctx.firstMessage).toBe("I'm Dr. Rhodes. Chirp found something useful in \"this song\": Chirp measured a clear emotional signature in this song.");
   });
 });
 

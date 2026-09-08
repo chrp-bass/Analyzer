@@ -155,12 +155,14 @@ describe("buildRhodesVoiceContext — every report section becomes context", () 
 });
 
 describe("the opening", () => {
-  it("is two short creator-facing sentences plus one grounded signal — never a summary", () => {
+  it("is one short introduction plus ONE complete grounded sentence of at most 18 words — never a summary", () => {
     const ctx = buildRhodesVoiceContext(fullReport());
-    expect(ctx.firstMessage.startsWith("I'm Dr. Rhodes. I've reviewed what Chirp found in \"Bohemian Rhapsody\" — and there's one signal I think you should see first. ")).toBe(true);
+    expect(ctx.firstMessage.startsWith("I'm Dr. Rhodes. Chirp found something useful in \"Bohemian Rhapsody\": ")).toBe(true);
     const words = ctx.firstMessage.split(/\s+/).filter(Boolean).length;
-    // ~12 seconds of speech at Rhodes's cadence is roughly 30-45 words.
-    expect(words).toBeLessThanOrEqual(48);
+    // ~12 seconds of speech at Rhodes's cadence: fixed part 9 words + signal ≤ 18.
+    expect(words).toBeLessThanOrEqual(27);
+    expect(ctx.variables.first_signal.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(18);
+    expect(ctx.variables.first_signal).toMatch(/[.!?]$/); // a complete sentence
     expect(ctx.firstMessage).not.toMatch(/Focus 64|Calm 38|Motivation 82|Balance 55/); // no score recital
     expect(ctx.firstMessage).not.toContain("report below"); // no old invitation boilerplate
     // The signal is the governed signature, verbatim.
@@ -172,7 +174,17 @@ describe("the opening", () => {
     const ctx = buildRhodesVoiceContext(fullReport({ signature: "" }));
     expect(ctx.variables.first_signal).toBe("The Chirp reading holds Motivation at 82 while Calm sits at 38, and the two never meet.");
     const bare = buildRhodesVoiceContext(fullReport({ signature: "", rhodes: "", throughline: "" }));
-    expect(bare.variables.first_signal).toBe("The report opens with the emotional signature Chirp measured for this song.");
+    // No governed sentence fits → a MEASURED fact from the same report, never an invention.
+    expect(bare.variables.first_signal).toBe("Chirp places it in Ready mode at an EPI of 71.");
+  });
+
+  it("skips governed sentences that are too long rather than cutting them mid-thought", () => {
+    const longSig = "This signature sentence runs on and on well past eighteen words so it can never be the spoken opening line.";
+    const ctx = buildRhodesVoiceContext(fullReport({ signature: longSig }));
+    expect(ctx.variables.first_signal).not.toContain("runs on and on");
+    expect(ctx.variables.first_signal).toBe("The Chirp reading holds Motivation at 82 while Calm sits at 38, and the two never meet.");
+    const nothingFits = buildRhodesVoiceContext(fullReport({ signature: longSig, rhodes: longSig, throughline: longSig }));
+    expect(nothingFits.variables.first_signal).toBe("Chirp places it in Ready mode at an EPI of 71.");
   });
 });
 
