@@ -17,6 +17,7 @@ const previewPage = readFileSync(
   "src/app/scan/[scanId]/preview/page.tsx",
   "utf8",
 );
+const readPath = readFileSync("src/lib/scan/read-path.ts", "utf8");
 const report = readFileSync("src/components/ReportPage.tsx", "utf8");
 const ownership = readFileSync(
   "src/components/report/ReportOwnership.tsx",
@@ -36,21 +37,44 @@ const reportEmail = readFileSync(
 );
 
 describe("no customer-visible wait renders an empty viewport", () => {
-  it("the entitlement wait renders the preparation screen, not a bare div", () => {
-    expect(preview).toMatch(
-      /status === "checking"\)?\s*\n?\s*return <ReportPreparing/,
+  it("every in-flight state renders a real screen, not a bare div", () => {
+    // The persisted-report read (and the bounded post-payment confirmation)
+    // render the quiet opening frame; the unpaid analysis and included-
+    // report preparation render the preparation screen.
+    const working = preview.match(
+      /if \(state\.status === "working"\) \{[\s\S]*?\n  \}/,
     );
+    expect(working, "working branch not found").toBeTruthy();
+    expect(working![0]).toMatch(/<ReportOpening/);
+    expect(working![0]).toMatch(/<ReportPreparing report=\{state\.free\}/);
     // The empty holds this replaced must not come back under any name.
     expect(preview).not.toMatch(/rv-hold/);
     expect(preview).not.toMatch(/return <div [^>]*aria-hidden \/>;/);
   });
 
-  it("the analysis wait on the preview route renders the same screen", () => {
-    expect(previewPage).toMatch(/<ReportPreparing\s+report=\{null\}/);
-    // and the paid flag survives this branch, because on a real scan it is
-    // the frame a paying creator actually lands on.
-    expect(previewPage).toContain('paid={search.get("paid") === "1"}');
+  it("the preview route hands every state to the same screen", () => {
+    expect(previewPage).toMatch(/<ScanPreview[\s\S]*?state=\{state\}/);
+    // and the paid flag survives, because on a real scan the in-flight
+    // frame is the one a paying creator actually lands on.
+    expect(previewPage).toContain('search.get("paid") === "1"');
+    expect(previewPage).toMatch(/paidReturn=\{paidReturn\}/);
     expect(previewPage).not.toMatch(/return null;/);
+  });
+
+  it("the persisted-report read is never narrated as building", () => {
+    // The opening frame and the preparation screen are distinct components
+    // with distinct copy, and the building copy lives only in the latter.
+    const start = preview.indexOf("export function ReportOpening");
+    const end = preview.indexOf("const PREPARING_MESSAGES");
+    expect(start, "ReportOpening not found").toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const opening = preview.slice(start, end);
+    expect(opening).not.toMatch(/Building your|Preparing your|Composing/);
+    expect(opening).toContain("Confirming your access");
+    // And the read path asks the entitled endpoint before anything else.
+    expect(readPath.indexOf("fetchEntitledReport(scanId)")).toBeLessThan(
+      readPath.indexOf("loadFreeReport(scanId)"),
+    );
   });
 
   it("the preparation screen always carries explanatory content", () => {
@@ -75,10 +99,12 @@ describe("payment is acknowledged before the report exists", () => {
     expect(successPage).toContain("/preview?paid=1");
   });
 
-  it("the preparation screen shows the acknowledgement on that return", () => {
+  it("the in-flight screens show the acknowledgement on that return", () => {
     expect(preview).toMatch(/paid\?: boolean/);
     expect(preview).toContain("Payment received");
-    expect(preview).toContain('search.get("paid") === "1"');
+    expect(preview).toMatch(/<ReportOpening[\s\S]*?paid=\{paidReturn\}/);
+    expect(preview).toMatch(/<ReportPreparing[^>]*paid=\{paidReturn\}/);
+    expect(previewPage).toContain('search.get("paid") === "1"');
   });
 });
 

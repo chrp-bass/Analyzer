@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
-import { getFreeReportById, type FreeReport } from "@/lib/fixtures/tracks";
-import { getScanReport, ScanError } from "@/lib/data-source";
-import { ScanPreview, ReportPreparing } from "@/components/scan/ScanPreview";
+import { getFreeReportById } from "@/lib/fixtures/tracks";
+import { ScanPreview } from "@/components/scan/ScanPreview";
+import { useScanReadPath } from "@/components/scan/useScanReadPath";
 
 /**
- * Preview page.
+ * Preview page — the one destination for a scan that has an id.
  *
- * A fixture scan paints instantly from the bundled report. A real scan reads
- * its scoring from the engine — the analyze route caches by ISRC and the
- * session keeps its own in-memory copy, so arriving here from processing is
- * normally free.
+ * /success redirects here with `?paid=1`; the dashboard, a bookmark and a
+ * refresh land here directly. All of them run the same read path
+ * (`@/lib/scan/read-path`): the entitled, persisted report is asked for
+ * FIRST, and only a 403 lets the unpaid flow — the free analysis, the
+ * included-report claim, the reveal and the checkout boundary — run at all.
+ * A paying creator never sees their report described as being built.
  */
 export default function PreviewPage({
   params,
@@ -25,84 +27,27 @@ export default function PreviewPage({
   const trackSlug = decodeScanId(params.scanId);
   const fixture =
     trackSlug && isFixtureKey(trackSlug) ? getFreeReportById(trackSlug) : null;
+  const paidReturn = search.get("paid") === "1";
 
-  const [report, setReport] = useState<FreeReport | null>(fixture);
-  const [error, setError] = useState<string | null>(null);
+  const { state, retry } = useScanReadPath(params.scanId, {
+    paidReturn,
+    fixture,
+    enabled: trackSlug !== null,
+  });
 
   useEffect(() => {
-    if (!trackSlug) {
-      router.replace("/scan");
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const resolved = await getScanReport(params.scanId);
-        if (cancelled) return;
-        if (resolved) setReport(resolved);
-        else if (!fixture) {
-          setError(
-            "This song isn't available for analysis yet. Try a different version or another track.",
-          );
-        }
-      } catch (err) {
-        if (cancelled) return;
-        if (!fixture) {
-          setError(
-            err instanceof ScanError
-              ? err.userMessage
-              : "Something went wrong. Please try again.",
-          );
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [params.scanId, trackSlug, fixture, router]);
+    if (!trackSlug) router.replace("/scan");
+  }, [trackSlug, router]);
 
-  if (error) {
-    return (
-      <div className="product-shell">
-        <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
-          <p
-            className="font-display italic text-[20px] text-chrp-black"
-            style={{ maxWidth: "44ch" }}
-          >
-            {error}
-          </p>
-          <button
-            onClick={() => router.push("/scan")}
-            className="btn btn-y"
-            style={{ marginTop: 28 }}
-          >
-            Try another song
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (!trackSlug) return <div className="product-shell" />;
 
-  // A real scan has no report until the engine answers. This used to return
-  // null, then an empty coloured div — both of which are a dead viewport.
-  // The same waiting screen the entitlement check uses renders here too, so
-  // the whole window from processing to report is one continuous state.
-  if (!trackSlug || !report) {
-    return (
-      <div className="product-shell">
-        {/* The paid flag has to survive this branch too: on a real scan the
-            analysis resolves here first, so this is the frame a paying
-            creator lands on. */}
-        <ReportPreparing report={null} paid={search.get("paid") === "1"} />
-      </div>
-    );
-  }
   return (
     <div className="product-shell">
       <ScanPreview
-        report={report}
         scanId={params.scanId}
-        trackSlug={trackSlug}
+        state={state}
+        paidReturn={paidReturn}
+        onRetry={retry}
       />
     </div>
   );

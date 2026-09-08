@@ -1,22 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { MODE_COLORS, type FreeReport, type ReportPayload } from "@/lib/fixtures/tracks";
+import { MODE_COLORS, type FreeReport } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
-import {
-  fetchEntitledReport,
-  claimFirstReport,
-  prepareReport,
-} from "@/lib/data-source";
+import { prepareReport } from "@/lib/data-source";
 import { startCheckout } from "@/lib/payments";
 import { ensureIdentity, linkEmail } from "@/lib/identity";
-
-type Status = "checking" | "reveal" | "unlocked" | "unavailable";
+import { beginPurchaseWith } from "@/lib/scan/begin-purchase";
+import type { ReadState } from "@/lib/scan/read-path";
 
 /** Canonical EPI axis order. The payload stores them unordered. */
 const AXIS_ORDER = ["Focus", "Calm", "Motivation", "Balance"] as const;
@@ -59,130 +55,114 @@ const FREE_ITEMS = [
  * resolved server-side from Stripe.
  *
  * For Song Intelligence the complete report is prepared and persisted on the
- * server FIRST — analysis, enrichments, Christian context, the governed
- * Rhodes text — and checkout is bound to that exact report. If it cannot be
- * prepared, checkout never opens and nothing is charged. The browser is told
- * only that the report is ready, never what it says.
+ * server FIRST and checkout is bound to that exact report — see
+ * `@/lib/scan/begin-purchase`. This is the only client path that prepares.
  */
-async function beginPurchase(
+function beginPurchase(
   offer: "song_intelligence" | "creator_intelligence",
   scanId: string,
   onError: (msg: string) => void,
   onPhase?: (phase: "preparing" | "checkout") => void,
 ) {
-  try {
-    await ensureIdentity();
-    let readiness: { reportId: string; reportVersion: string } | undefined;
-    if (offer === "song_intelligence") {
-      onPhase?.("preparing");
-      const prepared = await prepareReport(scanId);
-      if (prepared.status !== "ready") {
-        onError(prepared.message);
-        return;
-      }
-      readiness = prepared.readiness;
-    }
-    onPhase?.("checkout");
-    const { url } = await startCheckout(offer, scanId, readiness);
-    window.location.assign(url);
-  } catch (err) {
-    console.error("[checkout] could not start:", err);
-    // The server may have refused for a reason worth stating plainly — a
-    // song whose report cannot be produced, for instance. Nothing was
-    // charged either way.
-    onError(
-      err instanceof Error && err.message
-        ? err.message
-        : "Checkout is unavailable right now. Nothing has been charged — please try again shortly.",
-    );
-  }
+  return beginPurchaseWith(
+    {
+      ensureIdentity,
+      prepareReport,
+      startCheckout,
+      navigate: (url) => window.location.assign(url),
+    },
+    offer,
+    scanId,
+    onError,
+    onPhase,
+  );
 }
 
 export function ScanPreview({
-  report,
   scanId,
+  state,
+  paidReturn = false,
+  onRetry,
 }: {
-  /** Free-tier data only. The paid report is fetched, never bundled. */
-  report: FreeReport;
   scanId: string;
-  trackSlug?: string;
+  /**
+   * The read path's state — see `@/lib/scan/read-path`. The SERVER decided
+   * it: there is no client-readable entitlement flag and nothing in
+   * localStorage that can change this answer. Paid content is present here
+   * only when the entitled endpoint returned it.
+   */
+  state: ReadState;
+  /** True on the return from a successful Stripe checkout. */
+  paidReturn?: boolean;
+  /** Re-run the read. A read, so it can only ever re-read. */
+  onRetry?: () => void;
 }) {
+  const router = useRouter();
   const search = useSearchParams();
   const welcomeEmail = search.get("email");
-
-  const [status, setStatus] = useState<Status>("checking");
-  const [paid, setPaid] = useState<ReportPayload | null>(null);
   const [showBanner, setShowBanner] = useState(search.get("welcome") === "1");
-  const [unavailableNote, setUnavailableNote] = useState<string | null>(null);
-  // True only when THIS view is the moment the included report was applied.
-  const [includedFirst, setIncludedFirst] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // The SERVER decides. There is no client-readable entitlement flag to
-      // consult and nothing in localStorage that can change this answer.
-      let result = await fetchEntitledReport(scanId);
+  if (state.status === "working") {
+    // The persisted-report read, and the bounded post-payment confirmation,
+    // are quiet: nothing is being built, so nothing says it is.
+    if (state.phase === "opening" || state.phase === "confirming_access") {
+      return (
+        <ReportOpening
+          report={state.free}
+          paid={paidReturn}
+          confirming={state.phase === "confirming_access"}
+        />
+      );
+    }
+    // Unpaid: the free analysis, then the included report being prepared.
+    // No PAID text renders until entitlement is known — the reveal and the
+    // report stay separate screens, so paid prose never reaches the DOM
+    // before unlock. The free reveal data this session already has stays on
+    // screen; withholding it is what turned a wait into a dead screen.
+    return <ReportPreparing report={state.free} paid={paidReturn} />;
+  }
 
-      // Not entitled yet. A creator's FIRST complete report is included, so
-      // ask the server whether this song qualifies before showing a price.
-      // Identity is established silently here — no sign-in, no interruption
-      // — because the included report has to belong to someone to survive
-      // the creator leaving and coming back.
-      if (!cancelled && result.status === "forbidden") {
-        await ensureIdentity();
-        const outcome = await claimFirstReport(scanId);
-        if (cancelled) return;
-        if (outcome === "granted" || outcome === "already_entitled") {
-          if (outcome === "granted") setIncludedFirst(true);
-          result = await fetchEntitledReport(scanId);
-        }
-      }
-      if (cancelled) return;
+  const { outcome } = state;
 
-      if (result.status === "ok") {
-        setPaid(result.data.report);
-        setStatus("unlocked");
-      } else if (result.status === "unavailable" && result.entitled) {
-        // Paid, but the report cannot honestly be produced right now. Say so
-        // — the purchase stands and nothing is fabricated to fill the gap.
-        setUnavailableNote(result.detail ?? null);
-        setStatus("unavailable");
-      } else {
-        setStatus("reveal");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [scanId]);
+  if (outcome.kind === "error") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <p
+          className="font-display italic text-[20px] text-chrp-black"
+          style={{ maxWidth: "44ch" }}
+        >
+          {outcome.message}
+        </p>
+        <button
+          onClick={() => router.push("/scan")}
+          className="btn btn-y"
+          style={{ marginTop: 28 }}
+        >
+          Try another song
+        </button>
+      </div>
+    );
+  }
 
-  // No PAID text renders until entitlement is known — the reveal and the
-  // report stay separate screens, so paid prose never reaches the DOM before
-  // unlock. That restriction has nothing to do with the free reveal data,
-  // which this session already has and already showed on the processing
-  // screen. Withholding that too is what turned a thirty-second wait into a
-  // dead screen.
-  if (status === "checking")
-    return <ReportPreparing report={report} paid={search.get("paid") === "1"} />;
-
-  if (status === "reveal") {
+  if (outcome.kind === "reveal") {
     return (
       <>
-        <FreeReveal report={report} scanId={scanId} />
+        <FreeReveal report={outcome.free} scanId={scanId} />
         <Boundary scanId={scanId} />
       </>
     );
   }
 
-  if (status === "unavailable" || !paid) {
-    return <ReportUnavailable note={unavailableNote} />;
+  if (outcome.kind === "unavailable") {
+    // Paid, but no complete report is on file. Say so — the purchase stands
+    // and nothing is fabricated to fill the gap. Nothing here regenerates.
+    return <ReportUnavailable note={outcome.detail} onRetry={onRetry} />;
   }
 
   return (
     <div className="relative">
       <AnimatePresence>
-        {showBanner && status === "unlocked" && (
+        {showBanner && (
           <motion.div
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -216,8 +196,8 @@ export function ScanPreview({
         )}
       </AnimatePresence>
 
-      <ReportBody report={paid} id={scanId} />
-      <CatalogClose scanId={scanId} includedFirst={includedFirst} />
+      <ReportBody report={outcome.report} id={scanId} />
+      <CatalogClose scanId={scanId} includedFirst={outcome.includedFirst} />
     </div>
   );
 }
@@ -451,6 +431,79 @@ function RevealActions({ scanId }: { scanId: string }) {
         address &mdash; no password, no account setup.
       </p>
     </>
+  );
+}
+
+/**
+ * The read, in flight.
+ *
+ * Every arrival with a known scan id starts by asking for the persisted,
+ * entitled report. That is a database read, not generation, so this frame
+ * says nothing about building or preparing — those words only ever appear
+ * once the server has said there is no entitlement and the unpaid flow is
+ * genuinely doing that work (`ReportPreparing`).
+ *
+ * On the immediate return from Stripe the entitlement can trail the redirect
+ * by a beat. That bounded re-check is labelled as exactly what it is —
+ * confirming access — never as the report being written.
+ */
+export function ReportOpening({
+  report,
+  paid = false,
+  confirming = false,
+}: {
+  report: FreeReport | null;
+  paid?: boolean;
+  confirming?: boolean;
+}) {
+  const chip = report ? MODE_COLORS[report.epi.mode] : null;
+  const line = paid
+    ? confirming
+      ? "Confirming your access\u2026"
+      : "Opening your report\u2026"
+    : "Opening your song\u2026";
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="chrp-aura w-full max-w-md flex flex-col items-center">
+        {paid && (
+          <div className="rp-paid-ack" role="status">
+            <span aria-hidden>&#10003;</span> Payment received
+          </div>
+        )}
+        <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
+          CHRP &nbsp;//&nbsp; Emotional Intelligence
+        </div>
+        <div
+          className="font-display italic text-[18px] md:text-[20px] text-chrp-black text-center mb-10 min-h-[3rem]"
+          role="status"
+          aria-live="polite"
+        >
+          {line}
+        </div>
+        <div style={{ minHeight: 280 }}>
+          {report ? (
+            <PolygonRadar
+              vertices={polygonFromChrpScores(report.chrp_scores)}
+              mode={report.epi.mode}
+              epiScore={report.epi.score}
+              size={280}
+            />
+          ) : (
+            <div style={{ width: 280, height: 280 }} aria-hidden />
+          )}
+        </div>
+        {report && chip && (
+          <div
+            className="mode-pill mt-4"
+            style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
+          >
+            <span className="font-sans font-bold text-[13px]">
+              {report.epi.mode} mode
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -758,7 +811,13 @@ function CatalogClose({
  * page is recoverable by reloading, and nothing is fabricated to fill the
  * space. A fixture must never be passed off as freshly generated output.
  */
-function ReportUnavailable({ note }: { note: string | null }) {
+function ReportUnavailable({
+  note,
+  onRetry,
+}: {
+  note: string | null;
+  onRetry?: () => void;
+}) {
   return (
     <section className="rv">
       <div className="rv-inner" style={{ maxWidth: 620 }}>
@@ -771,10 +830,15 @@ function ReportUnavailable({ note }: { note: string | null }) {
             "We could not generate your Song Intelligence just now. Your access is recorded and nothing has been lost."}
         </p>
         <p className="rv-note" style={{ marginTop: 14 }}>
-          Reload this page in a moment. If it keeps happening, contact us and
-          quote this scan — your entitlement is on file.
+          Try again in a moment. If it keeps happening, contact us and quote
+          this scan — your entitlement is on file.
         </p>
         <div className="rv-actions">
+          {onRetry ? (
+            <button type="button" className="rv-cta" onClick={onRetry}>
+              Try again
+            </button>
+          ) : null}
           <Link href="/dashboard" className="rv-save">
             Go to my songs
           </Link>
