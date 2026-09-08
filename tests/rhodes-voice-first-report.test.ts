@@ -198,20 +198,27 @@ describe("RhodesVoice is inside ReportBody — the render tree contract", () => 
     expect(bodyMatch![0]).toMatch(/<RhodesVoice\s+scanId=\{id\}/);
   });
 
-  it("ScanPreview's unlocked path — reached by both claim-granted and paid — renders ReportBody", () => {
+  it("ScanPreview's persisted path — reached by both claim-granted and paid — renders ReportBody", () => {
     // The ScanPreview is the surface a first-time visitor actually sees.
-    // Its unlocked path renders <ReportBody report={paid} id={scanId} />,
-    // and unlocked is reached after either a successful entitlement fetch
-    // OR a granted free-first claim. This test is the source-level pin.
+    // Its persisted outcome renders <ReportBody report={outcome.report} />,
+    // and that outcome is reached after either a successful entitled read
+    // OR a granted free-first claim followed by the same read. This test is
+    // the source-level pin.
+    const readPath = readFileSync(
+      resolve(__dirname, "..", "src/lib/scan/read-path.ts"),
+      "utf8",
+    );
+    expect(readPath).toContain("claimFirstReport");
+    // The success branch of the free-first grant re-reads and lands in the
+    // same "persisted" outcome the paid read does.
+    const afterClaim = readPath.slice(readPath.indexOf("claimFirstReport(scanId)"));
+    expect(afterClaim).toContain("fetchEntitledReport(scanId)");
+    expect(afterClaim).toMatch(/kind: "persisted"/);
+    // And persisted renders ReportBody with the scan id.
     const src = readFileSync(
       resolve(__dirname, "..", "src/components/scan/ScanPreview.tsx"),
       "utf8",
     );
-    expect(src).toContain("claimFirstReport");
-    // The success branch of the free-first grant re-fetches and lands
-    // in status === "unlocked".
-    expect(src).toContain(`setStatus("unlocked")`);
-    // And unlocked renders ReportBody with the scan id.
-    expect(src).toMatch(/<ReportBody\s+report=\{paid\}\s+id=\{scanId\}/);
+    expect(src).toMatch(/<ReportBody\s+report=\{outcome\.report\}\s+id=\{scanId\}/);
   });
 });

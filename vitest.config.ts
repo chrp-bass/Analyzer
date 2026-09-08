@@ -12,8 +12,11 @@ export default defineConfig({
       "server-only": path.resolve(__dirname, "tests/support/server-only.ts"),
     },
   },
+  // Component tests render with react-dom/server under Node; the automatic
+  // JSX runtime lets vitest compile .tsx without touching Next's tsconfig.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
   },
 });
