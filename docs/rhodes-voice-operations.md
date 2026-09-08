@@ -37,8 +37,14 @@ Modules (all under `src/lib/rhodes-voice/`):
 | `context.ts`, `first-read.ts` | pure adapters over the persisted report |
 
 The signed URL is minted once per attempt, handed to the browser once, used
-immediately, and never cached, persisted, logged or reused. The API key never
+immediately, and never cached, persisted, logged or reused. Per the official
+docs a signed URL is valid for 15 minutes and a conversation may outlive
+that window, but a new connection with the same URL must not be attempted;
+the browser controller refuses a URL it has already used. The API key never
 leaves the server.
+
+Source of truth: <https://elevenlabs.io/docs/eleven-agents/customization/authentication>
+and <https://elevenlabs.io/docs/api-reference/conversations/get-signed-url>.
 
 ## 2. Required Vercel variables
 
