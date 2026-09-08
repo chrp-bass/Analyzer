@@ -40,7 +40,8 @@ Modules (all under `src/lib/rhodes-voice/`):
 | `session-controller.ts` | browser lifecycle state machine (no React, no SDK) |
 | `close-reason.ts` | classifies a post-open provider close/error into a category; decides the single override-free reconnect |
 | `api/rhodes/session/outcome` | write-only, entitlement-gated telemetry: browser lifecycle events → `[rhodes-voice]` production log |
-| `context.ts`, `first-read.ts` | pure adapters over the persisted report |
+| `context.ts`, `first-read.ts`, `text.ts` | pure adapters over the persisted report: bounded `report_context`, the two-sentence opening, data hygiene |
+| `agent-prompt.ts` | the exact ElevenLabs System prompt / First message the agent must carry (mirrored into `docs/rhodes-voice-agent-config.md`) |
 
 The signed URL is minted once per attempt, handed to the browser once, used
 immediately, and never cached, persisted, logged or reused. Per the official
@@ -51,6 +52,17 @@ leaves the server.
 
 Source of truth: <https://elevenlabs.io/docs/eleven-agents/customization/authentication>
 and <https://elevenlabs.io/docs/api-reference/conversations/get-signed-url>.
+
+### Report → conversation binding
+
+`POST /api/rhodes/session` builds `RhodesVoiceContext` from the persisted report
+(after entitlement) and returns it as ElevenLabs **dynamic variables**:
+`song_title`, `song_artist`, `epi_score`, `epi_mode`, `first_signal` and
+`report_context` (≤ 7000 chars, every section, labelled, data-only). The agent's
+System prompt and First message reference them with `{{name}}` — see
+`docs/rhodes-voice-agent-config.md` for the exact text and the one-time
+dashboard edit. No override is sent. The route logs
+`event=context-built chars=… result=complete|trimmed_…` per session.
 
 ## 2. Required Vercel variables
 

@@ -122,6 +122,36 @@ describe("POST /api/rhodes/session", () => {
     expect(mintMock).not.toHaveBeenCalled();
   });
 
+  it("an unauthorised caller receives no report context of any kind", async () => {
+    resolveMock.mockResolvedValueOnce({ ok: false, status: 403, error: "forbidden", entitled: false });
+    const res = await POST(req({ scanId: "scan-someone-else" }));
+    const raw = await res.text();
+    expect(res.status).toBe(403);
+    expect(raw).toBe('{"error":"forbidden"}');
+    expect(raw).not.toMatch(/dynamicVariables|report_context|signedUrl|first_signal/);
+  });
+
+  it("two simultaneous scans each receive only their own report context", async () => {
+    const other = goodReport();
+    other.report = {
+      ...other.report,
+      track: { title: "Redline", artist: "Voss Black", isrc: "GBUM72600412" },
+      signature: "A relentless launch sequence built for the apex moment.",
+      rhodes: "Redline never lets up.",
+    };
+    resolveMock.mockImplementation(async (scanId: string) => (scanId === "scan-safe" ? goodReport() : other));
+    mintMock.mockResolvedValue({ ok: true, signedUrl: "wss://api.elevenlabs.io/token/a", agentId: "agent", attempts: 1, ms: 5 });
+    const [a, b] = await Promise.all([POST(req({ scanId: "scan-safe" })), POST(req({ scanId: "scan-redline" }))]);
+    const va = (await a.json()).dynamicVariables as Record<string, string>;
+    const vb = (await b.json()).dynamicVariables as Record<string, string>;
+    expect(va.song_title).toBe("Safe");
+    expect(vb.song_title).toBe("Redline");
+    expect(va.report_context).not.toMatch(/Redline|Voss Black|launch sequence/);
+    expect(vb.report_context).not.toMatch(/Safe|Brevet|settled architecture/);
+    resolveMock.mockReset();
+    mintMock.mockReset();
+  });
+
   it("mints a signed URL only after entitlement passes", async () => {
     resolveMock.mockResolvedValueOnce(goodReport());
     mintMock.mockResolvedValueOnce({
@@ -139,8 +169,11 @@ describe("POST /api/rhodes/session", () => {
     // Governed context reached the payload.
     expect(body.dynamicVariables.song_title).toBe("Safe");
     expect(body.dynamicVariables.epi_score).toBe("62");
-    // First-message override carries Rhodes's personalised read.
-    expect(body.overrides.agent.firstMessage).toContain("Safe");
+    // Personalisation travels as dynamic variables; no config override is
+    // sent (the agent rejects overrides and templates its own first message).
+    expect(body.overrides).toEqual({});
+    expect(body.dynamicVariables.report_context).toContain('SONG: "Safe" by The Brevet.');
+    expect(body.dynamicVariables.first_signal).toBe("A settled architecture that never asks for attention.");
     // The response is scoped private.
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
   });

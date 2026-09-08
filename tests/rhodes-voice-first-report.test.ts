@@ -112,7 +112,8 @@ describe("Rhodes on the free first report", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.signedUrl).toBe("wss://api.elevenlabs.io/free-first/xyz");
-    expect(body.overrides.agent.firstMessage).toContain("Safe");
+    expect(body.dynamicVariables.report_context).toContain("Safe");
+    expect(body.dynamicVariables.first_signal.length).toBeGreaterThan(0);
     expect(body.dynamicVariables.song_title).toBe("Safe");
   });
 
