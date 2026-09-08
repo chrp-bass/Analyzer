@@ -31,7 +31,8 @@ export type RhodesVoiceEvent =
   | "websocket-failed"
   | "session-started"
   | "session-stopped"
-  | "graceful-degradation";
+  | "graceful-degradation"
+  | "provider-failure";
 
 export interface RhodesVoiceLogFields {
   requestId?: string;
@@ -43,6 +44,10 @@ export interface RhodesVoiceLogFields {
   result?: string;
   code?: string;
   variable?: string;
+  /** ElevenLabs conversation id (opaque token) — lets ops find the record. */
+  conversationId?: string;
+  /** WebSocket close code, when the provider closed the socket. */
+  closeCode?: number;
 }
 
 const FIELD_ORDER: Array<[keyof RhodesVoiceLogFields, string]> = [
@@ -55,6 +60,8 @@ const FIELD_ORDER: Array<[keyof RhodesVoiceLogFields, string]> = [
   ["result", "result"],
   ["code", "code"],
   ["variable", "variable"],
+  ["conversationId", "conversation_id"],
+  ["closeCode", "close_code"],
 ];
 
 /** Short, URL-safe tokens only. Anything else is replaced, never truncated. */
@@ -64,6 +71,7 @@ const ERROR_EVENTS = new Set<RhodesVoiceEvent>([
   "configuration-invalid",
   "signed-url-failed",
   "websocket-failed",
+  "provider-failure",
 ]);
 const WARN_EVENTS = new Set<RhodesVoiceEvent>([
   "microphone-denied",

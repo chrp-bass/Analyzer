@@ -32,12 +32,18 @@ import { Conversation } from "@elevenlabs/client";
 import {
   RhodesVoiceSession,
   type ConnectCallbacks,
+  type ConnectOptions,
   type SessionFetchResult,
   type SessionPayload,
   type VoiceState,
   type VoiceStatus,
 } from "@/lib/rhodes-voice/session-controller";
-import { logRhodesVoice, newRhodesRequestId } from "@/lib/rhodes-voice/log";
+import {
+  logRhodesVoice,
+  newRhodesRequestId,
+  type RhodesVoiceEvent,
+  type RhodesVoiceLogFields,
+} from "@/lib/rhodes-voice/log";
 
 async function requestMicrophone(): Promise<void> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -67,22 +73,86 @@ async function fetchSession(scanId: string, signal: AbortSignal): Promise<Sessio
   return { ok: true, payload: (await res.json()) as SessionPayload };
 }
 
-async function connect(payload: SessionPayload, cb: ConnectCallbacks) {
+async function connect(payload: SessionPayload, cb: ConnectCallbacks, options: ConnectOptions) {
   // The signed URL is used exactly here, exactly once, and not retained.
   return Conversation.startSession({
     signedUrl: payload.signedUrl,
     connectionType: "websocket",
-    overrides: payload.overrides,
+    // The first-message override is sent only while the agent is known to
+    // accept it; the controller drops it after a proven override rejection.
+    ...(options.withOverrides ? { overrides: payload.overrides } : {}),
     dynamicVariables: payload.dynamicVariables,
+    onConnect: ({ conversationId }) => cb.onConnected(conversationId),
     onModeChange: ({ mode }) => {
       // "speaking" here is the agent speaking; we flip the UI label so a
       // musician who knows which side is talking never has to guess.
       if (mode === "speaking") cb.onAgentSpeaking();
       else cb.onUserTurn();
     },
-    onDisconnect: (details) => cb.onDisconnected(details.reason),
-    onError: () => cb.onError(),
+    onDisconnect: (details) => {
+      if (details.reason === "error") {
+        cb.onDisconnected({
+          reason: "error",
+          closeCode: details.closeCode,
+          closeReason: details.closeReason,
+          message: details.message,
+        });
+      } else if (details.reason === "agent") {
+        cb.onDisconnected({ reason: "agent", closeCode: details.closeCode, closeReason: details.closeReason });
+      } else {
+        cb.onDisconnected({ reason: "user" });
+      }
+    },
+    onError: (message) => cb.onError(typeof message === "string" ? message : ""),
   });
+}
+
+/** Browser lifecycle events worth a line in the PRODUCTION log too. */
+const REPORTED: ReadonlySet<RhodesVoiceEvent> = new Set<RhodesVoiceEvent>([
+  "microphone-granted",
+  "microphone-denied",
+  "websocket-opening",
+  "websocket-open",
+  "websocket-closed",
+  "websocket-failed",
+  "provider-failure",
+  "retry",
+  "session-started",
+  "session-stopped",
+  "graceful-degradation",
+]);
+
+/**
+ * Console line + (for lifecycle events) a fire-and-forget beacon to the
+ * entitlement-gated outcome route, so `vercel logs` shows the WebSocket half
+ * of the story next to the signed-URL half. Only the closed field set is
+ * sent; the server re-validates every value. Never throws, never awaited.
+ */
+function makeLogger(scanId: string) {
+  return (event: RhodesVoiceEvent, fields: RhodesVoiceLogFields = {}) => {
+    logRhodesVoice(event, fields);
+    if (!REPORTED.has(event)) return;
+    try {
+      void fetch("/api/rhodes/session/outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          scanId,
+          event,
+          requestId: fields.requestId,
+          ms: fields.ms,
+          category: fields.category,
+          attempt: fields.attempt,
+          result: fields.result,
+          conversationId: fields.conversationId,
+          closeCode: fields.closeCode,
+        }),
+      }).catch(() => {});
+    } catch {
+      /* telemetry must never affect the session */
+    }
+  };
 }
 
 function createSession(scanId: string): RhodesVoiceSession {
@@ -90,7 +160,8 @@ function createSession(scanId: string): RhodesVoiceSession {
     requestMicrophone,
     fetchSession,
     connect,
-    log: logRhodesVoice,
+    log: makeLogger(scanId),
+    debug: (line) => console.warn(line),
     requestId: newRhodesRequestId,
   });
 }
@@ -112,13 +183,13 @@ export function RhodesVoice({ scanId }: { scanId: string }) {
     const session = sessionRef.current;
     const unsubscribe = session.subscribe(setState);
     const onPageHide = () => {
-      void session.dispose();
+      void session.dispose("pagehide");
     };
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
       unsubscribe();
-      void session.dispose();
+      void session.dispose("unmount");
     };
   }, [scanId]);
 
@@ -127,7 +198,7 @@ export function RhodesVoice({ scanId }: { scanId: string }) {
   }, []);
 
   const endConversation = useCallback(() => {
-    void sessionRef.current?.stop();
+    void sessionRef.current?.stop("user");
   }, []);
 
   const { status, note, song, retryable } = state;

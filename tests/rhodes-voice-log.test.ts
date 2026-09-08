@@ -51,6 +51,16 @@ describe("formatRhodesVoiceLog", () => {
     }
   });
 
+  it("carries conversation id and close code as safe tokens", () => {
+    const line = formatRhodesVoiceLog("websocket-closed", {
+      requestId: "r1",
+      conversationId: "conv_01HZY",
+      closeCode: 1008,
+      result: "error",
+    });
+    expect(line).toBe("[rhodes-voice] event=websocket-closed request_id=r1 result=error conversation_id=conv_01HZY close_code=1008");
+  });
+
   it("ignores unknown fields entirely", () => {
     const line = formatRhodesVoiceLog("session-started", {
       requestId: "r1",

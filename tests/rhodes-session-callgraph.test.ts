@@ -28,7 +28,12 @@ function resolveSpec(spec: string, from: string): string | null {
   return null;
 }
 
-const IMPORT_RE = /import\s+(?:type\s+)?[^'"]*from\s*['"]([^'"]+)['"]/g;
+/**
+ * Matches every static import statement, single- or multi-line. Group 1 is
+ * the `type` keyword when the whole statement is type-only (erased before
+ * execution, so it is skipped exactly as the bundler would).
+ */
+const IMPORT_RE = /import\s+(type\s+)?(?:[^;'"]*?\s+from\s*)?['"]([^'"]+)['"]/g;
 
 function runtimeGraph(entry: string): Set<string> {
   const seen = new Set<string>();
@@ -36,25 +41,38 @@ function runtimeGraph(entry: string): Set<string> {
     if (seen.has(file)) return;
     seen.add(file);
     const src = readFileSync(file, "utf8");
-    for (const line of src.split("\n")) {
-      if (/^\s*import\s+type\b/.test(line)) continue; // type-only: erased
-      IMPORT_RE.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = IMPORT_RE.exec(line))) {
-        const resolved = resolveSpec(m[1], file);
-        if (resolved) walk(resolved);
-      }
+    IMPORT_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = IMPORT_RE.exec(src))) {
+      if (m[1]) continue; // `import type … from` — erased at runtime
+      const resolved = resolveSpec(m[2], file);
+      if (resolved) walk(resolved);
     }
   };
   walk(entry);
   return seen;
 }
 
+describe("POST /api/rhodes/session/outcome runtime call graph", () => {
+  const graph = runtimeGraph("src/app/api/rhodes/session/outcome/route.ts");
+
+  it("reaches neither ElevenLabs nor the report store — entitlement gate and logger only", () => {
+    const files = Array.from(graph);
+    expect(files.some((f) => f.includes("rhodes-voice/elevenlabs") || f.includes("rhodes-voice/signed-url"))).toBe(false);
+    expect(files.some((f) => f.includes("reports/") || /lib\/rhodes\//.test(f) || /stripe|checkout|engine\//i.test(f))).toBe(false);
+    expect(files.some((f) => f.includes("commerce/entitlements"))).toBe(true);
+    expect(files.some((f) => f.includes("rhodes-voice/log"))).toBe(true);
+  });
+});
+
 describe("POST /api/rhodes/session runtime call graph", () => {
   const graph = runtimeGraph("src/app/api/rhodes/session/route.ts");
 
-  it("reaches the ElevenLabs signed-URL module (voice is allowed)", () => {
-    expect(Array.from(graph).some((f) => f.includes("rhodes-voice/signed-url"))).toBe(true);
+  it("reaches the ElevenLabs signed-URL facade and the typed client (voice is allowed)", () => {
+    const files = Array.from(graph);
+    expect(files.some((f) => f.includes("rhodes-voice/signed-url"))).toBe(true);
+    expect(files.some((f) => f.includes("rhodes-voice/elevenlabs"))).toBe(true);
+    expect(files.some((f) => f.includes("rhodes-voice/config"))).toBe(true);
   });
 
   it("never reaches Rhodes text generation or the report generator", () => {
