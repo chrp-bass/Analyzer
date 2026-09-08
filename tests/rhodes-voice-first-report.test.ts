@@ -25,7 +25,6 @@ vi.mock("@/lib/reports/resolve.server", () => ({
 }));
 vi.mock("@/lib/rhodes-voice/signed-url", () => ({
   mintRhodesSignedUrl: vi.fn(),
-  rhodesAgentId: () => "vv1j1yrAGF0RdxJOSGIJ",
 }));
 
 import { resolveEntitledReport } from "@/lib/reports/resolve.server";
@@ -105,6 +104,8 @@ describe("Rhodes on the free first report", () => {
       ok: true,
       signedUrl: "wss://api.elevenlabs.io/free-first/xyz",
       agentId: "vv1j1yrAGF0RdxJOSGIJ",
+      attempts: 1,
+      ms: 5,
     });
 
     const res = await POST(req({ scanId: "scan-first-free" }));
@@ -149,6 +150,8 @@ describe("Rhodes on the free first report", () => {
       ok: true,
       signedUrl: "wss://api.elevenlabs.io/paid/xyz",
       agentId: "vv1j1yrAGF0RdxJOSGIJ",
+      attempts: 1,
+      ms: 5,
     });
 
     const res = await POST(req({ scanId: "scan-purchased" }));
@@ -169,6 +172,8 @@ describe("Rhodes on the free first report", () => {
       ok: true,
       signedUrl: "wss://api.elevenlabs.io/creator/xyz",
       agentId: "vv1j1yrAGF0RdxJOSGIJ",
+      attempts: 1,
+      ms: 5,
     });
     const res = await POST(req({ scanId: "scan-under-creator-intelligence" }));
     expect(res.status).toBe(200);

@@ -17,150 +17,120 @@
  * naturally in a conversation ("Talk with Dr. Rhodes") or close the panel
  * and return to the report — neither path is coerced.
  *
- * Failure is quiet. If ElevenLabs is unreachable, the API key is missing, or
- * the browser denies microphone permission, the report itself is unaffected;
- * the panel simply reveals a short honest note and steps aside.
+ * Failure is quiet. If ElevenLabs is unreachable, the configuration is wrong,
+ * or the browser denies microphone permission, the report itself is
+ * unaffected; the panel simply reveals a short honest note and steps aside.
+ *
+ * All lifecycle rules live in `RhodesVoiceSession` (pure, tested): one
+ * session per click, microphone before minting, a fresh signed URL per
+ * attempt, one fresh-URL retry on a pre-open failure, and full teardown on
+ * stop, failure, navigation and unmount. This file only wires the browser.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Conversation } from "@elevenlabs/client";
+import {
+  RhodesVoiceSession,
+  type ConnectCallbacks,
+  type SessionFetchResult,
+  type SessionPayload,
+  type VoiceState,
+  type VoiceStatus,
+} from "@/lib/rhodes-voice/session-controller";
+import { logRhodesVoice, newRhodesRequestId } from "@/lib/rhodes-voice/log";
 
-type Status =
-  | "idle"
-  | "requesting_mic"
-  | "connecting"
-  | "listening" // Rhodes is speaking (first-read or reply)
-  | "speaking" // the creator is speaking
-  | "ended"
-  | "error";
-
-interface SessionPayload {
-  signedUrl: string;
-  agentId: string;
-  overrides: {
-    agent?: { firstMessage?: string; prompt?: { prompt?: string } };
-  };
-  dynamicVariables: Record<string, string>;
-  song: { title: string; artist: string };
+async function requestMicrophone(): Promise<void> {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // The SDK opens its own stream once it starts. Release ours immediately;
+  // holding both is what shows two mic dots in the tab.
+  stream.getTracks().forEach((t) => t.stop());
 }
 
-/** One live conversation. The SDK object surface we actually use. */
-interface LiveConversation {
-  endSession(): Promise<unknown>;
+async function fetchSession(scanId: string, signal: AbortSignal): Promise<SessionFetchResult> {
+  const res = await fetch("/api/rhodes/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scanId }),
+    cache: "no-store",
+    signal,
+  });
+  if (!res.ok) {
+    let retryable = res.status === 503;
+    try {
+      const body = (await res.json()) as { retryable?: unknown };
+      if (typeof body.retryable === "boolean") retryable = body.retryable;
+    } catch {
+      /* body optional */
+    }
+    return { ok: false, status: res.status, retryable };
+  }
+  return { ok: true, payload: (await res.json()) as SessionPayload };
+}
+
+async function connect(payload: SessionPayload, cb: ConnectCallbacks) {
+  // The signed URL is used exactly here, exactly once, and not retained.
+  return Conversation.startSession({
+    signedUrl: payload.signedUrl,
+    connectionType: "websocket",
+    overrides: payload.overrides,
+    dynamicVariables: payload.dynamicVariables,
+    onModeChange: ({ mode }) => {
+      // "speaking" here is the agent speaking; we flip the UI label so a
+      // musician who knows which side is talking never has to guess.
+      if (mode === "speaking") cb.onAgentSpeaking();
+      else cb.onUserTurn();
+    },
+    onDisconnect: (details) => cb.onDisconnected(details.reason),
+    onError: () => cb.onError(),
+  });
+}
+
+function createSession(scanId: string): RhodesVoiceSession {
+  return new RhodesVoiceSession(scanId, {
+    requestMicrophone,
+    fetchSession,
+    connect,
+    log: logRhodesVoice,
+    requestId: newRhodesRequestId,
+  });
 }
 
 export function RhodesVoice({ scanId }: { scanId: string }) {
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorNote, setErrorNote] = useState<string | null>(null);
-  const [song, setSong] = useState<{ title: string; artist: string } | null>(
-    null,
-  );
-  const convRef = useRef<LiveConversation | null>(null);
+  const sessionRef = useRef<RhodesVoiceSession | null>(null);
+  if (sessionRef.current === null) sessionRef.current = createSession(scanId);
+  const [state, setState] = useState<VoiceState>(() => sessionRef.current!.getState());
 
-  // Clean up any live conversation on unmount so a stale WebSocket cannot
-  // linger behind a route change.
+  // Subscribe for the panel's lifetime; tear everything down on unmount and
+  // on navigation away (pagehide fires for bfcache and tab close alike).
+  // React StrictMode mounts twice in development: a disposed controller is
+  // replaced with a fresh one so the panel is never dead on arrival.
   useEffect(() => {
-    return () => {
-      const c = convRef.current;
-      convRef.current = null;
-      if (c) c.endSession().catch(() => {});
+    if (!sessionRef.current || sessionRef.current.isDisposed()) {
+      sessionRef.current = createSession(scanId);
+      setState(sessionRef.current.getState());
+    }
+    const session = sessionRef.current;
+    const unsubscribe = session.subscribe(setState);
+    const onPageHide = () => {
+      void session.dispose();
     };
-  }, []);
-
-  const startConversation = useCallback(async () => {
-    setErrorNote(null);
-    setStatus("requesting_mic");
-
-    // Microphone consent BEFORE we mint the signed URL — that URL has a short
-    // TTL and burning one on a browser that will then refuse audio is waste.
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // The SDK opens its own stream once it starts. Release ours immediately;
-      // holding both is what shows two mic dots in the tab.
-      stream.getTracks().forEach((t) => t.stop());
-    } catch {
-      setStatus("error");
-      setErrorNote(
-        "This browser didn't grant microphone access. You can still read the report below.",
-      );
-      return;
-    }
-
-    setStatus("connecting");
-    let session: SessionPayload;
-    try {
-      const res = await fetch("/api/rhodes/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scanId }),
-      });
-      if (!res.ok) {
-        setStatus("error");
-        setErrorNote(
-          res.status === 503
-            ? "Voice is unavailable right now. The report below is unaffected."
-            : "Rhodes couldn't connect just now. The report below is unaffected.",
-        );
-        return;
-      }
-      session = (await res.json()) as SessionPayload;
-      setSong(session.song);
-    } catch {
-      setStatus("error");
-      setErrorNote(
-        "Rhodes couldn't connect just now. The report below is unaffected.",
-      );
-      return;
-    }
-
-    try {
-      const conv = await Conversation.startSession({
-        signedUrl: session.signedUrl,
-        connectionType: "websocket",
-        overrides: session.overrides,
-        dynamicVariables: session.dynamicVariables,
-        onStatusChange: ({ status: s }) => {
-          if (s === "disconnected") setStatus((prev) =>
-            prev === "error" ? prev : "ended",
-          );
-        },
-        onModeChange: ({ mode }) => {
-          // "speaking" here is agent speaking; we flip the UI label so a
-          // musician who knows which side is talking never has to guess.
-          if (mode === "speaking") setStatus("listening");
-          else setStatus("speaking");
-        },
-        onError: (message) => {
-          setStatus("error");
-          setErrorNote(
-            typeof message === "string" && message
-              ? "Rhodes hit a snag. The report below is unaffected."
-              : "Rhodes hit a snag. The report below is unaffected.",
-          );
-        },
-      });
-      convRef.current = conv as unknown as LiveConversation;
-    } catch {
-      setStatus("error");
-      setErrorNote(
-        "Rhodes couldn't open a session. The report below is unaffected.",
-      );
-    }
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      unsubscribe();
+      void session.dispose();
+    };
   }, [scanId]);
 
-  const endConversation = useCallback(async () => {
-    const c = convRef.current;
-    convRef.current = null;
-    if (c) {
-      try {
-        await c.endSession();
-      } catch {
-        /* discard — the panel is going away anyway */
-      }
-    }
-    setStatus("ended");
+  const startConversation = useCallback(() => {
+    void sessionRef.current?.start();
   }, []);
 
+  const endConversation = useCallback(() => {
+    void sessionRef.current?.stop();
+  }, []);
+
+  const { status, note, song, retryable } = state;
   const isLive =
     status === "connecting" ||
     status === "listening" ||
@@ -176,9 +146,7 @@ export function RhodesVoice({ scanId }: { scanId: string }) {
       <div className="rhodes-voice-inner">
         <p className="rhodes-voice-kicker">Dr. Rhodes found something</p>
         <h2 id="rhodes-voice-heading" className="rhodes-voice-title">
-          {song
-            ? `About "${song.title}"`
-            : "Hear his first read on your song."}
+          {song ? `About "${song.title}"` : "Hear his first read on your song."}
         </h2>
         <p className="rhodes-voice-note">
           A short spoken observation grounded in the same CHRP measurements
@@ -187,20 +155,23 @@ export function RhodesVoice({ scanId }: { scanId: string }) {
 
         {status === "idle" || status === "ended" || status === "error" ? (
           <div className="rhodes-voice-actions">
-            <button
-              type="button"
-              className="btn btn-y rhodes-voice-cta"
-              onClick={startConversation}
-            >
-              {status === "ended"
-                ? "Talk with Dr. Rhodes again"
-                : status === "error"
-                  ? "Try again"
-                  : "Hear Dr. Rhodes"}
-            </button>
-            {errorNote ? (
+            {status !== "error" || retryable ? (
+              <button
+                type="button"
+                className="btn btn-y rhodes-voice-cta"
+                onClick={startConversation}
+                disabled={isLive}
+              >
+                {status === "ended"
+                  ? "Talk with Dr. Rhodes again"
+                  : status === "error"
+                    ? "Try again"
+                    : "Hear Dr. Rhodes"}
+              </button>
+            ) : null}
+            {note ? (
               <p className="rhodes-voice-error" role="status">
-                {errorNote}
+                {note}
               </p>
             ) : null}
           </div>
@@ -236,7 +207,7 @@ export function RhodesVoice({ scanId }: { scanId: string }) {
  * steady when it is the creator's turn. Nothing gimmicky — the voice is the
  * feature; this element is just an honest state signal.
  */
-function RhodesVoiceIndicator({ status }: { status: Status }) {
+function RhodesVoiceIndicator({ status }: { status: VoiceStatus }) {
   return (
     <div
       className="rhodes-voice-indicator"
