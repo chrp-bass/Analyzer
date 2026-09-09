@@ -1,0 +1,44 @@
+name: Rhodes agent export
+
+# On-demand, monitor-only export of the LIVE ElevenLabs DR Rhodes System
+# prompt and First message, for reconciling the repository's governed
+# constants to the dashboard byte-for-byte.
+#
+# The text is written to a short-lived artifact and NEVER printed to the log.
+# The only secret used is HEALTH_MONITOR_SECRET; the ElevenLabs key stays on
+# Vercel. Read-only: nothing on the agent, Vercel or GitHub changes.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch the live agent text (never echoed)
+        env:
+          HEALTH_MONITOR_SECRET: ${{ secrets.HEALTH_MONITOR_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          code=$(curl --silent --show-error --max-time 60 \
+            --header "Authorization: Bearer ${HEALTH_MONITOR_SECRET}" \
+            --output export/rhodes-agent.json \
+            --write-out '%{http_code}' \
+            https://scan.chrp.ai/api/health/rhodes-agent)
+          echo "status=${code}"
+          test "${code}" = "200"
+          # Shape only — key names and lengths, no content.
+          jq -r 'to_entries[] | "\(.key): \(if (.value|type)=="string" then (.value|length|tostring)+" chars" else (.value|type) end)"' export/rhodes-agent.json
+
+      - name: Upload the export (1-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhodes-agent-export-${{ github.run_id }}
+          path: export/rhodes-agent.json
+          retention-days: 1
+          if-no-files-found: error

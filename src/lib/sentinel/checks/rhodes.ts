@@ -51,7 +51,7 @@ export interface RhodesCheckDeps {
   governedAgentId?: string;
 }
 
-interface LiveAgent {
+export interface LiveAgent {
   name: string | null;
   prompt: string | null;
   firstMessage: string | null;
@@ -73,7 +73,7 @@ export function placeholdersIn(text: string): string[] {
   return Array.from(new Set(Array.from(text.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)).map((m) => m[1])));
 }
 
-function parseAgent(json: unknown): LiveAgent | null {
+export function parseAgent(json: unknown): LiveAgent | null {
   if (!json || typeof json !== "object") return null;
   const j = json as { name?: unknown; conversation_config?: { agent?: { prompt?: { prompt?: unknown }; first_message?: unknown; dynamic_variables?: { dynamic_variable_placeholders?: unknown } } } };
   const agent = j.conversation_config?.agent;
@@ -87,6 +87,35 @@ function parseAgent(json: unknown): LiveAgent | null {
     firstMessage: typeof first === "string" ? first : null,
     placeholders: ph && typeof ph === "object" ? Object.keys(ph as Record<string, unknown>) : [],
   };
+}
+
+export type LiveAgentRead =
+  | { ok: true; agent: LiveAgent; ms: number }
+  | { ok: false; category: UpstreamFailureCategory | "timeout" | "network" | "malformed_response"; upstreamStatus?: number; ms: number };
+
+/**
+ * ONE read of the live agent configuration. Shared by the drift checks and
+ * the monitor-only export route. Never logs; the caller decides what (if
+ * anything) of the body leaves the process.
+ */
+export async function readLiveAgent(
+  fetchImpl: FetchLike,
+  config: RhodesVoiceConfig,
+  opts: { timeoutMs?: number; signal?: AbortSignal; now?: () => number } = {},
+): Promise<LiveAgentRead> {
+  const res = await httpRequest(fetchImpl, {
+    url: `${ELEVENLABS_API}/convai/agents/${encodeURIComponent(config.agentId)}`,
+    headers: { "xi-api-key": config.apiKey, Accept: "application/json" },
+    timeoutMs: opts.timeoutMs ?? THRESHOLDS.requestTimeoutMs,
+    signal: opts.signal,
+  }, opts.now ?? (() => Date.now()));
+  if (!res.ok) return { ok: false, category: res.kind, ms: res.ms };
+  if (res.status !== 200) {
+    return { ok: false, category: classifyUpstreamStatus(res.status, upstreamToken(res.json)), upstreamStatus: res.status, ms: res.ms };
+  }
+  const agent = parseAgent(res.json);
+  if (!agent) return { ok: false, category: "malformed_response", upstreamStatus: res.status, ms: res.ms };
+  return { ok: true, agent, ms: res.ms };
 }
 
 export async function runRhodesChecks(deps: RhodesCheckDeps): Promise<BoundaryResult> {
@@ -138,33 +167,22 @@ export async function runRhodesChecks(deps: RhodesCheckDeps): Promise<BoundaryRe
 
   // ── The live agent (one GET, shared by the drift checks). ────────────────
   let live: LiveAgent | null = null;
-  let liveFailure: { status: CheckStatus; summary: string; evidence: Evidence } | null = null;
   checks.push(
     await runCheck("agent_exists", timeout, async (signal): Promise<CheckOutcome> => {
-      const res = await httpRequest(deps.fetchImpl, {
-        url: `${ELEVENLABS_API}/convai/agents/${encodeURIComponent(config.agentId)}`,
-        headers,
-        timeoutMs: requestTimeout,
-        signal,
-      }, now);
-      if (!res.ok) {
-        liveFailure = { status: "FAIL", summary: `agent read failed: ${res.kind}`, evidence: { category: res.kind } };
-        return liveFailure;
-      }
-      if (res.status !== 200) {
-        const category = classifyUpstreamStatus(res.status, upstreamToken(res.json));
-        liveFailure = {
+      const read = await readLiveAgent(deps.fetchImpl, config, { timeoutMs: requestTimeout, signal, now });
+      if (!read.ok) {
+        const refused = read.category !== "timeout" && read.category !== "network" && read.category !== "malformed_response";
+        return {
           status: "FAIL",
-          summary: `ElevenLabs refused the agent read: ${category}`,
-          evidence: { category, upstreamStatus: res.status },
+          summary: refused
+            ? `ElevenLabs refused the agent read: ${read.category}`
+            : read.category === "malformed_response"
+              ? "agent read returned an unrecognised body"
+              : `agent read failed: ${read.category}`,
+          evidence: { category: read.category, upstreamStatus: read.upstreamStatus ?? null },
         };
-        return liveFailure;
       }
-      live = parseAgent(res.json);
-      if (!live) {
-        liveFailure = { status: "FAIL", summary: "agent read returned an unrecognised body", evidence: { category: "malformed_response" } };
-        return liveFailure;
-      }
+      live = read.agent;
       return {
         status: "PASS" as CheckStatus,
         summary: "agent exists and is readable with the deployed key",

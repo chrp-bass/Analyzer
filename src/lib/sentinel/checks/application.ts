@@ -57,6 +57,7 @@ export const API_PROBES: readonly ApiProbe[] = [
   { id: "song_search_missing_query", method: "GET", path: "/api/song-api/search", expect: [400], why: "search validates input before Spotify" },
   { id: "dev_bridge_hidden", method: "POST", path: "/api/scan-report", body: "{}", expect: [404], expectError: "not_found", why: "the fixture generation bridge must be unreachable in production (404 is the correct answer here)" },
   { id: "health_requires_monitor_secret", method: "GET", path: "/api/health/production", expect: [403], expectError: "forbidden", why: "the sentinel surface refuses callers without the monitor secret" },
+  { id: "rhodes_export_requires_monitor_secret", method: "GET", path: "/api/health/rhodes-agent", expect: [403], expectError: "forbidden", why: "the agent export refuses callers without the monitor secret" },
 ];
 
 export interface ApplicationCheckDeps {

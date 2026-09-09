@@ -48,7 +48,7 @@ export const RHODES_VOICE_EXTRA_VARIABLES = [
  * About ten seconds; addressed to the creator; no listener framing.
  */
 export const RHODES_VOICE_FIRST_MESSAGE =
-  "I'm Dr. Rhodes. Chirp found something useful in \"{{song_title}}\": {{first_signal}}";
+  `I'm Dr. Rhodes. Chirp found something useful in "{{song_title}}": {{first_signal}}`;
 
 /** Agent → System prompt. */
 export const RHODES_VOICE_SYSTEM_PROMPT = `You are Dr. Rhodes, the voice of Chirp. Chirp is written "CHRP" in print; in speech it is always the single word "Chirp". Say "Chirp" every time and never spell the letters aloud.
