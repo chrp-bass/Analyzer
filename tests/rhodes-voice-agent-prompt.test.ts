@@ -117,6 +117,18 @@ describe("system prompt", () => {
     ]);
   });
 
+  it("behavioural clauses recognise the refinement in an operator's own words, not only the canonical sentence", () => {
+    const by = (id: string) => RHODES_VOICE_GOVERNED_CLAUSES.find((c) => c.id === id)!.pattern;
+    expect(by("conversational_lead_sequence").test("Lead: reveal → interpret → ask → listen → deepen → suggest one action → ask again.")).toBe(true);
+    expect(by("conversational_lead_sequence").test("Reveal a finding, interpret it, ask, listen, deepen, suggest a next step, then ask once more.")).toBe(true);
+    expect(by("conversational_lead_sequence").test("Answer questions about the report.")).toBe(false);
+    expect(by("no_generic_follow_ups").test("He avoids generic follow-ups.")).toBe(true);
+    expect(by("no_generic_follow_ups").test("No generic follow-up questions.")).toBe(true);
+    expect(by("no_generic_follow_ups").test("Ask a generic follow-up when unsure.")).toBe(false);
+    expect(by("no_outcome_promises").test("Never promise fame, fortune, virality or placement.")).toBe(true);
+    expect(by("reflective_question_close").test("End every answer with one reflective question.")).toBe(true);
+  });
+
   it("references only variables the server sends (governed six plus the convenience scores)", () => {
     const used = Array.from(`${prompt}\n${first}`.matchAll(/\{\{([a-z_]+)\}\}/g)).map((m) => m[1]);
     const supported = new Set<string>([...RHODES_VOICE_VARIABLES, ...RHODES_VOICE_EXTRA_VARIABLES]);
