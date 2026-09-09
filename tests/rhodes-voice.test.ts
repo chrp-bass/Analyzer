@@ -149,10 +149,11 @@ describe("buildRhodesVoiceContext", () => {
 });
 
 describe("composeFirstRead", () => {
-  it("opens as Dr. Rhodes, names the song, and ends on the governed signature", () => {
+  it("opens as Dr. Rhodes, names the song, carries the governed signature, and hands over with the published question", () => {
     const line = composeFirstRead(makeReport());
     expect(line.startsWith("I'm Dr. Rhodes. Chirp found something useful in \"Safe\": ")).toBe(true);
-    expect(line.endsWith("A settled architecture that never asks for attention.")).toBe(true);
+    expect(line).toContain("A settled architecture that never asks for attention. What part of that feels most true");
+    expect(line.endsWith("?")).toBe(true);
   });
 
   it("falls back to the governed reading when the signature is empty", () => {

@@ -1,11 +1,12 @@
 /**
  * Rhodes's spoken opening for the voice moment.
  *
- * One short introduction, then ONE complete report-grounded sentence the
- * creator hears first. About ten seconds. Never a summary of the report,
- * never a pitch, never a recital of scores, never listener framing.
+ * One short introduction, ONE complete report-grounded sentence the creator
+ * hears first, then one reflective question (the published agent's text —
+ * see `RHODES_VOICE_FIRST_MESSAGE`). Never a summary of the report, never a
+ * pitch, never a recital of scores, never listener framing.
  *
- *   "I'm Dr. Rhodes. Chirp found something useful in "{{song_title}}": {{first_signal}}"
+ *   "I'm Dr. Rhodes. Chirp found something useful in "{{song_title}}": {{first_signal}} What part of that feels most true—or most surprising—to you?"
  *
  * The template lives on the ElevenLabs agent as its first message and is
  * filled by dynamic variables; `composeFirstRead` renders the same template
