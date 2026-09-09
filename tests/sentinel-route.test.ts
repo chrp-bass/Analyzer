@@ -127,6 +127,10 @@ describe("health route runtime call graph", () => {
 
   it("reaches the read-only sentinel modules and the ElevenLabs signed-URL client", () => {
     expect(graph).toContain("src/lib/sentinel/run.server.ts");
+    // The export route shares the same isolation guarantees.
+    const exportGraph = Array.from(runtimeGraph("src/app/api/health/rhodes-agent/route.ts"));
+    expect(exportGraph).toContain("src/lib/sentinel/rhodes-agent-export.ts");
+    for (const file of exportGraph) expect(file, file).not.toMatch(/src\/lib\/(rhodes|reports|engine|scan|memory|commerce|email|supabase)\//);
     expect(graph).toContain("src/lib/rhodes-voice/elevenlabs.ts");
     expect(graph).toContain("src/lib/rhodes-voice/agent-prompt.ts");
   });

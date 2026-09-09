@@ -20,7 +20,7 @@ GitHub Actions (production-sentinel.yml)          Vercel  (scan.chrp.ai)
         ▼                                          │                                      │
   npm run health:production                        │ run.server.ts (45s budget, parallel) │
    ├─ boundary 1  application  ── public probes ──▶│                                      │
-   │    DNS/TLS, 7 public routes, 10 invalid /     │  supabase  PostgREST, service + anon │
+   │    DNS/TLS, 7 public routes, 11 invalid /     │  supabase  PostgREST, service + anon │
    │    unauthorized API probes, anonymous catalog │  stripe    prices.retrieve,          │
    ├─ GET /api/health/production ─────────────────▶│            webhookEndpoints.list,    │
    │    boundaries 2–5 run where the vendor        │            stripe_events ledger      │
@@ -74,7 +74,7 @@ them to the code they describe (e.g. `staleClaimMs` = the lease TTL).
 | --- | --- | --- |
 | `dns_tls_root` | `GET /` | 200 HTML through Vercel (`x-vercel-id`); no edge header → WARN; latency > 3000 ms WARN, > 8000 ms FAIL |
 | `public_routes` | `/`, `/scan`, `/methodology`, `/contact`, `/signin` (200 HTML); `/privacy`, `/terms` (must 307/308 to exactly `https://chrp.ai/privacy` / `https://chrp.ai/terms`) | wrong status, non-HTML or a redirect elsewhere → FAIL; slow > 3 s WARN; > 8 s FAIL |
-| `api_guards` | 10 controlled invalid / unauthorized probes | each must answer its own 4xx: `GET /api/report/scn_probe` 403 `forbidden`; `POST /api/rhodes/session {}` 400 `invalid_body`; `POST /api/rhodes/session/outcome {}` 400; `POST /api/stripe/webhook` unsigned 400 `missing signature`; `POST /api/checkout {}` 400 `unknown offer`; `GET`/`POST /api/scan/prepare` malformed scan 400 `invalid scanId`; `GET /api/song-api/search` 400; `POST /api/scan-report` **404** `not_found` (the fixture bridge must be unreachable in production); `GET /api/health/production` without a token 403. Any 404 where a 4xx guard is expected, or any 5xx → FAIL |
+| `api_guards` | 11 controlled invalid / unauthorized probes | each must answer its own 4xx: `GET /api/report/scn_probe` 403 `forbidden`; `POST /api/rhodes/session {}` 400 `invalid_body`; `POST /api/rhodes/session/outcome {}` 400; `POST /api/stripe/webhook` unsigned 400 `missing signature`; `POST /api/checkout {}` 400 `unknown offer`; `GET`/`POST /api/scan/prepare` malformed scan 400 `invalid scanId`; `GET /api/song-api/search` 400; `POST /api/scan-report` **404** `not_found` (the fixture bridge must be unreachable in production); `GET /api/health/production` and `GET /api/health/rhodes-agent` without a token 403. Any 404 where a 4xx guard is expected, or any 5xx → FAIL |
 | `anonymous_catalog` | `GET /api/catalog` | 200 with `identified:false` and an empty catalog |
 | `deployment_identity` | server-reported `VERCEL_GIT_COMMIT_SHA` vs `--expect-sha` | mismatch after ≤ 6 attempts × 15 s → FAIL; no expected SHA: production env PASS, preview FAIL, unknown SHA WARN |
 | `vercel_error_rate` | Vercel 5xx rate / latency history | `NOT_EXERCISED` — needs a Vercel API token, which the sentinel deliberately keeps out of GitHub; its own probe latencies are the available evidence |
@@ -165,6 +165,26 @@ Automation (`.github/workflows/production-sentinel.yml`): triggered by Vercel's
 deployed SHA as `--expect-sha`), nightly at 06:17 UTC, and `workflow_dispatch`
 (optional `expect_sha`). The Markdown summary is on the run; the JSON is the
 artifact `production-sentinel-<run id>` (90 days).
+
+## 5a. Reconciling the Rhodes prompt to the dashboard
+
+When the ElevenLabs dashboard is the approved source of truth, the code is
+reconciled to it — never by retyping. `GET /api/health/rhodes-agent` (same
+monitor secret; 403 opaque, 503 unconfigured, 502 provider category) returns
+the live System prompt and First message **exactly**, plus the declared
+placeholder names and the agent id. Nothing is logged. The "Rhodes agent
+export" workflow (`workflow_dispatch`) fetches it with the GitHub secret and
+uploads it as a 1-day artifact, printing only key names and lengths. Then:
+
+```bash
+gh run download <run id> -D export
+npx tsx scripts/rhodes-voice-agent-sync.mts export/rhodes-agent-export-<run id>/rhodes-agent.json
+npx tsx scripts/rhodes-voice-agent-config.mts
+```
+
+The sync script rewrites `RHODES_VOICE_SYSTEM_PROMPT` and
+`RHODES_VOICE_FIRST_MESSAGE` byte-for-byte; the tests and the sentinel's
+drift checks then pin the repository to the published agent.
 
 ## 6. One-time setup
 

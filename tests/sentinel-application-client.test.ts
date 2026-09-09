@@ -28,6 +28,7 @@ const PRODUCTION_ANSWERS: Record<string, () => Response> = {
   "GET /api/song-api/search": () => jsonResponse({ error: "query is required" }, 400),
   "POST /api/scan-report": () => jsonResponse({ error: "not_found" }, 404),
   "GET /api/health/production": () => jsonResponse({ error: "forbidden" }, 403),
+  "GET /api/health/rhodes-agent": () => jsonResponse({ error: "forbidden" }, 403),
   "GET /api/catalog": () => jsonResponse({ catalog: [], credits: null, identified: false }),
 };
 
