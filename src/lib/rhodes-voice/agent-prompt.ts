@@ -104,8 +104,11 @@ export const RHODES_VOICE_GOVERNED_CLAUSES: readonly RhodesGovernedClause[] = [
   { id: "creator_not_listener", kind: "behavioural", field: "system_prompt", pattern: /never coach listeners/i },
   { id: "measured_vs_interpretation", kind: "behavioural", field: "system_prompt", pattern: /measured signals and interpretation distinct/i },
   { id: "never_listened_to_audio", kind: "behavioural", field: "system_prompt", pattern: /never imply that you or chirp listened to the audio/i },
-  { id: "conversational_lead_sequence", kind: "behavioural", field: "system_prompt", pattern: /reveal[\s\S]{0,120}interpret[\s\S]{0,120}ask[\s\S]{0,120}listen[\s\S]{0,120}deepen[\s\S]{0,160}one action[\s\S]{0,160}ask again/i },
+  // The lead sequence in any phrasing: prose, arrows or a list, "suggest one
+  // action" or just "suggest", ending in a further ask.
+  { id: "conversational_lead_sequence", kind: "behavioural", field: "system_prompt", pattern: /reveal[\s\S]{0,120}interpret[\s\S]{0,120}ask[\s\S]{0,120}listen[\s\S]{0,120}deepen[\s\S]{0,160}suggest[\s\S]{0,160}ask/i },
   { id: "reflective_question_close", kind: "behavioural", field: "system_prompt", pattern: /one reflective question/i },
-  { id: "no_generic_follow_ups", kind: "behavioural", field: "system_prompt", pattern: /never a generic follow-up/i },
+  // "Never a generic follow-up", "avoid generic follow-ups", "no generic follow-up questions".
+  { id: "no_generic_follow_ups", kind: "behavioural", field: "system_prompt", pattern: /\b(never|avoids?|no|not|without)\b[^.\n]{0,60}generic follow[- ]?ups?/i },
   { id: "no_outcome_promises", kind: "behavioural", field: "system_prompt", pattern: /never promise[\s\S]{0,40}fame[\s\S]{0,40}fortune[\s\S]{0,40}viral[\s\S]{0,80}placement/i },
 ];
