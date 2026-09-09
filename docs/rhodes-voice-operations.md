@@ -64,6 +64,22 @@ System prompt and First message reference them with `{{name}}` — see
 dashboard edit. No override is sent. The route logs
 `event=context-built chars=… result=complete|trimmed_…` per session.
 
+### Conversational lead (governed)
+
+The agent's System prompt carries a **HOW TO LEAD** section: Rhodes leads
+through *reveal → interpret → ask → listen → deepen → suggest one action → ask
+again*; every substantive response ends with one reflective question tailored
+to what the creator just said or to a specific detail of the report; he never
+uses generic follow-ups and never promises fame, fortune, virality, chart
+success, streams, a placement or a deal. The exact text is
+`RHODES_VOICE_SYSTEM_PROMPT` in `src/lib/rhodes-voice/agent-prompt.ts`,
+mirrored into `docs/rhodes-voice-agent-config.md`. The production sentinel
+(`docs/production-sentinel.md`, boundary 5) reads the live agent on every
+production deployment and nightly: an exact match is PASS, a wording
+difference with every governed clause present is WARN, and a lost structural
+clause (the report binding) is RED. Change the prompt in code, regenerate the
+document, then paste — never the other way round.
+
 ## 2. Required Vercel variables
 
 | variable | scope | type | value |
