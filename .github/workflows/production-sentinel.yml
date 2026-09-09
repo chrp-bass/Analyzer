@@ -1,0 +1,82 @@
+name: Production sentinel
+
+# Read-only production health check for CHRP Analyzer (scan.chrp.ai).
+#
+# Runs `npm run health:production`:
+#   * after every successful Vercel PRODUCTION deployment (Vercel posts a
+#     GitHub deployment_status for each deploy; Preview statuses are ignored),
+#   * nightly, and
+#   * on demand.
+#
+# The only secret this workflow holds is HEALTH_MONITOR_SECRET, which unlocks
+# the sanitised /api/health/production surface on Vercel. Every vendor
+# credential (Supabase, Stripe, ElevenLabs, Anthropic) stays on Vercel; nothing
+# is copied here. The sentinel never writes, never generates a report, never
+# creates a Stripe object, and never opens a voice conversation.
+#
+# Results: a Markdown summary on the run, and the versioned JSON as a
+# downloadable artifact. RED fails the run; YELLOW passes with the details in
+# the summary. Nothing is auto-repaired, no issue is filed, no message is sent.
+
+on:
+  deployment_status:
+  schedule:
+    # 06:17 UTC nightly (01:17 CDT / 00:17 CST).
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      expect_sha:
+        description: "Fail unless scan.chrp.ai serves this commit SHA (optional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-sentinel
+  cancel-in-progress: false
+
+jobs:
+  sentinel:
+    # deployment_status fires for every state and environment; only a
+    # successful PRODUCTION deploy runs the sentinel.
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The sentinel code always comes from main, whatever triggered it.
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the production sentinel
+        env:
+          HEALTH_MONITOR_SECRET: ${{ secrets.HEALTH_MONITOR_SECRET }}
+          HEALTH_BASE_URL: https://scan.chrp.ai
+          EXPECT_SHA: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || inputs.expect_sha }}
+        run: |
+          mkdir -p sentinel
+          ARGS=(--json-out sentinel/production-sentinel.json --summary "$GITHUB_STEP_SUMMARY")
+          if [ -n "$EXPECT_SHA" ]; then ARGS+=(--expect-sha "$EXPECT_SHA"); fi
+          npm run health:production -- "${ARGS[@]}"
+
+      - name: Upload JSON result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-sentinel-${{ github.run_id }}
+          path: sentinel/production-sentinel.json
+          if-no-files-found: warn
+          retention-days: 90

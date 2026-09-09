@@ -8,7 +8,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  RHODES_VOICE_EXTRA_VARIABLES,
   RHODES_VOICE_FIRST_MESSAGE,
+  RHODES_VOICE_GOVERNED_CLAUSES,
   RHODES_VOICE_SYSTEM_PROMPT,
   RHODES_VOICE_VARIABLES,
 } from "@/lib/rhodes-voice/agent-prompt";
@@ -71,6 +73,55 @@ describe("system prompt", () => {
   it("does not summarise the whole report or recite scores unprompted", () => {
     expect(prompt).toMatch(/do not summarise the whole report unprompted/i);
     expect(prompt).toMatch(/do not narrate a list of scores/i);
+  });
+
+  it("leads the conversation: reveal → interpret → ask → listen → deepen → one action → ask again", () => {
+    expect(prompt).toMatch(/You lead the conversation\./);
+    const lead = /reveal one specific finding[\s\S]*interpret what it means[\s\S]*ask the creator one question[\s\S]*listen[\s\S]*deepen on what they said[\s\S]*suggest one action grounded in the report[\s\S]*then ask again/;
+    expect(prompt).toMatch(lead);
+    // The sequence appears in exactly this order.
+    const idx = ["reveal one", "interpret what", "ask the creator one", "listen, deepen", "deepen on", "suggest one action", "then ask again"].map((k) => prompt.indexOf(k));
+    expect(idx.every((i) => i >= 0)).toBe(true);
+    expect([...idx].sort((a, b) => a - b)).toEqual(idx);
+  });
+
+  it("ends every substantive response with one tailored reflective question and forbids generic follow-ups", () => {
+    expect(prompt).toMatch(/Every substantive response ends with one reflective question tailored to what the creator just said or to a specific detail of this report\./);
+    expect(prompt).toMatch(/Never a generic follow-up such as "Does that make sense\?", "Anything else\?" or "What would you like to know\?"\./);
+    // The brevity rule hands off to the question, not to silence.
+    expect(prompt).toMatch(/one to three sentences, then your question\./);
+  });
+
+  it("never promises fame, fortune, virality or placement", () => {
+    expect(prompt).toMatch(/Never promise or predict fame, fortune, virality, chart success, streams, a sync placement or a deal\./);
+    expect(prompt).toMatch(/Chirp measures signals; it does not measure outcomes\./);
+  });
+
+  it("every governed clause matches the canonical text it governs, and the sentinel's contract covers the lead refinement", () => {
+    for (const clause of RHODES_VOICE_GOVERNED_CLAUSES) {
+      const text = clause.field === "system_prompt" ? prompt : first;
+      expect(clause.pattern.test(text), clause.id).toBe(true);
+    }
+    const ids = RHODES_VOICE_GOVERNED_CLAUSES.map((c) => c.id);
+    for (const required of ["report_context_bound", "conversational_lead_sequence", "reflective_question_close", "no_generic_follow_ups", "no_outcome_promises"]) {
+      expect(ids).toContain(required);
+    }
+    // Structural clauses are the ones without which the product breaks.
+    expect(RHODES_VOICE_GOVERNED_CLAUSES.filter((c) => c.kind === "structural").map((c) => c.id)).toEqual([
+      "report_context_bound",
+      "report_fenced_as_data",
+      "has_the_report",
+      "song_identity",
+      "epi_variables",
+      "first_message_signal",
+    ]);
+  });
+
+  it("references only variables the server sends (governed six plus the convenience scores)", () => {
+    const used = Array.from(`${prompt}\n${first}`.matchAll(/\{\{([a-z_]+)\}\}/g)).map((m) => m[1]);
+    const supported = new Set<string>([...RHODES_VOICE_VARIABLES, ...RHODES_VOICE_EXTRA_VARIABLES]);
+    for (const v of used) expect(supported.has(v), v).toBe(true);
+    for (const v of RHODES_VOICE_VARIABLES) expect(used, v).toContain(v);
   });
 });
 
