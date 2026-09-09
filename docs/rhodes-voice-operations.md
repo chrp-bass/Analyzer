@@ -64,21 +64,27 @@ System prompt and First message reference them with `{{name}}` — see
 dashboard edit. No override is sent. The route logs
 `event=context-built chars=… result=complete|trimmed_…` per session.
 
-### Conversational lead (governed)
+### Conversational lead (governed) and the source of truth
 
-The agent's System prompt carries a **HOW TO LEAD** section: Rhodes leads
-through *reveal → interpret → ask → listen → deepen → suggest one action → ask
-again*; every substantive response ends with one reflective question tailored
-to what the creator just said or to a specific detail of the report; he never
-uses generic follow-ups and never promises fame, fortune, virality, chart
-success, streams, a placement or a deal. The exact text is
-`RHODES_VOICE_SYSTEM_PROMPT` in `src/lib/rhodes-voice/agent-prompt.ts`,
-mirrored into `docs/rhodes-voice-agent-config.md`. The production sentinel
-(`docs/production-sentinel.md`, boundary 5) reads the live agent on every
-production deployment and nightly: an exact match is PASS, a wording
-difference with every governed clause present is WARN, and a lost structural
-clause (the report binding) is RED. Change the prompt in code, regenerate the
-document, then paste — never the other way round.
+The **published ElevenLabs agent is the approved source of truth**; the code
+is reconciled to it, never the other way round. `RHODES_VOICE_SYSTEM_PROMPT`
+and `RHODES_VOICE_FIRST_MESSAGE` in `src/lib/rhodes-voice/agent-prompt.ts`
+are byte-for-byte copies of the published text (synced 2026-09-09; see
+`docs/production-sentinel.md` §5a for the export → sync procedure), mirrored
+into `docs/rhodes-voice-agent-config.md`.
+
+The published System prompt carries **HOW TO LEAD THE CONVERSATION**: Rhodes
+leads a guided discovery — reveal one report-grounded signal, explain why it
+matters, ask one thoughtful question, listen, progressively deepen, suggest
+one report-grounded experiment, then ask again; every substantive response
+ends with exactly one concise, context-specific reflective question; generic
+prompts are never used; fame, fortune, virality, placement, audience growth
+or commercial success are never promised. The First message ends with a
+reflective question. `RHODES_VOICE_GOVERNED_CLAUSES` pins these as
+behavioural clauses and the report binding as structural clauses; the
+production sentinel (boundary 5) reads the live agent after every production
+deployment and nightly: exact match PASS, wording drift WARN, lost structural
+clause RED.
 
 ## 2. Required Vercel variables
 

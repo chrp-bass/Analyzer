@@ -155,19 +155,21 @@ describe("buildRhodesVoiceContext — every report section becomes context", () 
 });
 
 describe("the opening", () => {
-  it("is one short introduction plus ONE complete grounded sentence of at most 18 words — never a summary", () => {
+  it("is one short introduction plus ONE complete grounded sentence of at most 18 words, then the published reflective question — never a summary", () => {
     const ctx = buildRhodesVoiceContext(fullReport());
     expect(ctx.firstMessage.startsWith("I'm Dr. Rhodes. Chirp found something useful in \"Bohemian Rhapsody\": ")).toBe(true);
     const words = ctx.firstMessage.split(/\s+/).filter(Boolean).length;
-    // ~12 seconds of speech at Rhodes's cadence: fixed part 9 words + signal ≤ 18.
-    expect(words).toBeLessThanOrEqual(27);
+    // ~15 seconds of speech at Rhodes's cadence: fixed parts 9 + 11 words, signal ≤ 18.
+    expect(words).toBeLessThanOrEqual(38);
     expect(ctx.variables.first_signal.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(18);
     expect(ctx.variables.first_signal).toMatch(/[.!?]$/); // a complete sentence
     expect(ctx.firstMessage).not.toMatch(/Focus 64|Calm 38|Motivation 82|Balance 55/); // no score recital
     expect(ctx.firstMessage).not.toContain("report below"); // no old invitation boilerplate
     // The signal is the governed signature, verbatim.
     expect(ctx.variables.first_signal).toBe("A theatrical architecture that keeps changing rooms without losing the thread.");
-    expect(ctx.firstMessage.endsWith(ctx.variables.first_signal)).toBe(true);
+    // The signal sits between the introduction and the published reflective question.
+    expect(ctx.firstMessage).toContain(`: ${ctx.variables.first_signal} What part of that feels most true`);
+    expect(ctx.firstMessage.trim().endsWith("?")).toBe(true);
   });
 
   it("falls back to the governed analysis when the signature is missing, and never invents", () => {

@@ -182,7 +182,8 @@ describe("runRhodesChecks", () => {
     const r = await runRhodesChecks({ env, fetchImpl: liveFetch({ prompt: without }), mint: okMint });
     expect(byId(r, "system_prompt_drift")).toMatchObject({
       status: "WARN",
-      evidence: { missingBehavioural: ["conversational_lead_sequence", "reflective_question_close", "no_generic_follow_ups", "no_outcome_promises"] },
+      // "one tailored reflective question" survives in HOW TO ANSWER, so only these three vanish.
+      evidence: { missingBehavioural: ["conversational_lead_sequence", "no_generic_follow_ups", "no_outcome_promises"] },
     });
   });
 

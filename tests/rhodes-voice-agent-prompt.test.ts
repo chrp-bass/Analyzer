@@ -75,26 +75,35 @@ describe("system prompt", () => {
     expect(prompt).toMatch(/do not narrate a list of scores/i);
   });
 
-  it("leads the conversation: reveal → interpret → ask → listen → deepen → one action → ask again", () => {
-    expect(prompt).toMatch(/You lead the conversation\./);
-    const lead = /reveal one specific finding[\s\S]*interpret what it means[\s\S]*ask the creator one question[\s\S]*listen[\s\S]*deepen on what they said[\s\S]*suggest one action grounded in the report[\s\S]*then ask again/;
-    expect(prompt).toMatch(lead);
-    // The sequence appears in exactly this order.
-    const idx = ["reveal one", "interpret what", "ask the creator one", "listen, deepen", "deepen on", "suggest one action", "then ask again"].map((k) => prompt.indexOf(k));
+  it("leads the conversation as published: reveal → explain → ask → listen → deepen → suggest → ask again", () => {
+    expect(prompt).toContain("HOW TO LEAD THE CONVERSATION");
+    expect(prompt).toMatch(/You are not a passive question-answering assistant\. Lead the creator through a guided discovery/);
+    const idx = [
+      "reveal one report-grounded signal",
+      "explain why it matters",
+      "then ask one thoughtful question",
+      "Listen to the creator’s answer",
+      "Progressively deepen the conversation",
+      "When suggesting action, offer one report-grounded experiment",
+      "ask the creator whether it fits",
+    ].map((k) => prompt.indexOf(k));
     expect(idx.every((i) => i >= 0)).toBe(true);
+    // The steps appear in exactly this order.
     expect([...idx].sort((a, b) => a - b)).toEqual(idx);
   });
 
   it("ends every substantive response with one tailored reflective question and forbids generic follow-ups", () => {
-    expect(prompt).toMatch(/Every substantive response ends with one reflective question tailored to what the creator just said or to a specific detail of this report\./);
-    expect(prompt).toMatch(/Never a generic follow-up such as "Does that make sense\?", "Anything else\?" or "What would you like to know\?"\./);
-    // The brevity rule hands off to the question, not to silence.
-    expect(prompt).toMatch(/one to three sentences, then your question\./);
+    expect(prompt).toMatch(/End each substantive response with exactly one concise, context-specific reflective question/);
+    expect(prompt).toMatch(/Never use generic prompts such as “Would you like to know more\?” or “Do you have any other questions\?”/);
+    expect(prompt).toMatch(/Ask questions that could only belong to this song and this conversation\./);
+    // The brevity rule hands off to the question, not to silence — and never stacks questions.
+    expect(prompt).toMatch(/normally two or three sentences, then one tailored reflective question\./);
+    expect(prompt).toMatch(/Do not lecture, interrogate, stack multiple questions or dominate the exchange\./);
   });
 
   it("never promises fame, fortune, virality or placement", () => {
-    expect(prompt).toMatch(/Never promise or predict fame, fortune, virality, chart success, streams, a sync placement or a deal\./);
-    expect(prompt).toMatch(/Chirp measures signals; it does not measure outcomes\./);
+    expect(prompt).toMatch(/Never promise fame, fortune, virality, placement, audience growth or commercial success\./);
+    expect(prompt).toMatch(/Distinguish opportunity from prediction and possibility from proof\./);
   });
 
   it("every governed clause matches the canonical text it governs, and the sentinel's contract covers the lead refinement", () => {
@@ -120,13 +129,17 @@ describe("system prompt", () => {
   it("behavioural clauses recognise the refinement in an operator's own words, not only the canonical sentence", () => {
     const by = (id: string) => RHODES_VOICE_GOVERNED_CLAUSES.find((c) => c.id === id)!.pattern;
     expect(by("conversational_lead_sequence").test("Lead: reveal → interpret → ask → listen → deepen → suggest one action → ask again.")).toBe(true);
-    expect(by("conversational_lead_sequence").test("Reveal a finding, interpret it, ask, listen, deepen, suggest a next step, then ask once more.")).toBe(true);
+    expect(by("conversational_lead_sequence").test("Reveal a finding, explain it, ask, listen, deepen, suggest a next step, then ask once more.")).toBe(true);
     expect(by("conversational_lead_sequence").test("Answer questions about the report.")).toBe(false);
     expect(by("no_generic_follow_ups").test("He avoids generic follow-ups.")).toBe(true);
+    expect(by("no_generic_follow_ups").test("Never use generic prompts such as “Anything else?”")).toBe(true);
     expect(by("no_generic_follow_ups").test("No generic follow-up questions.")).toBe(true);
     expect(by("no_generic_follow_ups").test("Ask a generic follow-up when unsure.")).toBe(false);
     expect(by("no_outcome_promises").test("Never promise fame, fortune, virality or placement.")).toBe(true);
     expect(by("reflective_question_close").test("End every answer with one reflective question.")).toBe(true);
+    expect(by("reflective_question_close").test("exactly one concise, context-specific reflective question")).toBe(true);
+    expect(by("first_message_ends_with_question").test('Hi "{{song_title}}": {{first_signal}} What feels true to you?')).toBe(true);
+    expect(by("first_message_ends_with_question").test('Hi "{{song_title}}": {{first_signal}}')).toBe(false);
   });
 
   it("references only variables the server sends (governed six plus the convenience scores)", () => {
@@ -138,14 +151,17 @@ describe("system prompt", () => {
 });
 
 describe("first message", () => {
-  it("is the exact creator-facing opening: one introduction, then one grounded signal", () => {
-    expect(first).toBe("I'm Dr. Rhodes. Chirp found something useful in \"{{song_title}}\": {{first_signal}}");
+  it("is the exact published opening: one introduction, one grounded signal, then one reflective question", () => {
+    expect(first).toBe(
+      "I'm Dr. Rhodes. Chirp found something useful in \"{{song_title}}\": {{first_signal}} What part of that feels most true—or most surprising—to you?",
+    );
     const rendered = renderFirstMessage({ song_title: "Safe", first_signal: "A settled architecture that never asks for attention." });
     // "Dr." is an abbreviation, not a sentence end.
     const sentences = rendered.replace("Dr.", "Dr").match(/[^.!?]+[.!?]+/g) ?? [];
-    expect(sentences.length).toBe(2); // the introduction + the one signal sentence
-    // ~12 seconds at Rhodes's cadence is at most ~30 words; the fixed part is 9.
-    expect(rendered.split(/\s+/).length).toBeLessThanOrEqual(9 + 18);
+    expect(sentences.length).toBe(3); // the introduction + the one signal sentence + the reflective question
+    expect(rendered.trim().endsWith("?")).toBe(true);
+    // ~15 seconds at Rhodes's cadence: the fixed parts are 9 + 11 words, the signal at most 18.
+    expect(rendered.split(/\s+/).length).toBeLessThanOrEqual(9 + 18 + 11);
     expect(rendered).toContain("Chirp");
     expect(rendered).not.toMatch(/\bCHRP\b/);
     // Addressed to the creator about their song; no listener framing.
@@ -204,7 +220,22 @@ describe("every placeholder has a safe fallback", () => {
     expect(ctx.variables.epi_mode).toBe("n/a");
     expect(ctx.variables.first_signal).toBe("Chirp measured a clear emotional signature in this song.");
     expect(ctx.variables.report_context).toBe('SONG: "this song" by the artist.');
-    expect(ctx.firstMessage).toBe("I'm Dr. Rhodes. Chirp found something useful in \"this song\": Chirp measured a clear emotional signature in this song.");
+    expect(ctx.firstMessage).toBe(
+      "I'm Dr. Rhodes. Chirp found something useful in \"this song\": Chirp measured a clear emotional signature in this song. What part of that feels most true—or most surprising—to you?",
+    );
+  });
+});
+
+describe("the constants are the published agent, not a paraphrase", () => {
+  it("carry the published fingerprints recorded at sync time (2026-09-09)", async () => {
+    const fp = async (t: string) => {
+      const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+      return Array.from(new Uint8Array(d)).slice(0, 6).map((b) => b.toString(16).padStart(2, "0")).join("");
+    };
+    expect(prompt.length).toBe(4109);
+    expect(first.length).toBe(143);
+    expect(await fp(prompt)).toBe("265663d732b2");
+    expect(await fp(first)).toBe("3122f5aa23b8");
   });
 });
 
