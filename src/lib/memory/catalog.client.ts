@@ -23,6 +23,8 @@ export interface ServerCatalogEntry {
   artistName: string | null;
   epiScore: number | null;
   mode: string | null;
+  /** The four measured dimensions, as persisted with the analysis. */
+  scores?: unknown;
   analyzedAt: string | null;
   status: "pending" | "complete" | "failed";
 }
@@ -40,12 +42,25 @@ export interface CatalogState {
   identified: boolean;
   scans: ScanRecordOnAccount[];
   credits: CatalogPurchase | null;
+  /**
+   * What the server knows about each song, by scan id. A real song is not in
+   * the bundled fixture catalogue, so this — not a fixture lookup — is the
+   * only source of its title, artist, EPI, mode and shape in My Songs.
+   */
+  entries: Record<string, ServerCatalogEntry>;
 }
 
 /** True only in local development, where the demo fallback is permitted. */
 export function demoFallbackAllowed(): boolean {
   return process.env.NODE_ENV !== "production";
 }
+
+const EMPTY: CatalogState = {
+  identified: false,
+  scans: [],
+  credits: null,
+  entries: {},
+};
 
 /**
  * Fetch the caller's catalog and authoritative balance.
@@ -57,7 +72,7 @@ export function demoFallbackAllowed(): boolean {
 export async function fetchServerCatalog(): Promise<CatalogState> {
   try {
     const res = await fetch("/api/catalog", { cache: "no-store" });
-    if (!res.ok) return { identified: false, scans: [], credits: null };
+    if (!res.ok) return EMPTY;
 
     const body = (await res.json()) as {
       catalog?: ServerCatalogEntry[];
@@ -65,10 +80,13 @@ export async function fetchServerCatalog(): Promise<CatalogState> {
       identified?: boolean;
     };
 
-    if (!body.identified) return { identified: false, scans: [], credits: null };
+    if (!body.identified) return EMPTY;
 
-    const scans: ScanRecordOnAccount[] = (body.catalog ?? [])
-      .filter((e) => e.status === "complete")
+    const complete = (body.catalog ?? []).filter((e) => e.status === "complete");
+    const entries: Record<string, ServerCatalogEntry> = {};
+    for (const e of complete) entries[e.scanId] = e;
+
+    const scans: ScanRecordOnAccount[] = complete
       .map((e) => ({
         id: e.scanId,
         trackSlug: e.trackKey,
@@ -90,8 +108,8 @@ export async function fetchServerCatalog(): Promise<CatalogState> {
         }
       : null;
 
-    return { identified: true, scans, credits };
+    return { identified: true, scans, credits, entries };
   } catch {
-    return { identified: false, scans: [], credits: null };
+    return EMPTY;
   }
 }

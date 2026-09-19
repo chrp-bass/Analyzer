@@ -2,15 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/accounts";
+import { fetchIdentityState } from "@/lib/identity-state";
 
 type Mode = "checking" | "signed-out" | "signed-in";
 
 /**
- * Nav link that reads the current user on mount and renders either
- * "Sign in" (-> /signin) or "Dashboard" (-> /dashboard). While the
- * hydration read is in flight it renders an invisible placeholder of
- * the same footprint so the header doesn't jump.
+ * Nav link that asks the SERVER who this is on mount and renders either
+ * "Sign in" (-> /signin) or "Dashboard" (-> /dashboard). While the read is
+ * in flight it renders an invisible placeholder of the same footprint so the
+ * header doesn't jump.
+ *
+ * The answer comes from the Supabase session cookie via /api/identity/state.
+ * Any real session — verified, or the anonymous identity that owns this
+ * browser's reports — gets "Dashboard", because My Songs is where that
+ * identity's songs live. A localStorage demo user no longer has a say.
  *
  * Both SiteHeader (product-shell pages) and the marketing Nav use this
  * so the whole site speaks the same signed-in state.
@@ -21,9 +26,9 @@ export function AuthNavLink() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const user = await getCurrentUser();
+      const identity = await fetchIdentityState();
       if (cancelled) return;
-      setMode(user ? "signed-in" : "signed-out");
+      setMode(identity.ownership === "none" ? "signed-out" : "signed-in");
     })();
     return () => {
       cancelled = true;

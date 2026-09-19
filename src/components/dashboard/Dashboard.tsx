@@ -9,9 +9,6 @@ import {
   User,
   CatalogPurchase,
   ScanRecordOnAccount,
-  getCurrentUser,
-  getUserScans,
-  getUserCredits,
   hasSeenProfileUnlock,
   markProfileUnlockSeen,
   hasSeenCatalogComplete,
@@ -22,9 +19,11 @@ import {
 import {
   fetchServerCatalog,
   demoFallbackAllowed,
+  type ServerCatalogEntry,
 } from "@/lib/memory/catalog.client";
+import { fetchIdentityState } from "@/lib/identity-state";
+import { songRowFor } from "@/lib/memory/song-row";
 import { TIERS } from "@/lib/payments";
-import { sendProfileUnlock } from "@/lib/email";
 import {
   getFreeReportById,
   FreeReport,
@@ -45,51 +44,47 @@ export function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [scans, setScans] = useState<ScanRecordOnAccount[]>([]);
   const [credits, setCredits] = useState<CatalogPurchase | null>(null);
+  const [entries, setEntries] = useState<Record<string, ServerCatalogEntry>>(
+    {},
+  );
   const [showUnlockBanner, setShowUnlockBanner] = useState(false);
   const [showCatalogCompleteBand, setShowCatalogCompleteBand] = useState(false);
   const [playReveal, setPlayReveal] = useState(false);
 
   async function refresh() {
-    // The SERVER is the authority for catalog and credit balance. It is asked
-    // first, and when it answers for a verified identity its answer is the
-    // only one used — a cleared or edited localStorage cannot add a scan,
-    // restore a spent credit, or extend an entitlement.
-    const server = await fetchServerCatalog();
-    if (server.identified) {
-      const u = await getCurrentUser();
-      setUser(u ?? { id: "server", email: null, createdAt: "" });
-      const s = [...server.scans].sort((a, b) =>
-        a.scannedAt < b.scannedAt ? 1 : -1,
-      );
-      setScans(s);
-      setCredits(server.credits);
-      setHydrated(true);
-      return;
-    }
+    // The SERVER is the only authority here — for who this is, and for what
+    // they have. Identity comes from the Supabase session cookie (via
+    // /api/identity/state) and the songs from the server catalog tied to
+    // that same identity. Nothing is read from localStorage: a browser-only
+    // demo identity used to be shown in place of the real creator, which put
+    // a stranger's email above a list that could not contain their songs.
+    const [server, identity] = await Promise.all([
+      fetchServerCatalog(),
+      fetchIdentityState(),
+    ]);
 
-    // No server memory available. In local development the browser-backed
-    // demo catalog still renders so the flow stays exercisable; in production
-    // this branch is unreachable and the dashboard simply shows nothing.
-    if (!demoFallbackAllowed()) {
+    if (!server.identified) {
+      // No server-verified session (or the memory layer is unavailable).
       setUser(null);
       setScans([]);
       setCredits(null);
+      setEntries({});
       setHydrated(true);
       return;
     }
 
-    const u = await getCurrentUser();
-    setUser(u);
-    if (u) {
-      const s = await getUserScans(u.id);
-      // Sort newest first
-      s.sort((a, b) => (a.scannedAt < b.scannedAt ? 1 : -1));
-      setScans(s);
-      setCredits(await getUserCredits(u.id));
-    } else {
-      setScans([]);
-      setCredits(null);
-    }
+    // `id` only keys this browser's "already seen" flags for the unlock
+    // moments below; it is never sent anywhere or used as authority.
+    setUser({
+      id: identity.email ?? "server",
+      email: identity.email,
+      createdAt: "",
+    });
+    setScans(
+      [...server.scans].sort((a, b) => (a.scannedAt < b.scannedAt ? 1 : -1)),
+    );
+    setCredits(server.credits);
+    setEntries(server.entries);
     setHydrated(true);
   }
 
@@ -102,7 +97,6 @@ export function Dashboard() {
     (async () => {
       const seenProfile = await hasSeenProfileUnlock(user.id);
       if (!seenProfile && scans.length >= UNLOCK_THRESHOLD) {
-        await sendProfileUnlock(user.id);
         setShowUnlockBanner(true);
         setPlayReveal(true);
         await markProfileUnlockSeen(user.id);
@@ -244,7 +238,7 @@ export function Dashboard() {
           />
         )}
 
-        <ScanList scans={scans} />
+        <ScanList scans={scans} entries={entries} />
 
         <div className="mt-12 flex flex-wrap justify-end items-center gap-x-6 gap-y-2">
           <button
@@ -259,6 +253,7 @@ export function Dashboard() {
           >
             Sign out
           </button>
+          {demoFallbackAllowed() && (
           <button
             onClick={async () => {
               if (confirm("Reset all demo state? This wipes your scans, catalog, and account on this browser.")) {
@@ -270,6 +265,7 @@ export function Dashboard() {
           >
             Reset demo state
           </button>
+          )}
         </div>
       </section>
       <SiteFooter />
@@ -462,7 +458,13 @@ function ProgressCell({
   );
 }
 
-function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
+function ScanList({
+  scans,
+  entries,
+}: {
+  scans: ScanRecordOnAccount[];
+  entries: Record<string, ServerCatalogEntry>;
+}) {
   return (
     <div className="mt-10">
       <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft">
@@ -476,9 +478,11 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
       ) : (
         <div className="mt-3 flex flex-col">
           {scans.map((s) => {
-            const r = getFreeReportById(s.trackSlug);
+            // The server's record of the song, not a fixture lookup — a real
+            // song is never in the bundled catalogue.
+            const r = songRowFor(s, entries);
             if (!r) return null;
-            const chip = MODE_COLORS[r.epi.mode];
+            const chip = r.mode ? MODE_COLORS[r.mode] : null;
             return (
               <Link
                 key={s.id}
@@ -486,40 +490,46 @@ function ScanList({ scans }: { scans: ScanRecordOnAccount[] }) {
                 className="grid grid-cols-[44px_1fr_auto] items-center gap-4 py-3 border-b border-rule hover:bg-oat"
               >
                 <div>
-                  <PolygonRadar
-                    vertices={polygonFromChrpScores(r.chrp_scores)}
-                    mode={r.epi.mode}
-                    epiScore={r.epi.score}
-                    size={44}
-                    showGrid={false}
-                    showLabels={false}
-                    showCenter={false}
-                  />
+                  {r.vertices && r.mode && (
+                    <PolygonRadar
+                      vertices={r.vertices}
+                      mode={r.mode}
+                      epiScore={r.epiScore ?? 0}
+                      size={44}
+                      showGrid={false}
+                      showLabels={false}
+                      showCenter={false}
+                    />
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="font-display text-[16px] md:text-[18px] leading-tight">
-                    {r.track.title}
+                    {r.title}
                   </div>
                   <div className="font-sans text-[11.5px] text-ink-soft mt-0.5">
-                    {r.track.artist} &nbsp;·&nbsp;{" "}
+                    {r.artist ? <>{r.artist} &nbsp;·&nbsp; </> : null}
                     {new Date(s.scannedAt).toLocaleString()}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <div className="font-display text-[18px] md:text-[20px] leading-none">
-                    {r.epi.score}
-                  </div>
-                  <span
-                    className="mode-pill"
-                    style={{
-                      backgroundColor: chip.chipBg,
-                      color: chip.chipText,
-                      padding: "4px 10px",
-                      fontSize: 10,
-                    }}
-                  >
-                    {r.epi.mode}
-                  </span>
+                  {r.epiScore !== null && (
+                    <div className="font-display text-[18px] md:text-[20px] leading-none">
+                      {r.epiScore}
+                    </div>
+                  )}
+                  {chip && (
+                    <span
+                      className="mode-pill"
+                      style={{
+                        backgroundColor: chip.chipBg,
+                        color: chip.chipText,
+                        padding: "4px 10px",
+                        fontSize: 10,
+                      }}
+                    >
+                      {r.mode}
+                    </span>
+                  )}
                 </div>
               </Link>
             );
