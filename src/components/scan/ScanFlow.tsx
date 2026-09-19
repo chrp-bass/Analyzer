@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ScanInput } from "@/components/ScanInput";
 import { trackOptions } from "@/lib/fixtures/tracks";
 import { getCurrentUser, User } from "@/lib/accounts";
 import { fixtureFallbackAllowed } from "@/lib/data-source";
+import { LINK_EXPIRED_PARAM, LINK_EXPIRED_VALUE } from "@/lib/auth/return-link";
 
 /**
  * Scan entry.
@@ -45,6 +47,12 @@ export function ScanFlow() {
 }
 
 function ScanStep({ user }: { user: User | null }) {
+  // /auth/callback sends a creator here when the link in their email could
+  // not be used — expired, already used, or opened somewhere it cannot
+  // complete. Say so plainly; their songs are untouched.
+  const linkExpired =
+    useSearchParams().get(LINK_EXPIRED_PARAM) === LINK_EXPIRED_VALUE;
+
   return (
     <>
       <section className="page-hero">
@@ -79,6 +87,25 @@ function ScanStep({ user }: { user: User | null }) {
 
       <section className="page-band">
         <div className="wrap" style={{ maxWidth: 680 }}>
+          {linkExpired && (
+            <p
+              role="status"
+              style={{
+                margin: "0 0 28px",
+                padding: "14px 16px",
+                border: "1px solid var(--line-light)",
+                fontFamily: "var(--s)",
+                fontSize: 13.5,
+                lineHeight: 1.55,
+                color: "var(--on-light)",
+              }}
+            >
+              That link has expired or was already used. Your songs and
+              reports are safe. Open the email on the device you saved from,
+              or choose &ldquo;Save my report&rdquo; again to get a fresh
+              link.
+            </p>
+          )}
           <ScanInput />
 
           {fixtureFallbackAllowed() && (

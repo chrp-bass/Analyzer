@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { renderEmail, sendEmail, emailConfigured } from "@/lib/email/send.server";
 import type { OfferKey } from "@/lib/commerce/offers";
+import { isReturnLinkType, tokenHashReturnUrl } from "@/lib/auth/return-link";
 
 /**
  * Post-purchase confirmation.
@@ -79,25 +80,34 @@ export async function sendPurchaseEmail(
     /\/$/,
     "",
   );
-  const destination =
+  const destinationPath =
     input.offer === "song_intelligence" && input.scanId
-      ? `${site}/scan/${input.scanId}/preview`
-      : `${site}${copy.path}`;
+      ? `/scan/${input.scanId}/preview`
+      : copy.path;
 
   // The CTA is a secure return link for THIS creator. Generated, not sent,
   // by the auth service — the account email templates are untouched.
+  //
+  // The link is built from the one-time token hash and completes on OUR
+  // /auth/callback, not from the auth service's `action_link`. That link
+  // returns the session in the URL fragment, which the app's PKCE browser
+  // client refuses ("Not a valid PKCE flow url") and no server can read — so
+  // it would have dropped the creator on the page signed out. A token hash
+  // needs nothing stored in the browser, so it also works from a phone or a
+  // mail app's own browser.
   let ctaUrl: string;
   try {
     const { data, error } = await db.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: destination },
+      options: { redirectTo: `${site}${destinationPath}` },
     });
-    const link = data?.properties?.action_link;
-    if (error || !link) {
+    const tokenHash = data?.properties?.hashed_token;
+    const type = data?.properties?.verification_type;
+    if (error || !tokenHash || !isReturnLinkType(type)) {
       return { ok: false, reason: "link_failed", detail: error?.message };
     }
-    ctaUrl = link;
+    ctaUrl = tokenHashReturnUrl({ site, tokenHash, type, next: destinationPath });
   } catch (err) {
     return {
       ok: false,

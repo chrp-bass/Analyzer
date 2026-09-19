@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
+import { AUTH_CALLBACK_PATH } from "@/lib/auth/return-link";
 
 /**
  * Identity, established late.
@@ -48,6 +49,18 @@ export async function ensureIdentity(): Promise<string | null> {
  * failure, and the caller must not tell the creator their report was saved
  * when no email will arrive.
  */
+/**
+ * Where the link in the email brings the creator back to. Without this the
+ * auth service falls back to the site root, which has nothing that can turn
+ * the returning auth code into a session — the creator clicked, saw the
+ * homepage, and never reached their report. /auth/callback exchanges the
+ * code and lands them on My Songs.
+ */
+function returnLinkTarget(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.origin}${AUTH_CALLBACK_PATH}`;
+}
+
 export type LinkEmailResult =
   | { ok: true }
   | { ok: false; reason: "not_configured" | "in_use" | "send_failed" };
@@ -58,7 +71,11 @@ export async function linkEmail(email: string): Promise<LinkEmailResult> {
   const userId = await ensureIdentity();
   if (!userId) return { ok: false, reason: "not_configured" };
 
-  const { error } = await supabase.auth.updateUser({ email });
+  const emailRedirectTo = returnLinkTarget();
+  const { error } = await supabase.auth.updateUser(
+    { email },
+    { emailRedirectTo },
+  );
   if (!error) return { ok: true };
 
   // Already-registered address: this email belongs to an existing identity.
@@ -71,7 +88,10 @@ export async function linkEmail(email: string): Promise<LinkEmailResult> {
     message.includes("already exists");
 
   if (alreadyRegistered) {
-    const { error: otpError } = await supabase.auth.signInWithOtp({ email });
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo },
+    });
     if (!otpError) return { ok: true };
     console.error("[identity] sign-in link failed:", otpError.message);
     return { ok: false, reason: "send_failed" };
