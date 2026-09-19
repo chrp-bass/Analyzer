@@ -2,6 +2,7 @@ import "server-only";
 import {
   getSoundchartsClient,
   SoundchartsError,
+  soundchartsIdentity,
 } from "@/lib/engine/soundcharts";
 import { getSpotifyClient } from "@/lib/engine/spotify";
 import {
@@ -167,7 +168,14 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
   // The ISRC is the join key: it came from the Spotify result the creator
   // chose, so an ISRC-scoped Spotify lookup recovers exactly the recording
   // they picked, server-side, without trusting anything the client sent.
-  const identity = await resolveSpotifyIdentity(isrc);
+  //
+  // The ONE exception is Spotify being unreachable. Refusing to analyse any
+  // song at all because an identity lookup is down is the worse failure, so
+  // in that case — and only that case — the recording's name comes from the
+  // Soundcharts record already in hand (its performing-artist list, not the
+  // unreliable creditName). A Spotify that ANSWERS but has no match still
+  // fails explicitly, exactly as before.
+  const identity = await resolveIdentity(isrc, song);
 
   const payload: AnalyzePayload = {
     song: {
@@ -200,6 +208,39 @@ export async function analyzeByIsrc(isrc: string): Promise<AnalyzePayload> {
 }
 
 /**
+ * Recording identity: Spotify, with Soundcharts standing in only while
+ * Spotify cannot be reached. Which one answered is logged.
+ */
+async function resolveIdentity(
+  isrc: string,
+  song: Record<string, unknown>,
+): Promise<{ title: string; artist: string }> {
+  try {
+    const identity = await resolveSpotifyIdentity(isrc);
+    return identity;
+  } catch (err) {
+    if (!(err instanceof SpotifyUnreachableError)) throw err;
+    const { title, artist } = soundchartsIdentity(song);
+    if (!title || !artist) throw new AnalyzeError(err.message, 502);
+    console.warn(
+      `[song-api/analyze] identity provider=soundcharts isrc=${isrc} reason="${err.reason}"`,
+    );
+    return { title, artist };
+  }
+}
+
+/** Spotify could not be asked at all — as opposed to answering "no match". */
+class SpotifyUnreachableError extends Error {
+  constructor(
+    message: string,
+    readonly reason: string,
+  ) {
+    super(message);
+    this.name = "SpotifyUnreachableError";
+  }
+}
+
+/**
  * Canonical recording identity for an ISRC, from Spotify.
  *
  * Fails explicitly rather than falling back to Soundcharts metadata: a wrong
@@ -214,11 +255,10 @@ async function resolveSpotifyIdentity(
   try {
     items = await getSpotifyClient().searchTracks(`isrc:${isrc}`, 1);
   } catch (err) {
-    throw new AnalyzeError(
-      `could not resolve recording identity: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-      502,
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new SpotifyUnreachableError(
+      `could not resolve recording identity: ${detail}`,
+      detail.slice(0, 80).replace(/\s+/g, " "),
     );
   }
 

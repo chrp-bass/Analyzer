@@ -1,31 +1,47 @@
 import { NextResponse } from "next/server";
 import { getSpotifyClient } from "@/lib/engine/spotify";
+import { getSoundchartsClient } from "@/lib/engine/soundcharts";
+import { createSearchBudget } from "@/lib/engine/search-budget";
+import {
+  createSongSearch,
+  SEARCH_LIMITED_MESSAGE,
+} from "@/lib/engine/song-search";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Loose shape of a Spotify /search track item — every path we care about
-// is optional so a partial upstream response never throws at access time.
-interface SpotifySearchTrack {
-  id?: string;
-  name?: string;
-  duration_ms?: number;
-  external_ids?: { isrc?: string };
-  external_urls?: { spotify?: string };
-  artists?: Array<{ name?: string }>;
-  album?: {
-    name?: string;
-    release_date?: string;
-    images?: Array<{ url?: string }>;
-  };
-}
+/**
+ * One search per instance, so its caches, its daily budget and its memory of
+ * a recent Spotify failure are shared by every request the instance serves.
+ * The provider clients are resolved lazily, inside the closures, so missing
+ * configuration for one provider only surfaces if that provider is used.
+ */
+const search = createSongSearch({
+  spotifySearch: (query, limit) => getSpotifyClient().searchTracks(query, limit),
+  soundcharts: {
+    searchSongs: (term, limit) => getSoundchartsClient().searchSongs(term, limit),
+    getSongByUuid: (uuid) => getSoundchartsClient().getSongByUuid(uuid),
+    getSongByPlatformId: (platform, id) =>
+      getSoundchartsClient().getSongByPlatformId(platform, id),
+  },
+  budget: createSearchBudget(),
+});
 
 /**
- * GET /api/song-api/search?query=<text>&limit=<1-10>
+ * GET /api/song-api/search?query=<text | spotify track link>&limit=<1-10>
  *
- * Spotify-backed track search. Returns tracks that have an ISRC (needed
- * for the analyze route). Every response wraps the array in { songs }
- * so future fields can be added without breaking clients.
+ * Track search. Returns tracks that have an ISRC (needed for the analyze
+ * route), wrapped in { songs } so fields can be added without breaking
+ * clients.
+ *
+ * Spotify answers when it can. When it cannot, Soundcharts answers the same
+ * query in the same shape — see `@/lib/engine/song-search`. The response is
+ * identical either way; the provider is recorded in the log line only.
+ *
+ *   200 { songs }
+ *   400 { error }                       missing / over-long query
+ *   429 { error: "search_limited", message }   daily fallback budget spent
+ *   502 { error }                       no provider could answer
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -49,32 +65,16 @@ export async function GET(req: Request) {
     );
   }
 
-  try {
-    const items = await getSpotifyClient().searchTracks(query, limit);
-    const songs = items
-      .map((raw) => {
-        const t = raw as SpotifySearchTrack;
-        const isrc = t.external_ids?.isrc;
-        if (!isrc) return null;
-        return {
-          isrc,
-          spotifyTrackId: t.id ?? null,
-          spotifyUrl: t.external_urls?.spotify ?? null,
-          songName: t.name ?? null,
-          artistName: t.artists?.[0]?.name ?? null,
-          albumName: t.album?.name ?? null,
-          artworkUrl: t.album?.images?.[0]?.url ?? null,
-          releaseDate: t.album?.release_date ?? null,
-          durationMs: t.duration_ms ?? null,
-        };
-      })
-      .filter((s): s is NonNullable<typeof s> => s !== null);
-    return NextResponse.json({ songs });
-  } catch (err) {
-    console.error("[song-api/search] upstream error:", err);
+  const outcome = await search(query, limit);
+  if (outcome.ok) return NextResponse.json({ songs: outcome.songs });
+
+  if (outcome.kind === "limited") {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "search failed" },
-      { status: 502 },
+      { error: "search_limited", message: SEARCH_LIMITED_MESSAGE },
+      { status: 429 },
     );
   }
+
+  console.error("[song-api/search] no provider could answer:", outcome.detail);
+  return NextResponse.json({ error: "search failed" }, { status: 502 });
 }

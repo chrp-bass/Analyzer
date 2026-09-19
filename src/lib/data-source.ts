@@ -93,12 +93,24 @@ const analysisCache = new Map<string, FreeReport>();
  * (search already filters to those carrying an ISRC), for the caller to
  * present so the person picks their own song rather than us guessing.
  */
+/**
+ * Search results, in memory for the life of the page session. Repeating a
+ * query — a typo corrected back, the back button, a second look — costs no
+ * second upstream search, whichever provider answered the first one. Only
+ * non-empty answers are kept, so a song that becomes findable is found.
+ */
+const searchCache = new Map<string, SongSearchResult[]>();
+
 export async function searchSongs(
   query: string,
   limit = 10,
 ): Promise<SongSearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
+
+  const cacheKey = `${limit}:${trimmed.toLowerCase().replace(/\s+/g, " ")}`;
+  const remembered = searchCache.get(cacheKey);
+  if (remembered) return remembered;
 
   let res: Response;
   try {
@@ -111,13 +123,25 @@ export async function searchSongs(
   }
 
   if (!res.ok) {
+    // The one failure with its own words: search is temporarily limited, and
+    // the server says what to do about it. Everything else stays generic.
+    if (res.status === 429) {
+      const limited = (await res.json().catch(() => ({}))) as {
+        message?: unknown;
+      };
+      if (typeof limited.message === "string" && limited.message) {
+        throw new ScanError(limited.message);
+      }
+    }
     throw new ScanError(messageForStatus(res.status));
   }
 
   const body = (await res.json().catch(() => ({}))) as {
     songs?: SongSearchResult[];
   };
-  return body.songs ?? [];
+  const songs = body.songs ?? [];
+  if (songs.length > 0) searchCache.set(cacheKey, songs);
+  return songs;
 }
 
 // ─── Analysis ──────────────────────────────────────────────────────────────
