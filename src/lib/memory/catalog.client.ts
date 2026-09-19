@@ -90,8 +90,11 @@ export async function fetchServerCatalog(): Promise<CatalogState> {
       .map((e) => ({
         id: e.scanId,
         trackSlug: e.trackKey,
-        // Every persisted analysis reached the catalog through an entitlement,
-        // so presence here IS the paid signal — not a browser flag.
+        // Presence here means the song is SAVED, not that it is paid for: a
+        // free reveal saved with "Save my report" is in the catalog with no
+        // entitlement. This legacy field gates nothing — opening a row asks
+        // /api/report, which answers from entitlements alone, and an
+        // unentitled song opens to its free reveal and the $19 offer.
         paid: true,
         scannedAt: e.analyzedAt ?? new Date(0).toISOString(),
       }));

@@ -201,7 +201,7 @@ describe("runPipelineChecks", () => {
   });
 
   it("preparation latency is a percentile over analysis→report wall clock; p95 over the budget is WARN", async () => {
-    const row = (secs: number) => ({ created_at: new Date(T0).toISOString(), analyses: { created_at: new Date(T0 - secs * 1000).toISOString() } });
+    const row = (secs: number) => ({ created_at: new Date(T0).toISOString(), analyses: { analyzed_at: new Date(T0 - secs * 1000).toISOString() } });
     const ok = await runPipelineChecks(deps({ reader: fakeReader({ rows: { reports: [row(20), row(40), row(60)] } }) }));
     expect(byId(ok, "preparation_latency")).toMatchObject({ status: "PASS", evidence: { samples: 3, p50Ms: 40_000, maxMs: 60_000 } });
     const slow = await runPipelineChecks(deps({ reader: fakeReader({ rows: { reports: [row(20), row(300), { created_at: "bad", analyses: null }] } }) }));

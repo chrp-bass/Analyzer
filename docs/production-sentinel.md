@@ -109,7 +109,7 @@ assert the JSON contains no UUID, e-mail, scan id or session id.
 | `fixture_escape_hatch_unset` | `CHRP_ALLOW_FIXTURE_REPORTS` | set → FAIL (fixture prose would be sold as intelligence) |
 | `analyses_recent` | `analyses` by status, 24 h | pending > 60 min → WARN; failed ratio > 25 % over ≥ 4 runs → WARN; idle → PASS |
 | `reports_recent` | `reports` persisted in 24 h, on the current generator, and all-time rows with a null governed section | incomplete > 0 → WARN (entitled reads answer 503 until the offline backfill); superseded generator version → WARN |
-| `preparation_latency` | analysis row → report row wall clock, 24 h, ≤ 500 samples | p95 > 120 s → WARN; idle → PASS |
+| `preparation_latency` | analysis run (`analyzed_at`, re-stamped when preparation starts — a song may be saved to My Songs long before its report is bought) → report row wall clock, 24 h, ≤ 500 samples | p95 > 120 s → WARN; idle → PASS |
 | `stage_latency` | per-stage `[report-timing]` | `NOT_EXERCISED` — log lines only, no queryable surface |
 | `generation`, `upstream_engines` | Anthropic / Soundcharts / Spotify calls | `NOT_EXERCISED` — cost, quota and mutation |
 

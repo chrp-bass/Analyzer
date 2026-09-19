@@ -36,7 +36,7 @@ export interface PipelineCheckDeps {
   checkTimeoutMs?: number;
 }
 
-type ReportLatencyRow = { created_at: string; analyses: { created_at: string } | null };
+type ReportLatencyRow = { created_at: string; analyses: { analyzed_at: string | null } | null };
 
 export async function runPipelineChecks(deps: PipelineCheckDeps): Promise<BoundaryResult> {
   const now = deps.now ?? (() => Date.now());
@@ -134,14 +134,19 @@ export async function runPipelineChecks(deps: PipelineCheckDeps): Promise<Bounda
     const since = new Date(now() - THRESHOLDS.telemetryWindowMs).toISOString();
     const rows = await r.rows<ReportLatencyRow>(
       "reports",
-      "created_at,analyses(created_at)",
+      // `analyzed_at`, not the analysis row's `created_at`. A free reveal can
+      // be saved to My Songs days before its report is bought, so the row's
+      // age says nothing about preparation. Preparation re-runs the analysis
+      // as its first stage and stamps `analyzed_at` then, which makes it the
+      // true start of the preparation that produced this report.
+      "created_at,analyses(analyzed_at)",
       `created_at=gte.${encodeURIComponent(since)}`,
       500,
     );
     if (!rows.ok) return { status: "FAIL" as CheckStatus, summary: `latency proxy unreadable: ${rows.kind}${rows.status ? ` status=${rows.status}` : ""}` };
     const samples: number[] = [];
     for (const row of rows.rows) {
-      const a = row.analyses?.created_at ? Date.parse(row.analyses.created_at) : NaN;
+      const a = row.analyses?.analyzed_at ? Date.parse(row.analyses.analyzed_at) : NaN;
       const b = Date.parse(row.created_at);
       if (Number.isFinite(a) && Number.isFinite(b) && b >= a) samples.push(b - a);
     }
@@ -152,7 +157,7 @@ export async function runPipelineChecks(deps: PipelineCheckDeps): Promise<Bounda
       p95Ms: percentile(samples, 95),
       maxMs: percentile(samples, 100),
       warnAboveMs: THRESHOLDS.preparationLatencyWarnMs,
-      proxy: "analysis row → persisted report row (wall clock)",
+      proxy: "analysis run (analyzed_at) → persisted report row (wall clock)",
     };
     if (samples.length === 0) return { status: "PASS" as CheckStatus, summary: "idle: no preparations to time in the window", evidence };
     if ((evidence.p95Ms as number) > THRESHOLDS.preparationLatencyWarnMs) {

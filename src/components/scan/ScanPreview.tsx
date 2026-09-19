@@ -11,6 +11,7 @@ import { ReportBody } from "@/components/ReportPage";
 import { prepareReport } from "@/lib/data-source";
 import { startCheckout } from "@/lib/payments";
 import { ensureIdentity, linkEmail } from "@/lib/identity";
+import { rememberPendingSave, saveScanToMySongs } from "@/lib/scan/save-scan";
 import { beginPurchaseWith } from "@/lib/scan/begin-purchase";
 import type { ReadState } from "@/lib/scan/read-path";
 
@@ -328,12 +329,29 @@ function RevealActions({ scanId }: { scanId: string }) {
     setError(null);
     setBusy(true);
     try {
-      // Attaches the address to the SAME identity that already owns this
-      // report, so nothing about the creator's history changes. "Saved" is
-      // claimed ONLY when the send was accepted — the report and the
-      // identity survive a failure untouched, so retrying is safe.
+      // The SONG is saved first. Saving used to attach an email and write
+      // nothing else, so once the included report was used a saved song
+      // simply was not there when the creator came back. The server persists
+      // its own free analysis under this identity — no paid report, no
+      // entitlement — and it appears in My Songs.
+      await ensureIdentity();
+      const stored = await saveScanToMySongs(scanId);
+      if (!stored.ok) {
+        setError(
+          "We couldn't save this song just now. Nothing is lost — this page stays yours. Try again in a moment.",
+        );
+        return;
+      }
+
+      // Then the address, attached to the SAME identity that now owns the
+      // song. "Saved" is claimed ONLY when the send was accepted — the song
+      // and the identity survive a failure untouched, so retrying is safe.
       const result = await linkEmail(trimmed);
       if (result.ok) {
+        // The address already belongs to another identity, and the link
+        // signs the creator in as THAT one. Finish the save there too, or
+        // the song would stay behind with the identity they are leaving.
+        if (result.via === "existing_identity") rememberPendingSave(scanId);
         setSent(true);
       } else {
         setError(

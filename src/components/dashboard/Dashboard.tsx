@@ -23,6 +23,7 @@ import {
 } from "@/lib/memory/catalog.client";
 import { fetchIdentityState } from "@/lib/identity-state";
 import { songRowFor } from "@/lib/memory/song-row";
+import { flushPendingSaves } from "@/lib/scan/save-scan";
 import { TIERS } from "@/lib/payments";
 import {
   getFreeReportById,
@@ -58,6 +59,11 @@ export function Dashboard() {
     // that same identity. Nothing is read from localStorage: a browser-only
     // demo identity used to be shown in place of the real creator, which put
     // a stranger's email above a list that could not contain their songs.
+    //
+    // A song saved just before signing in as an EXISTING identity was saved
+    // under the anonymous identity left behind; finish that save under the
+    // identity the creator arrived as, before the catalog is read.
+    await flushPendingSaves();
     const [server, identity] = await Promise.all([
       fetchServerCatalog(),
       fetchIdentityState(),

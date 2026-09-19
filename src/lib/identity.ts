@@ -62,7 +62,16 @@ function returnLinkTarget(): string | undefined {
 }
 
 export type LinkEmailResult =
-  | { ok: true }
+  | {
+      ok: true;
+      /**
+       * upgraded           the address was attached to THIS identity.
+       * existing_identity  the address already belongs to another identity,
+       *                    which was emailed a sign-in link instead — the
+       *                    creator will arrive as THAT identity, not this one.
+       */
+      via: "upgraded" | "existing_identity";
+    }
   | { ok: false; reason: "not_configured" | "in_use" | "send_failed" };
 
 export async function linkEmail(email: string): Promise<LinkEmailResult> {
@@ -76,7 +85,7 @@ export async function linkEmail(email: string): Promise<LinkEmailResult> {
     { email },
     { emailRedirectTo },
   );
-  if (!error) return { ok: true };
+  if (!error) return { ok: true, via: "upgraded" };
 
   // Already-registered address: this email belongs to an existing identity.
   // Send that identity a sign-in link instead of attaching the address here
@@ -92,7 +101,7 @@ export async function linkEmail(email: string): Promise<LinkEmailResult> {
       email,
       options: { emailRedirectTo },
     });
-    if (!otpError) return { ok: true };
+    if (!otpError) return { ok: true, via: "existing_identity" };
     console.error("[identity] sign-in link failed:", otpError.message);
     return { ok: false, reason: "send_failed" };
   }
