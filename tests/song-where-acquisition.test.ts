@@ -54,6 +54,8 @@ describe("autonomous acquisition safety", () => {
       expect(scoutQueries(0)).not.toEqual(scoutQueries(1));
       expect(watchlist(0).every((url) => publicHttpsUrl(url))).toBe(true);
       expect(scoutQueries(0).every((query) => /(?:mood|tempo|instrumental|genre|reference|vocals|BPM)/i.test(query))).toBe(true);
+      expect(Array.from({ length: 13 }, (_, day) => scoutQueries(day)).flat().some((query) =>
+        query.includes("site:tracksynk.com/briefs/"))).toBe(true);
     } finally {
       if (previous !== undefined) process.env.SONG_WHERE_BRAVE_SEARCH_KEY = previous;
     }
