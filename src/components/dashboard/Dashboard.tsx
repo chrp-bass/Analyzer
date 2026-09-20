@@ -48,6 +48,7 @@ export function Dashboard() {
     {},
   );
   const [unlockPrice, setUnlockPrice] = useState<string | null>(null);
+  const [opportunityCounts, setOpportunityCounts] = useState<Record<string, number>>({});
   // Bumped when the page is restored from the back/forward cache, so a row
   // left saying "Opening checkout…" on the way out to Stripe starts clean.
   const [rowEpoch, setRowEpoch] = useState(0);
@@ -79,6 +80,7 @@ export function Dashboard() {
       setCredits(null);
       setEntries({});
       setUnlockPrice(null);
+      setOpportunityCounts({});
       setHydrated(true);
       return;
     }
@@ -97,6 +99,10 @@ export function Dashboard() {
     setEntries(server.entries);
     setUnlockPrice(server.unlockPrice);
     setHydrated(true);
+    fetch("/api/song-where/summary", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() as Promise<{ counts: Record<string, number> }> : null)
+      .then((body) => setOpportunityCounts(body?.counts ?? {}))
+      .catch(() => setOpportunityCounts({}));
   }
 
   useEffect(() => {
@@ -275,6 +281,7 @@ export function Dashboard() {
           scans={scans}
           entries={entries}
           unlockPrice={unlockPrice}
+          opportunityCounts={opportunityCounts}
         />
 
         <div className="mt-12 flex flex-wrap justify-end items-center gap-x-6 gap-y-2">
@@ -519,10 +526,12 @@ function ScanList({
   scans,
   entries,
   unlockPrice,
+  opportunityCounts,
 }: {
   scans: ScanRecordOnAccount[];
   entries: Record<string, ServerCatalogEntry>;
   unlockPrice: string | null;
+  opportunityCounts: Record<string, number>;
 }) {
   return (
     <div className="mt-10">
@@ -542,6 +551,7 @@ function ScanList({
               scan={s}
               entries={entries}
               unlockPrice={unlockPrice}
+              opportunityCount={opportunityCounts[s.id] ?? 0}
             />
           ))}
         </div>
@@ -568,10 +578,12 @@ function SongRowItem({
   scan,
   entries,
   unlockPrice,
+  opportunityCount,
 }: {
   scan: ScanRecordOnAccount;
   entries: Record<string, ServerCatalogEntry>;
   unlockPrice: string | null;
+  opportunityCount: number;
 }) {
   const [phase, setPhase] = useState<"preparing" | "checkout" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -670,6 +682,11 @@ function SongRowItem({
         className={`${grid} border-b border-rule hover:bg-oat`}
       >
         {cells}
+        {opportunityCount > 0 && (
+          <span className="font-sans text-[11px] text-ink-soft md:text-right col-span-3 md:col-span-1">
+            {opportunityCount} Song Where {opportunityCount === 1 ? "opportunity" : "opportunities"}
+          </span>
+        )}
       </Link>
     );
   }
