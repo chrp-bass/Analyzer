@@ -4,6 +4,7 @@ import { currentUserId } from "@/lib/commerce/entitlements";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { prepareReportForScan } from "@/lib/reports/prepare.server";
 import { grantFreeFirst, hasUsedFreeFirst } from "@/lib/commerce/free-first.server";
+import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,13 +59,21 @@ export async function POST(req: Request) {
 
   const db = createAdminClient();
 
-  // Eligibility BEFORE persistence.
+  // EVERY SCANNED SONG IS KEPT.
   //
-  // My Songs means songs this creator actually received intelligence for —
-  // free or paid. Merely looking at a reveal must not quietly file a song
-  // into someone's catalog as though they owned it. So a creator who has
-  // already used their included report gets told so, and nothing is
-  // written: no analysis row, no catalog entry, no implied ownership.
+  // This call is made for every scan that reaches the reveal without an
+  // entitlement, right after the analysis, with an identity already in the
+  // cookie — so it is where a scan becomes part of the creator's library,
+  // whether or not they ever pay. A creator who has used their included
+  // report still gets the song saved: the analysis (song identity, EPI,
+  // mode, the four dimensions, the circumplex) is persisted, and My Songs
+  // shows it LOCKED with an "Unlock" action.
+  //
+  // What is saved is the free reveal and nothing more. No report is
+  // prepared, no entitlement is written, and `/api/report/[id]` still
+  // answers from entitlements alone — a saved song is not an owned report.
+  // (This used to write nothing at all, which is why a scanned song was
+  // gone when the creator came back.)
   if (await hasUsedFreeFirst(db, userId)) {
     const { data: owned } = await db
       .from("entitlements")
@@ -74,7 +83,20 @@ export async function POST(req: Request) {
       .eq("scan_id", scanId)
       .limit(1);
     if (!owned || owned.length === 0) {
-      return NextResponse.json({ status: "already_used" }, { status: 200 });
+      const saved = await ensureAnalysisPersisted(userId, scanId);
+      if (!saved.ok) {
+        // Never blocks the reveal: the creator still sees their song. It is
+        // logged because a song missing from My Songs is exactly the defect
+        // this exists to prevent.
+        console.error(
+          `[api/scan/claim] could not save ${scanId} to the library: ${saved.reason}` +
+            (saved.detail ? ` — ${saved.detail}` : ""),
+        );
+      }
+      return NextResponse.json(
+        { status: "already_used", saved: saved.ok },
+        { status: 200, headers: { "Cache-Control": "private, no-store" } },
+      );
     }
   }
 
@@ -90,6 +112,10 @@ export async function POST(req: Request) {
     );
   }
   if (prepared.status === "failed") {
+    // The included report could not be produced, but the song is still the
+    // creator's scan. Preparation persists the analysis as its first stage;
+    // this covers a failure before that stage. Best-effort, never blocking.
+    await ensureAnalysisPersisted(userId, scanId).catch(() => null);
     return NextResponse.json(
       {
         status: "unavailable",

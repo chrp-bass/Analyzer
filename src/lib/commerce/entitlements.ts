@@ -7,6 +7,7 @@ import {
   consumeCreditForCompletedAnalysis,
   creditSummary,
   resolveAccess,
+  resolveLibraryAccess,
   type AccessResult,
   type ConsumeResult,
   type CreditSummary,
@@ -126,4 +127,18 @@ export async function currentCreditSummary(): Promise<CreditSummary | null> {
   if (!userId) return null;
   const store = createSupabaseEntitlementStore(createAdminClient());
   return creditSummary(store, userId);
+}
+
+/**
+ * Lock state for My Songs: which of the caller's scans open as a full
+ * report. Same identity, same store and same rules as `assertReportAccess`,
+ * so a row marked unlocked is a row the report route will serve.
+ */
+export async function unlockedScansFor(
+  userId: string,
+  scans: ReadonlyArray<{ scanId: string; trackKey: string }>,
+): Promise<Set<string>> {
+  if (!adminConfigured() || scans.length === 0) return new Set();
+  const store = createSupabaseEntitlementStore(createAdminClient());
+  return resolveLibraryAccess(store, userId, scans);
 }

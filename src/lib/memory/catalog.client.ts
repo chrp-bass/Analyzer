@@ -27,6 +27,35 @@ export interface ServerCatalogEntry {
   scores?: unknown;
   analyzedAt: string | null;
   status: "pending" | "complete" | "failed";
+  /**
+   * Will the full report open for this caller? Decided on the server by the
+   * same rules the report route applies. Absent reads as locked.
+   */
+  entitled?: boolean;
+}
+
+/** The offer a locked song is unlocked with, as the server prices it. */
+export interface ServerUnlockOffer {
+  offer: "song_intelligence";
+  amountCents: number;
+  currency: string;
+}
+
+/** "$19" from the server's offer. Null when it cannot be stated honestly. */
+export function formatUnlockPrice(
+  unlock: ServerUnlockOffer | null | undefined,
+): string | null {
+  if (
+    !unlock ||
+    typeof unlock.amountCents !== "number" ||
+    !Number.isFinite(unlock.amountCents) ||
+    unlock.amountCents <= 0 ||
+    `${unlock.currency}`.toLowerCase() !== "usd"
+  ) {
+    return null;
+  }
+  const dollars = unlock.amountCents / 100;
+  return `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
 }
 
 export interface ServerCredits {
@@ -48,6 +77,8 @@ export interface CatalogState {
    * only source of its title, artist, EPI, mode and shape in My Songs.
    */
   entries: Record<string, ServerCatalogEntry>;
+  /** Display price for unlocking one song, e.g. "$19". */
+  unlockPrice: string | null;
 }
 
 /** True only in local development, where the demo fallback is permitted. */
@@ -60,6 +91,7 @@ const EMPTY: CatalogState = {
   scans: [],
   credits: null,
   entries: {},
+  unlockPrice: null,
 };
 
 /**
@@ -78,6 +110,7 @@ export async function fetchServerCatalog(): Promise<CatalogState> {
       catalog?: ServerCatalogEntry[];
       credits?: ServerCredits | null;
       identified?: boolean;
+      unlock?: ServerUnlockOffer | null;
     };
 
     if (!body.identified) return EMPTY;
@@ -90,12 +123,11 @@ export async function fetchServerCatalog(): Promise<CatalogState> {
       .map((e) => ({
         id: e.scanId,
         trackSlug: e.trackKey,
-        // Presence here means the song is SAVED, not that it is paid for: a
-        // free reveal saved with "Save my report" is in the catalog with no
-        // entitlement. This legacy field gates nothing — opening a row asks
-        // /api/report, which answers from entitlements alone, and an
-        // unentitled song opens to its free reveal and the $19 offer.
-        paid: true,
+        // Every scanned song is in the catalog, paid for or not, so presence
+        // is not the paid signal — the server's `entitled` is. It gates
+        // nothing here: opening a row asks /api/report, which answers from
+        // entitlements alone.
+        paid: e.entitled === true,
         scannedAt: e.analyzedAt ?? new Date(0).toISOString(),
       }));
 
@@ -111,7 +143,13 @@ export async function fetchServerCatalog(): Promise<CatalogState> {
         }
       : null;
 
-    return { identified: true, scans, credits, entries };
+    return {
+      identified: true,
+      scans,
+      credits,
+      entries,
+      unlockPrice: formatUnlockPrice(body.unlock),
+    };
   } catch {
     return EMPTY;
   }

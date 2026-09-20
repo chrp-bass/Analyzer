@@ -150,6 +150,50 @@ export async function resolveAccess(
 }
 
 /**
+ * Which of these scans may the caller open as a full report?
+ *
+ * My Songs shows every scanned song and marks each one locked or unlocked.
+ * That mark must never disagree with what `/api/report/[id]` will actually
+ * do when the row is opened, so this does not restate the rules — it runs
+ * `resolveAccess` itself for every scan. The only thing added is a memo
+ * around the two Creator Intelligence lookups, which are per-creator rather
+ * than per-scan and would otherwise repeat for every row.
+ *
+ * Returns the set of scan ids that are unlocked. It grants nothing and
+ * writes nothing.
+ */
+export async function resolveLibraryAccess(
+  store: EntitlementStore,
+  userId: string,
+  scans: ReadonlyArray<{ scanId: string; trackKey: string }>,
+  now: Date = new Date(),
+): Promise<Set<string>> {
+  let creator: Promise<EntitlementRecord | null> | null = null;
+  const tracks = new Map<string, Promise<TrackRecord[]>>();
+  const memo: EntitlementStore = {
+    findSongEntitlement: (u, s) => store.findSongEntitlement(u, s),
+    findCreatorEntitlement: (u) => (creator ??= store.findCreatorEntitlement(u)),
+    listTracks: (id) => {
+      let hit = tracks.get(id);
+      if (!hit) tracks.set(id, (hit = store.listTracks(id)));
+      return hit;
+    },
+    attachTrack: () => {
+      throw new Error("resolveLibraryAccess is read-only");
+    },
+  };
+
+  const unlocked = new Set<string>();
+  await Promise.all(
+    scans.map(async ({ scanId, trackKey }) => {
+      const access = await resolveAccess(memo, userId, scanId, trackKey, now);
+      if (access.ok) unlocked.add(scanId);
+    }),
+  );
+  return unlocked;
+}
+
+/**
  * Consume one credit for a COMPLETED analysis of a distinct song.
  *
  * Call this only once an analysis has actually succeeded. A failed or

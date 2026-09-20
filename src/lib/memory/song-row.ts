@@ -26,6 +26,12 @@ export interface SongRow {
   mode: Mode | null;
   /** The measured shape, when all four dimensions are on file. */
   vertices: PolygonVertices | null;
+  /**
+   * Unlocked: the full report opens for this creator. Locked: the row shows
+   * the same measurements, and its action is "Unlock" instead of "View
+   * report". Only the server can say a song is unlocked.
+   */
+  entitled: boolean;
 }
 
 function isMode(value: unknown): value is Mode {
@@ -62,6 +68,7 @@ export function songRowFor(
         typeof entry.epiScore === "number" ? Math.round(entry.epiScore) : null,
       mode: isMode(entry.mode) ? entry.mode : null,
       vertices: verticesFrom(entry.scores),
+      entitled: entry.entitled === true,
     };
   }
 
@@ -73,6 +80,8 @@ export function songRowFor(
       epiScore: fixture.epi.score,
       mode: fixture.epi.mode,
       vertices: polygonFromChrpScores(fixture.chrp_scores),
+      // A bundled sample track is development content with no entitlement.
+      entitled: false,
     };
   }
 

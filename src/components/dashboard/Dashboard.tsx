@@ -22,17 +22,16 @@ import {
   type ServerCatalogEntry,
 } from "@/lib/memory/catalog.client";
 import { fetchIdentityState } from "@/lib/identity-state";
-import { songRowFor } from "@/lib/memory/song-row";
+import { songRowFor, type SongRow } from "@/lib/memory/song-row";
 import { flushPendingSaves } from "@/lib/scan/save-scan";
+import { beginPurchaseWith } from "@/lib/scan/begin-purchase";
+import { ensureIdentity } from "@/lib/identity";
+import { prepareReport } from "@/lib/data-source";
+import { startCheckout } from "@/lib/payments";
 import { TIERS } from "@/lib/payments";
-import {
-  getFreeReportById,
-  FreeReport,
-  MODE_COLORS,
-} from "@/lib/fixtures/tracks";
+import { getFreeReportById, MODE_COLORS } from "@/lib/fixtures/tracks";
 import { getCreatorProfile } from "@/lib/fixtures/profile";
 import { PolygonRadar } from "@/components/PolygonRadar";
-import { polygonFromChrpScores } from "@/lib/polygon";
 import { CreatorProfileStage } from "@/components/stages/CreatorProfileStage";
 import { ProgressCallout } from "@/components/dashboard/ProgressCallout";
 import { useRouter } from "next/navigation";
@@ -48,6 +47,10 @@ export function Dashboard() {
   const [entries, setEntries] = useState<Record<string, ServerCatalogEntry>>(
     {},
   );
+  const [unlockPrice, setUnlockPrice] = useState<string | null>(null);
+  // Bumped when the page is restored from the back/forward cache, so a row
+  // left saying "Opening checkout…" on the way out to Stripe starts clean.
+  const [rowEpoch, setRowEpoch] = useState(0);
   const [showUnlockBanner, setShowUnlockBanner] = useState(false);
   const [showCatalogCompleteBand, setShowCatalogCompleteBand] = useState(false);
   const [playReveal, setPlayReveal] = useState(false);
@@ -75,6 +78,7 @@ export function Dashboard() {
       setScans([]);
       setCredits(null);
       setEntries({});
+      setUnlockPrice(null);
       setHydrated(true);
       return;
     }
@@ -91,11 +95,32 @@ export function Dashboard() {
     );
     setCredits(server.credits);
     setEntries(server.entries);
+    setUnlockPrice(server.unlockPrice);
     setHydrated(true);
   }
 
   useEffect(() => {
     refresh();
+
+    // A locked song is unlocked on Stripe's pages, not this one. Whenever the
+    // creator comes back to My Songs — the back button, another tab, the
+    // window regaining focus — ask the server again, so the row turns from
+    // "Unlock" to "View report" on its own, without a manual reload.
+    const onShow = (e: PageTransitionEvent) => {
+      // `pageshow` also fires on the first load, which the call above covers.
+      if (!e.persisted) return;
+      setRowEpoch((n) => n + 1);
+      refresh();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -240,11 +265,17 @@ export function Dashboard() {
         {!unlocked && (
           <ProgressMeter
             scans={scans}
+            entries={entries}
             threshold={UNLOCK_THRESHOLD}
           />
         )}
 
-        <ScanList scans={scans} entries={entries} />
+        <ScanList
+          key={rowEpoch}
+          scans={scans}
+          entries={entries}
+          unlockPrice={unlockPrice}
+        />
 
         <div className="mt-12 flex flex-wrap justify-end items-center gap-x-6 gap-y-2">
           <button
@@ -369,9 +400,11 @@ function CreditsCard({
 
 function ProgressMeter({
   scans,
+  entries,
   threshold,
 }: {
   scans: ScanRecordOnAccount[];
+  entries: Record<string, ServerCatalogEntry>;
   threshold: number;
 }) {
   const filled = Math.min(scans.length, threshold);
@@ -386,13 +419,18 @@ function ProgressMeter({
       </div>
       <div className="mt-4 flex gap-2 md:gap-3">
         {Array.from({ length: threshold }).map((_, i) => {
+          // A cell is filled because the creator HAS that many songs in the
+          // server catalog — not because the song happens to be one of the
+          // six bundled demo tracks, which is what used to decide it and why
+          // a real creator's cells never filled. The shape comes from the
+          // server's record of the song.
           const scan = scans[i];
-          const report = scan ? getFreeReportById(scan.trackSlug) : null;
           const highlight = oneAway && i === threshold - 1;
           return (
             <ProgressCell
               key={i}
-              report={report}
+              filled={Boolean(scan)}
+              row={scan ? songRowFor(scan, entries) : null}
               index={i + 1}
               highlight={highlight}
             />
@@ -409,17 +447,22 @@ function ProgressMeter({
 }
 
 function ProgressCell({
-  report,
+  filled,
+  row,
   index,
   highlight = false,
 }: {
-  report: FreeReport | null;
+  /** The creator has a song in this slot. */
+  filled: boolean;
+  /** What is known about that song, for the shape. */
+  row: SongRow | null;
   index: number;
   highlight?: boolean;
 }) {
-  if (!report) {
+  if (!filled) {
     return (
       <div
+        data-filled="false"
         className={`flex-1 aspect-square border ${
           highlight
             ? "border-solid animate-pulse"
@@ -445,21 +488,29 @@ function ProgressCell({
       </div>
     );
   }
-  const vertices = polygonFromChrpScores(report.chrp_scores);
   return (
     <div
+      data-filled="true"
       className="flex-1 aspect-square border border-rule flex items-center justify-center bg-chrp-white"
       style={{ minWidth: 0 }}
+      title={row?.title}
     >
-      <PolygonRadar
-        vertices={vertices}
-        mode={report.epi.mode}
-        epiScore={report.epi.score}
-        size={56}
-        showGrid={false}
-        showLabels={false}
-        showCenter={false}
-      />
+      {row?.vertices && row.mode ? (
+        <PolygonRadar
+          vertices={row.vertices}
+          mode={row.mode}
+          epiScore={row.epiScore ?? 0}
+          size={56}
+          showGrid={false}
+          showLabels={false}
+          showCenter={false}
+        />
+      ) : (
+        // Counted, but its shape is not on file: still a filled slot.
+        <span className="font-sans font-bold text-[11px] text-chrp-black">
+          {String(index).padStart(2, "0")}
+        </span>
+      )}
     </div>
   );
 }
@@ -467,9 +518,11 @@ function ProgressCell({
 function ScanList({
   scans,
   entries,
+  unlockPrice,
 }: {
   scans: ScanRecordOnAccount[];
   entries: Record<string, ServerCatalogEntry>;
+  unlockPrice: string | null;
 }) {
   return (
     <div className="mt-10">
@@ -482,65 +535,187 @@ function ScanList({
           No scans yet.
         </p>
       ) : (
-        <div className="mt-3 flex flex-col">
-          {scans.map((s) => {
-            // The server's record of the song, not a fixture lookup — a real
-            // song is never in the bundled catalogue.
-            const r = songRowFor(s, entries);
-            if (!r) return null;
-            const chip = r.mode ? MODE_COLORS[r.mode] : null;
-            return (
-              <Link
-                key={s.id}
-                href={`/report/${s.id}`}
-                className="grid grid-cols-[44px_1fr_auto] items-center gap-4 py-3 border-b border-rule hover:bg-oat"
-              >
-                <div>
-                  {r.vertices && r.mode && (
-                    <PolygonRadar
-                      vertices={r.vertices}
-                      mode={r.mode}
-                      epiScore={r.epiScore ?? 0}
-                      size={44}
-                      showGrid={false}
-                      showLabels={false}
-                      showCenter={false}
-                    />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="font-display text-[16px] md:text-[18px] leading-tight">
-                    {r.title}
-                  </div>
-                  <div className="font-sans text-[11.5px] text-ink-soft mt-0.5">
-                    {r.artist ? <>{r.artist} &nbsp;·&nbsp; </> : null}
-                    {new Date(s.scannedAt).toLocaleString()}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  {r.epiScore !== null && (
-                    <div className="font-display text-[18px] md:text-[20px] leading-none">
-                      {r.epiScore}
-                    </div>
-                  )}
-                  {chip && (
-                    <span
-                      className="mode-pill"
-                      style={{
-                        backgroundColor: chip.chipBg,
-                        color: chip.chipText,
-                        padding: "4px 10px",
-                        fontSize: 10,
-                      }}
-                    >
-                      {r.mode}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+        <div className="mt-3 flex flex-col scan-history-scroll">
+          {scans.map((s) => (
+            <SongRowItem
+              key={s.id}
+              scan={s}
+              entries={entries}
+              unlockPrice={unlockPrice}
+            />
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One song in the library.
+ *
+ * Every scanned song is here. A locked song shows exactly what an unlocked
+ * one does — the shape, EPI and mode are the free reveal, and they stay in
+ * full colour. The lock is communicated by the action alone: an unlocked row
+ * is simply a link to its full report; a locked row carries "Unlock".
+ *
+ * "Unlock" is the SAME purchase the reveal starts — `beginPurchaseWith`:
+ * identity, the report prepared and persisted on the server first, then
+ * Stripe Checkout bound to that exact report. Nothing here can grant access;
+ * the signed webhook still does that, and the row only ever reflects what
+ * the server says afterwards.
+ */
+function SongRowItem({
+  scan,
+  entries,
+  unlockPrice,
+}: {
+  scan: ScanRecordOnAccount;
+  entries: Record<string, ServerCatalogEntry>;
+  unlockPrice: string | null;
+}) {
+  const [phase, setPhase] = useState<"preparing" | "checkout" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The server's record of the song, not a fixture lookup — a real song is
+  // never in the bundled catalogue.
+  const r = songRowFor(scan, entries);
+  if (!r) return null;
+  const chip = r.mode ? MODE_COLORS[r.mode] : null;
+  // Locked or unlocked, the row opens the song: /report/[id] resolves to the
+  // full report for an entitled creator and to the free reveal otherwise.
+  const href = `/report/${scan.id}`;
+
+  function unlock() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    beginPurchaseWith(
+      {
+        ensureIdentity,
+        prepareReport,
+        startCheckout,
+        navigate: (url) => window.location.assign(url),
+      },
+      "song_intelligence",
+      scan.id,
+      (message) => {
+        setError(message);
+        setBusy(false);
+        setPhase(null);
+      },
+      setPhase,
+    );
+  }
+
+  const cells = (
+    <>
+      <div>
+        {r.vertices && r.mode && (
+          <PolygonRadar
+            vertices={r.vertices}
+            mode={r.mode}
+            epiScore={r.epiScore ?? 0}
+            size={44}
+            showGrid={false}
+            showLabels={false}
+            showCenter={false}
+          />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="font-display text-[16px] md:text-[18px] leading-tight">
+          {r.title}
+        </div>
+        <div className="font-sans text-[11.5px] text-ink-soft mt-0.5">
+          {r.artist ? <>{r.artist} &nbsp;·&nbsp; </> : null}
+          {new Date(scan.scannedAt).toLocaleString()}
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        {r.epiScore !== null && (
+          <div className="font-display text-[18px] md:text-[20px] leading-none">
+            {r.epiScore}
+          </div>
+        )}
+        {chip && (
+          <span
+            className="mode-pill"
+            style={{
+              backgroundColor: chip.chipBg,
+              color: chip.chipText,
+              padding: "4px 10px",
+              fontSize: 10,
+            }}
+          >
+            {r.mode}
+          </span>
+        )}
+      </div>
+    </>
+  );
+
+  // The same four columns for both states, so scores line up down the list
+  // whether or not a row carries an action.
+  const grid =
+    "grid grid-cols-[44px_1fr_auto] md:grid-cols-[44px_1fr_auto_150px] items-center gap-x-4 gap-y-2 py-3";
+
+  // UNLOCKED — no label, no button: the row is a link to the full report.
+  if (r.entitled) {
+    return (
+      <Link
+        href={href}
+        data-scan-id={scan.id}
+        data-locked="false"
+        className={`${grid} border-b border-rule hover:bg-oat`}
+      >
+        {cells}
+      </Link>
+    );
+  }
+
+  // LOCKED — identical measurements, in full colour. The only difference is
+  // the action: instead of opening a report there is one to unlock.
+  return (
+    <div
+      className="border-b border-rule hover:bg-oat"
+      data-scan-id={scan.id}
+      data-locked="true"
+    >
+      <div className={grid}>
+        <Link href={href} className="contents" aria-label={`Open ${r.title}`}>
+          {cells}
+        </Link>
+        <div className="col-span-3 md:col-span-1 flex justify-end">
+          <button
+            type="button"
+            onClick={unlock}
+            disabled={busy}
+            className="font-sans font-bold text-[11px] tracking-wider uppercase px-4 py-2.5 text-center whitespace-nowrap"
+            style={{
+              backgroundColor: "var(--chrp-yellow)",
+              color: "var(--chrp-black)",
+              opacity: busy ? 0.7 : 1,
+            }}
+          >
+            {busy
+              ? phase === "preparing"
+                ? "Preparing your report…"
+                : "Opening checkout…"
+              : unlockPrice
+                ? `Unlock — ${unlockPrice}`
+                : "Unlock"}
+          </button>
+        </div>
+      </div>
+      {error && (
+        <p
+          className="pb-3 font-sans text-[12.5px] text-right"
+          style={{ color: "#C990B8" }}
+          role="alert"
+        >
+          {error}
+        </p>
       )}
     </div>
   );

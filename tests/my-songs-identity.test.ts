@@ -106,6 +106,7 @@ describe("fetchServerCatalog keeps the server's record of each song", () => {
       scans: [],
       credits: null,
       entries: {},
+      unlockPrice: null,
     });
   });
 });
@@ -124,7 +125,12 @@ describe("songRowFor", () => {
       epiScore: 58,
       mode: "Ready",
       vertices: { focus: 41.2, calm: 36, motivation: 78.4, balance: 52 },
+      // Only the server can say a song is unlocked; absent reads as locked.
+      entitled: false,
     });
+    expect(
+      songRowFor(scan, { [REAL.scanId]: { ...REAL, entitled: true } })?.entitled,
+    ).toBe(true);
   });
 
   it("still shows the song when optional measurements are missing or odd", () => {
@@ -143,6 +149,7 @@ describe("songRowFor", () => {
       epiScore: null,
       mode: null,
       vertices: null,
+      entitled: false,
     });
   });
 
@@ -186,9 +193,11 @@ describe("the demo identity no longer speaks for the creator", () => {
   });
 
   it("My Songs rows come from the server record, not a fixture lookup", () => {
-    const list = dashboard.slice(dashboard.indexOf("function ScanList"));
-    const body = list.slice(0, list.indexOf("\nfunction ", 10));
-    expect(body).toContain("songRowFor(s, entries)");
+    const body = dashboard.slice(
+      dashboard.indexOf("function ScanList"),
+      dashboard.indexOf("function CatalogCompleteBand"),
+    );
+    expect(body).toContain("songRowFor(scan, entries)");
     expect(body).not.toContain("getFreeReportById");
   });
 
