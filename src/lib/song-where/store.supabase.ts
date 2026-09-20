@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isCompletePaidPayload } from "@/lib/reports/store";
 import { rankMatches } from "./rank.server";
 import type { FitBand, SongWhereMatch, Trust } from "./dto";
+import { publicHttpsUrl } from "./sources/public-url.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -49,6 +50,7 @@ export async function matchesForAnalysis(db: Db, analysisId: string): Promise<So
   const { data, error } = await db.from("song_opportunity_matches")
     .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,submission_url,opportunity_sources!inner(name,trust_level,active))")
     .eq("analysis_id", analysisId).eq("opportunities.status", "open")
+    .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true).limit(100);
   if (error) throw error;
   const now = new Date().toISOString();
@@ -79,7 +81,7 @@ export async function matchForRedirect(db: Db, matchId: string): Promise<{
 } | null> {
   const { data, error } = await db.from("song_opportunity_matches")
     .select("id,analysis_id,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,submission_url,opportunity_sources!inner(active))")
-    .eq("id", matchId).limit(1);
+    .eq("id", matchId).eq("opportunities.synthetic", false).limit(1);
   if (error) throw error;
   const row = (data as unknown as Array<{
     analysis_id: string;
@@ -93,11 +95,5 @@ export async function matchForRedirect(db: Db, matchId: string): Promise<{
 }
 
 export function safeSubmissionUrl(raw: string): URL | null {
-  try {
-    const url = new URL(raw);
-    if ((url.protocol !== "https:" && url.protocol !== "http:") ||
-        url.username || url.password || !url.hostname ||
-        ["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return null;
-    return url;
-  } catch { return null; }
+  return publicHttpsUrl(raw);
 }

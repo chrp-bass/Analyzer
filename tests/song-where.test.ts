@@ -68,17 +68,21 @@ describe("Song Where isolation", () => {
     expect(config).not.toContain("NEXT_PUBLIC_");
   });
 
-  it("short-circuits reads and alerts when the feature is off", async () => {
+  it("short-circuits reads and disables authenticated alerts when the feature is off", async () => {
     const previous = process.env.SONG_WHERE_ENABLED;
+    const priorSecret = process.env.SONG_WHERE_JOB_SECRET;
     delete process.env.SONG_WHERE_ENABLED;
+    process.env.SONG_WHERE_JOB_SECRET = "x".repeat(32);
     try {
       expect((await getSongWhere(new Request("https://scan.chrp.ai/api/song-where/scan"),
         { params: { scanId: "scan" } })).status).toBe(404);
       expect((await runJob(new Request("https://scan.chrp.ai/api/song-where/jobs/run?stage=alert",
-        { method: "POST" }))).status).toBe(404);
+        { method: "POST", headers: { Authorization: `Bearer ${"x".repeat(32)}` } }))).status).toBe(200);
     } finally {
       if (previous === undefined) delete process.env.SONG_WHERE_ENABLED;
       else process.env.SONG_WHERE_ENABLED = previous;
+      if (priorSecret === undefined) delete process.env.SONG_WHERE_JOB_SECRET;
+      else process.env.SONG_WHERE_JOB_SECRET = priorSecret;
     }
   });
 
