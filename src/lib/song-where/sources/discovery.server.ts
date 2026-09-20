@@ -47,7 +47,8 @@ function feedLinks(html: string, page: URL): URL[] {
     const rel = tag.match(/\brel\s*=\s*["']([^"']+)["']/i)?.[1] ?? "";
     const type = tag.match(/\btype\s*=\s*["']([^"']+)["']/i)?.[1] ?? "";
     const href = tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
-    if (!rel.split(/\s+/).includes("alternate") || !/application\/(?:rss\+xml|atom\+xml|feed\+json|json)/i.test(type) || !href) return [];
+    if (!rel.split(/\s+/).includes("alternate") ||
+        !/^application\/(?:rss\+xml|atom\+xml|feed\+json)$/i.test(type) || !href) return [];
     try {
       const url = publicHttpsUrl(new URL(href, page).href);
       return url && url.origin === page.origin ? [url] : [];
