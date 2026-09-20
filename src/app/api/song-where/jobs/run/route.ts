@@ -18,8 +18,8 @@ export async function POST(request: Request) {
     if (stage === "match") return NextResponse.json(await matchBatch());
     if (stage === "alert") return NextResponse.json(await alertBatch());
     return new Response(null, { status: 400 });
-  } catch (error) {
-    console.error("[song-where] job failed", error);
+  } catch {
+    console.error("[song-where] job failed");
     return new Response(null, { status: 503 });
   }
 }

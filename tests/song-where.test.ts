@@ -5,7 +5,7 @@ import { profileFromAnalysis } from "../src/lib/song-where/profile.server";
 import { normalizeTarget } from "../src/lib/song-where/normalize.server";
 import { matchSong } from "../src/lib/song-where/match.server";
 import { rankMatches } from "../src/lib/song-where/rank.server";
-import { safeSubmissionUrl } from "../src/lib/song-where/store.supabase";
+import { matchesForAnalysis, safeSubmissionUrl } from "../src/lib/song-where/store.supabase";
 import { GET as getSongWhere } from "../src/app/api/song-where/[scanId]/route";
 import { POST as runJob } from "../src/app/api/song-where/jobs/run/route";
 
@@ -35,6 +35,31 @@ describe("Song Where isolation", () => {
     }
     const dto = readFileSync(join(root, "src/lib/song-where/dto.ts"), "utf8");
     expect(dto).not.toMatch(/match_score|submission_url|weights|reasons|creator_id/);
+  });
+
+  it("serializes only approved match metadata and never logs backend errors", async () => {
+    const row = {
+      id: "match-id", match_score: 91.357, fit_band: "strong",
+      opportunities: { title: "Open brief", deadline: null, status: "open",
+        submission_url: "https://example.org/private-submit-token",
+        opportunity_sources: { name: "Approved source", trust_level: "verified", active: true } },
+    };
+    const query = {
+      select: () => query, eq: () => query, limit: async () => ({ data: [row], error: null }),
+    };
+    const db = { from: () => query };
+    const matches = await matchesForAnalysis(db as never, "analysis-id");
+    expect(matches).toHaveLength(1);
+    expect(Object.keys(matches[0]).sort()).toEqual(
+      ["matchId", "title", "sourceName", "trust", "fit", "deadline", "goHref"].sort());
+    expect(JSON.stringify(matches)).not.toMatch(/91\.357|private-submit-token|match_score|submission_url|weights|reasons|formula|threshold/i);
+
+    const visit = (path: string): string[] => readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory() ? visit(join(path, entry.name)) : [join(path, entry.name)]);
+    for (const file of visit(join(root, "src/app/api/song-where"))) {
+      if (!file.endsWith(".ts")) continue;
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/console\.(?:log|warn|error)\([^\n]*,\s*(?:error|profile|target|score|match)/);
+    }
   });
 
   it("has a server-only default-off flag and no client-exposed flag", () => {

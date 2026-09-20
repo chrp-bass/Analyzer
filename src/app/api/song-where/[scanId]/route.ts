@@ -19,8 +19,8 @@ export async function GET(_request: Request, { params }: { params: { scanId: str
     if (!analysis) return new Response(null, { status: 404 });
     return NextResponse.json({ matches: await matchesForAnalysis(db, analysis.id) },
       { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) {
-    console.error("[song-where] read failed", error);
+  } catch {
+    console.error("[song-where] read failed");
     return new Response(null, { status: 503 });
   }
 }

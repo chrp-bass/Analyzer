@@ -32,8 +32,8 @@ export async function POST(request: Request, { params }: { params: { matchId: st
           status_updated_at: new Date().toISOString() });
     if (error) throw error;
     return NextResponse.json({ status: body.status }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) {
-    console.error("[song-where] status failed", error);
+  } catch {
+    console.error("[song-where] status failed");
     return new Response(null, { status: 503 });
   }
 }

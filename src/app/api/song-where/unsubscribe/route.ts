@@ -16,8 +16,8 @@ export async function GET(request: Request) {
     return new Response("Song Where alerts are off. Your reports remain available.", {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
-  } catch (error) {
-    console.error("[song-where] unsubscribe failed", error);
+  } catch {
+    console.error("[song-where] unsubscribe failed");
     return new Response(null, { status: 503 });
   }
 }

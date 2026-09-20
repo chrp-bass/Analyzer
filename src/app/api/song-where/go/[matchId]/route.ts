@@ -18,10 +18,10 @@ export async function GET(_request: Request, { params }: { params: { matchId: st
     const destination = safeSubmissionUrl(match.url);
     if (!destination) return new Response(null, { status: 404 });
     const { error } = await db.from("submission_clicks").insert({ match_id: params.matchId });
-    if (error) console.error("[song-where] click log failed", error);
+    if (error) console.error("[song-where] click log failed");
     return NextResponse.redirect(destination, { status: 302, headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
-  } catch (error) {
-    console.error("[song-where] redirect failed", error);
+  } catch {
+    console.error("[song-where] redirect failed");
     return new Response(null, { status: 503 });
   }
 }

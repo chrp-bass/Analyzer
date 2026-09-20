@@ -34,8 +34,8 @@ export async function GET() {
       if (scanId) counts[scanId] = (counts[scanId] ?? 0) + 1;
     }
     return NextResponse.json({ counts }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) {
-    console.error("[song-where] summary failed", error);
+  } catch {
+    console.error("[song-where] summary failed");
     return new Response(null, { status: 503 });
   }
 }

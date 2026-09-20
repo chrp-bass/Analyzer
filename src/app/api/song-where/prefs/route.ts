@@ -23,8 +23,8 @@ export async function GET(request: Request) {
     if (error) throw error;
     return NextResponse.json({ alertsEnabled: data?.[0]?.alerts_enabled === true },
       { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) {
-    console.error("[song-where] prefs read failed", error);
+  } catch {
+    console.error("[song-where] prefs read failed");
     return new Response(null, { status: 503 });
   }
 }
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString() }, { onConflict: "creator_id" });
     if (error) throw error;
     return NextResponse.json({ alertsEnabled: body.alertsEnabled });
-  } catch (error) {
-    console.error("[song-where] prefs update failed", error);
+  } catch {
+    console.error("[song-where] prefs update failed");
     return new Response(null, { status: 503 });
   }
 }
