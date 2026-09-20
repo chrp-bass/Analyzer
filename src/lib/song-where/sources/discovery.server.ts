@@ -79,9 +79,13 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
     .order("checked_at", { ascending: true, nullsFirst: true }).limit(6);
   if (queueError) throw queueError;
   const pages = [...SEEDS, ...(queued ?? []).map((row) => row.url)];
+  const stopAt = Date.now() + 35_000;
+  let examined = 0;
   let candidates = 0;
   let admitted = 0;
   for (const seed of pages) {
+    if (Date.now() >= stopAt) break;
+    examined++;
     const page = publicHttpsUrl(seed);
     if (!page) continue;
     let html = "";
@@ -133,5 +137,5 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
       admitted++;
     }
   }
-  return { examined: pages.length, candidates, admitted };
+  return { examined, candidates, admitted };
 }
