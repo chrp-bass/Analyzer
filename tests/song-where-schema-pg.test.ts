@@ -18,6 +18,7 @@ beforeAll(async () => {
   await client.query(readFileSync("supabase/migrations/20260920143438_song_where_acquisition.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920162002_song_where_quality_gate.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920170113_song_where_source_quality.sql", "utf8"));
+  await client.query(readFileSync("supabase/migrations/20260920193000_song_where_public_pointers.sql", "utf8"));
 }, 180_000);
 
 afterAll(async () => { await client?.end(); await pg?.stop(); });
@@ -67,5 +68,14 @@ describe("Song Where migration", () => {
     expect(Number(rows[0].opportunities_ingested)).toBe(0);
     const grants = await client.query(`select has_table_privilege('anon','song_where_source_funnel','select') as public_read`);
     expect(grants.rows[0].public_read).toBe(false);
+  });
+
+  it("accepts factual public pointer sources and stores verification metadata", async () => {
+    await client.query(`insert into opportunity_sources(name,kind,trust_level,base_url,terms_status)
+      values ('public-example.org-abcd1234','page','verified','https://example.org','public_pointer');`);
+    const { rows } = await client.query(`select column_name from information_schema.columns
+      where table_name='opportunities' and column_name in
+      ('eligibility_text','fetched_at','verification_status')`);
+    expect(rows).toHaveLength(3);
   });
 });
