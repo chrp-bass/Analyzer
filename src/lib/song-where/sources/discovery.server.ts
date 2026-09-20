@@ -77,6 +77,12 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
   const day = Math.floor(Date.now() / 86_400_000);
   const stopAt = Date.now() + 35_000;
   const seeds = watchlist(day);
+  // Reserve room for rotating seeds while revisiting sources that produced matchable calls.
+  const { data: proven, error: provenError } = await db.from("opportunity_sources")
+    .select("source_url").eq("kind", "page").eq("active", true)
+    .gte("quality_score", 60).order("quality_score", { ascending: false }).limit(2);
+  if (provenError) throw provenError;
+  const priority = (proven ?? []).flatMap((row) => typeof row.source_url === "string" ? [row.source_url] : []);
   const search = configuredSearchIndex();
   let candidates = 0;
   if (search) for (const query of scoutQueries(day)) {
@@ -96,7 +102,7 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
     .select("url").eq("access_type", "page").eq("status", "quarantined")
     .order("checked_at", { ascending: true, nullsFirst: true }).limit(4);
   if (queueError) throw queueError;
-  const pages = Array.from(new Set([...seeds, ...(queued ?? []).map((row) => row.url)]));
+  const pages = Array.from(new Set([...priority, ...seeds, ...(queued ?? []).map((row) => row.url)]));
   let examined = 0;
   let admitted = 0;
   for (const seed of pages) {

@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { normalizeTarget, type OpportunityTarget } from "../normalize.server";
 import { safeSubmissionUrl } from "../store.supabase";
+import type { SongCriteria } from "../specificity.server";
 
 export type SourceOpportunity = {
   externalRef: string;
@@ -23,6 +24,8 @@ export type SourceOpportunity = {
   eligibilityText?: string | null;
   fetchedAt?: string;
   verificationStatus?: string;
+  songCriteria?: SongCriteria;
+  specificityRequest?: string | null;
 };
 
 export interface OpportunitySourceAdapter {
@@ -77,7 +80,14 @@ export function jsonFeedAdapter(config: {
           title: row.title, submissionUrl: destination.href, deadline, status, target, rawText,
         })).digest("hex");
         return [{ externalRef: row.id, title: row.title, rawText: null, submissionUrl: destination.href,
-          deadline, status, target, contentHash, provenanceUrl: provenance.href }];
+          deadline, status, target, contentHash, provenanceUrl: provenance.href,
+          songCriteria: { mood: typeof row.mood === "string" ? row.mood : undefined,
+            genre: typeof row.genre === "string" ? row.genre : undefined,
+            energy: typeof row.energy === "string" ? row.energy : undefined,
+            usage: typeof row.use === "string" ? row.use : undefined },
+          specificityRequest: typeof row.description === "string" &&
+            /^\s*(?:looking for|seeking|music needed)\b/i.test(row.description)
+            ? row.description.slice(0, 1200) : null }];
       });
     },
   };

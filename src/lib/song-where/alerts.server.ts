@@ -26,7 +26,7 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   if (stateError) throw stateError;
   const cursor = state?.[0]?.cursor;
   let query = db.from("song_opportunity_matches")
-    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(id,title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(name,kind,source_url,active,trust_level,terms_status,robots_status,auth_scope))")
+    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(id,title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(name,kind,source_url,active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("fit_band", "strong").eq("opportunities.status", "open")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true)

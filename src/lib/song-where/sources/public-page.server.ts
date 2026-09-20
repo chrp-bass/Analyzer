@@ -32,11 +32,16 @@ export function parsePublicOpportunityPage(html: string, rawUrl: string, now = n
   const eligibility = body.match(/\b(?:all genres[^.]{0,160}|eligible[^.]{0,160}|open to[^.]{0,160})\./i)?.[0] ?? null;
   if (!eligibility) return null;
   const budget = body.match(/\b(?:budget|fee|prize)\s*:\s*([^.;]{1,80})/i)?.[1]?.trim() ?? null;
+  // Only a publisher's explicit request is classified; surrounding navigation is ignored.
+  const request = Array.from(html.matchAll(/<(?:p|li)\b[^>]*>([\s\S]*?)<\/(?:p|li)>/gi))
+    .map(([, content]) => decode(content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()))
+    .find((value) => /^(?:looking for|seeking|music needed)\s*:/i.test(value))?.slice(0, 1200) ?? null;
   const deadline = new Date(deadlineDate).toISOString();
   return {
     externalRef: page.href, title, rawText: null, submissionUrl: route.href,
     deadline, status: "open", target: {}, provenanceUrl: page.href,
     eligibilityText: eligibility.slice(0, 200), budgetText: budget,
+    specificityRequest: request,
     fetchedAt: now.toISOString(), verificationStatus: "verified",
     contentHash: createHash("sha256").update(JSON.stringify({ title, deadline, route: route.href,
       eligibility, budget })).digest("hex"),
