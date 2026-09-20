@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unlockedScansFor } from "@/lib/commerce/entitlements";
 import { sendEmail, renderEmail } from "@/lib/email/send.server";
+import { qualityStatus, type QualityEvidence } from "./quality.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -23,7 +24,7 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   if (stateError) throw stateError;
   const cursor = state?.[0]?.cursor;
   let query = db.from("song_opportunity_matches")
-    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(title,status,deadline,opportunity_sources!inner(active))")
+    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("fit_band", "strong").eq("opportunities.status", "open")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true)
@@ -34,11 +35,11 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   const rows = (data ?? []) as unknown as Array<{
     id: string;
     analyses: { creator_id: string; scan_id: string; songs: { track_key: string } };
-    opportunities: { title: string; deadline: string | null };
+    opportunities: QualityEvidence & { title: string };
   }>;
   let sent = 0;
   for (const row of rows) {
-    if (row.opportunities.deadline && row.opportunities.deadline < new Date().toISOString()) continue;
+    if (qualityStatus(row.opportunities, "strong") !== "LIVE_VERIFIED") continue;
     const { data: existing, error: existingError } = await db.from("opportunity_alerts")
       .select("id").eq("match_id", row.id).limit(1);
     if (existingError) throw existingError;

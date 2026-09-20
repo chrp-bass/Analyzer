@@ -4,6 +4,7 @@ import { isCompletePaidPayload } from "@/lib/reports/store";
 import { rankMatches } from "./rank.server";
 import type { FitBand, SongWhereMatch, Trust } from "./dto";
 import { publicHttpsUrl } from "./sources/public-url.server";
+import { qualityStatus, type QualityEvidence } from "./quality.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -37,18 +38,15 @@ type MatchRow = {
   id: string;
   match_score: number;
   fit_band: FitBand;
-  opportunities: {
+  opportunities: QualityEvidence & {
     title: string;
-    deadline: string | null;
-    status: string;
-    submission_url: string;
-    opportunity_sources: { name: string; trust_level: Trust; active: boolean } | null;
+    opportunity_sources: (NonNullable<QualityEvidence["opportunity_sources"]> & { name: string; trust_level: Trust }) | null;
   } | null;
 };
 
 export async function matchesForAnalysis(db: Db, analysisId: string): Promise<SongWhereMatch[]> {
   const { data, error } = await db.from("song_opportunity_matches")
-    .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,submission_url,opportunity_sources!inner(name,trust_level,active))")
+    .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(name,trust_level,active,terms_status,robots_status,auth_scope))")
     .eq("analysis_id", analysisId).eq("opportunities.status", "open")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true).limit(100);
@@ -57,8 +55,7 @@ export async function matchesForAnalysis(db: Db, analysisId: string): Promise<So
   const ranked = (data as unknown as MatchRow[] | null ?? []).flatMap((row) => {
     const opportunity = row.opportunities;
     const source = opportunity?.opportunity_sources;
-    if (!opportunity || !source || !opportunity.submission_url ||
-        (opportunity.deadline && opportunity.deadline < now)) return [];
+    if (!opportunity || !source || qualityStatus(opportunity, row.fit_band, new Date(now)) !== "LIVE_VERIFIED") return [];
     return [{
       matchId: row.id,
       title: opportunity.title,
@@ -68,6 +65,9 @@ export async function matchesForAnalysis(db: Db, analysisId: string): Promise<So
       deadline: opportunity.deadline,
       goHref: `/api/song-where/go/${encodeURIComponent(row.id)}`,
       score: Number(row.match_score),
+      applicantCount: opportunity.applicant_count,
+      competitionLevel: opportunity.competition_level,
+      routeVerifiedAt: opportunity.route_verified_at,
     }];
   });
   return rankMatches(ranked).slice(0, 20).map((item) => ({
@@ -80,16 +80,16 @@ export async function matchForRedirect(db: Db, matchId: string): Promise<{
   analysisId: string; creatorId: string; scanId: string; url: string;
 } | null> {
   const { data, error } = await db.from("song_opportunity_matches")
-    .select("id,analysis_id,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,submission_url,opportunity_sources!inner(active))")
+    .select("id,analysis_id,fit_band,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("id", matchId).eq("opportunities.synthetic", false).limit(1);
   if (error) throw error;
   const row = (data as unknown as Array<{
     analysis_id: string;
+    fit_band: FitBand;
     analyses: { creator_id: string; scan_id: string };
-    opportunities: { status: string; deadline: string | null; submission_url: string; opportunity_sources: { active: boolean } };
+    opportunities: QualityEvidence;
   }> | null)?.[0];
-  if (!row || row.opportunities.status !== "open" || !row.opportunities.opportunity_sources.active ||
-      (row.opportunities.deadline && row.opportunities.deadline < new Date().toISOString())) return null;
+  if (!row || qualityStatus(row.opportunities, row.fit_band) !== "LIVE_VERIFIED") return null;
   return { analysisId: row.analysis_id, creatorId: row.analyses.creator_id,
     scanId: row.analyses.scan_id, url: row.opportunities.submission_url };
 }

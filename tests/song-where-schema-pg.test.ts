@@ -16,6 +16,7 @@ beforeAll(async () => {
   await client.query("create table creators (id uuid primary key); create table analyses (id uuid primary key references creators(id));");
   await client.query(readFileSync("db/migrations/0004_song_where.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920143438_song_where_acquisition.sql", "utf8"));
+  await client.query(readFileSync("supabase/migrations/20260920162002_song_where_quality_gate.sql", "utf8"));
 }, 180_000);
 
 afterAll(async () => { await client?.end(); await pg?.stop(); });
@@ -40,5 +41,16 @@ describe("Song Where migration", () => {
     const { rows } = await client.query(`select count(*)::int as n from pg_constraint
       where conrelid='song_opportunity_matches'::regclass and contype='u'`);
     expect(Number(rows[0].n)).toBeGreaterThan(0);
+  });
+
+  it("stores private quality evidence and rejects invalid competition counts", async () => {
+    const columns = await client.query(`select column_name from information_schema.columns
+      where table_name='opportunities' and column_name in
+      ('route_verified_at','applicant_count','competition_level','eligibility_requirements')`);
+    expect(columns.rows).toHaveLength(4);
+    const constraints = await client.query(`select count(*)::int as n from pg_constraint
+      where conrelid='opportunities'::regclass and conname like '%competition%' or
+      conrelid='opportunities'::regclass and conname like '%applicant%'`);
+    expect(Number(constraints.rows[0].n)).toBe(2);
   });
 });

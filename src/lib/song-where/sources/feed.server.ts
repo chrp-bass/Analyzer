@@ -17,6 +17,9 @@ export type SourceOpportunity = {
   useText?: string | null;
   territoryText?: string | null;
   moodContext?: string | null;
+  applicantCount?: number | null;
+  competitionLevel?: "low" | "medium" | "high" | null;
+  eligibilityRequirements?: Record<string, unknown>;
 };
 
 export interface OpportunitySourceAdapter {
