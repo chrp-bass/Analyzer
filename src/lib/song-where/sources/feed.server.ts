@@ -20,11 +20,14 @@ export type SourceOpportunity = {
   applicantCount?: number | null;
   competitionLevel?: "low" | "medium" | "high" | null;
   eligibilityRequirements?: Record<string, unknown>;
+  eligibilityText?: string | null;
+  fetchedAt?: string;
+  verificationStatus?: string;
 };
 
 export interface OpportunitySourceAdapter {
   name: string;
-  kind: "api" | "feed";
+  kind: "api" | "feed" | "page";
   trust: "verified" | "curated";
   baseUrl: string;
   fetch(): Promise<SourceOpportunity[]>;

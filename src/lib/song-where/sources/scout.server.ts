@@ -16,6 +16,7 @@ const WATCHLIST = [
   "https://www.songtradr.com/musiccreators",
   "https://www.syncbrief.com/",
   "https://played.fm/sync",
+  "https://soalivemusicconference.com/conference/pitch-your-music/",
 ];
 
 const QUERIES = [
@@ -57,6 +58,6 @@ export function configuredSearchIndex(): SearchIndex | null {
 
 export function watchlist(day: number): string[] {
   // Rotate the long tail so fixed seeds cannot starve newly discovered pages.
-  return [WATCHLIST[day % WATCHLIST.length], WATCHLIST[(day + 3) % WATCHLIST.length],
-    WATCHLIST[(day + 6) % WATCHLIST.length]];
+  return [WATCHLIST[WATCHLIST.length - 1], WATCHLIST[day % WATCHLIST.length],
+    WATCHLIST[(day + 3) % WATCHLIST.length], WATCHLIST[(day + 6) % WATCHLIST.length]];
 }

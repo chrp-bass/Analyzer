@@ -133,6 +133,8 @@ describe("Song Where matching", () => {
       opportunity_sources: { active: true, trust_level: "verified", terms_status: "permitted",
         robots_status: "allow", auth_scope: "none" } };
     expect(qualityStatus(base, "strong", now)).toBe("LIVE_VERIFIED");
+    expect(qualityStatus({ ...base, opportunity_sources: { ...base.opportunity_sources,
+      terms_status: "public_pointer" } }, "strong", now)).toBe("LIVE_VERIFIED");
     expect(qualityStatus({ ...base, deadline: "2026-09-19T12:00:00Z" }, "strong", now)).toBe("EXPIRED");
     expect(qualityStatus({ ...base, deadline: null }, "strong", now)).toBe("STALE");
     expect(qualityStatus({ ...base, route_verified_at: null }, "strong", now)).toBe("NO_SUBMISSION_PATH");

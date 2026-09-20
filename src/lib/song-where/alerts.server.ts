@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { unlockedScansFor } from "@/lib/commerce/entitlements";
 import { sendEmail, renderEmail } from "@/lib/email/send.server";
 import { qualityStatus, verifySubmissionRoute, type QualityEvidence } from "./quality.server";
+import { parsePublicOpportunityPage } from "./sources/public-page.server";
+import { publicHttpsUrl } from "./sources/public-url.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -24,7 +26,7 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   if (stateError) throw stateError;
   const cursor = state?.[0]?.cursor;
   let query = db.from("song_opportunity_matches")
-    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(id,title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
+    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(id,title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(name,kind,source_url,active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("fit_band", "strong").eq("opportunities.status", "open")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true)
@@ -35,7 +37,10 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   const rows = (data ?? []) as unknown as Array<{
     id: string;
     analyses: { creator_id: string; scan_id: string; songs: { track_key: string } };
-    opportunities: QualityEvidence & { id: string; title: string };
+    opportunities: QualityEvidence & { id: string; title: string;
+      opportunity_sources: (NonNullable<QualityEvidence["opportunity_sources"]> & {
+        name: string; kind: string; source_url: string | null;
+      }) | null };
   }>;
   let sent = 0;
   for (const row of rows) {
@@ -57,6 +62,23 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
     if (creatorError) throw creatorError;
     const email = creators?.[0]?.email;
     if (!email) continue;
+    const source = row.opportunities.opportunity_sources;
+    if (source?.kind === "page") {
+      const url = source.source_url ? publicHttpsUrl(source.source_url) : null;
+      let current = null;
+      if (url) try {
+        const response = await fetch(url, { cache: "no-store", redirect: "error",
+          headers: { Accept: "text/html", "User-Agent": "CHRP-SongWhere/1.0" },
+          signal: AbortSignal.timeout(8000) });
+        if (response.ok) current = parsePublicOpportunityPage(await response.text(), url.href);
+      } catch { /* Do not alert on an unverified page. */ }
+      if (!current || Date.parse(current.deadline ?? "") !== Date.parse(row.opportunities.deadline ?? "") ||
+          current.submissionUrl !== row.opportunities.submission_url) {
+        await db.from("opportunity_sources").update({ active: false,
+          quarantine_reason: "alert_reverification_failed" }).eq("name", source.name);
+        continue;
+      }
+    }
     // A cached route check is not sufficient evidence for a new notification.
     const verifiedAt = await verifySubmissionRoute(row.opportunities.submission_url);
     const { error: verificationError } = await db.from("opportunities")

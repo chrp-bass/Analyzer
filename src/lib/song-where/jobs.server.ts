@@ -61,6 +61,9 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
         applicant_count: item.applicantCount ?? null,
         competition_level: item.competitionLevel ?? null,
         eligibility_requirements: item.eligibilityRequirements ?? {},
+        eligibility_text: item.eligibilityText ?? null,
+        fetched_at: item.fetchedAt ?? new Date().toISOString(),
+        verification_status: item.verificationStatus ?? "verified",
       }, { onConflict: "source_id,external_ref" });
       if (error) throw error;
       ingested++;
