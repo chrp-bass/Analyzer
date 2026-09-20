@@ -8,23 +8,33 @@ export interface SearchIndex {
 
 const WATCHLIST = [
   "https://www.tracksynk.com/briefs",
-  "https://dropcue.app/music-briefs",
   "https://pitch.hrdrv.com/",
+  "https://www.songtradr.com/musiccreators",
+  "https://www.taxi.com/",
+  "https://www.musicgateway.com/",
+  "https://dropcue.app/music-briefs",
   "https://syncstarz.com/",
   "https://www.pitchsynch.app/",
   "https://groover.co/en/",
-  "https://www.songtradr.com/musiccreators",
   "https://www.syncbrief.com/",
   "https://played.fm/sync",
   "https://soalivemusicconference.com/conference/pitch-your-music/",
 ];
 
 const QUERIES = [
-  '"sync brief" music submission deadline',
-  '"music supervisor" brief application deadline',
-  'film TV advertising game music open call deadline',
-  'artist playlist editorial radio open call deadline',
-  'creator brand music request submissions deadline',
+  '"sync brief" "mood" "deadline" "submit" music',
+  '"music supervisor" "tempo" "deadline" "submit"',
+  '"music needed" "instrumental" "deadline" film TV',
+  '"looking for" "genre" "budget" "submit" music brief',
+  '"seeking" "reference tracks" "apply" music',
+  '"music brief" "vocals" "deadline" advertising game',
+  '"sync opportunity" "BPM" "submit"',
+  'site:tracksynk.com/briefs/ "mood" "deadline"',
+  'site:pitch.hrdrv.com "genre" "deadline"',
+  'site:songtradr.com "opportunity" "mood" "deadline"',
+  'site:taxi.com "instrumental" "deadline"',
+  'site:musicgateway.com "brief" "genre" "deadline"',
+  'site:dropcue.app "brief" "BPM" "deadline"',
 ];
 
 export function scoutQueries(day: number): string[] {
