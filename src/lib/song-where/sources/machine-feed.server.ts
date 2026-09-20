@@ -4,6 +4,7 @@ import { XMLParser } from "fast-xml-parser";
 import { normalizeTarget } from "../normalize.server";
 import { safeSubmissionUrl } from "../store.supabase";
 import type { SourceOpportunity } from "./feed.server";
+import { publicHttpsUrl } from "./public-url.server";
 
 type Row = Record<string, unknown>;
 const text = (value: unknown, max: number): string | null =>
@@ -11,7 +12,7 @@ const text = (value: unknown, max: number): string | null =>
 const object = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : value ? [value] : [];
 
-function normalize(row: Row, feedUrl: string): SourceOpportunity | null {
+function normalize(row: Row): SourceOpportunity | null {
   const id = text(row.id ?? row.guid, 200);
   const title = text(row.title, 300);
   const route = text(row.submissionUrl ?? row.submission_url, 2000);
@@ -41,6 +42,7 @@ function normalize(row: Row, feedUrl: string): SourceOpportunity | null {
 
 /** Feed metadata alone is never treated as an opportunity or submission route. */
 export function parseMachineFeed(body: string, contentType: string, feedUrl: string): SourceOpportunity[] {
+  if (!publicHttpsUrl(feedUrl)) throw new Error("invalid feed URL");
   if (body.length > 500_000) throw new Error("feed too large");
   let rows: unknown[];
   if (contentType.includes("json") || body.trimStart().startsWith("{")) {
@@ -73,7 +75,7 @@ export function parseMachineFeed(body: string, contentType: string, feedUrl: str
     });
   }
   return rows.slice(0, 50).flatMap((row) => {
-    const result = normalize(object(row), feedUrl);
+    const result = normalize(object(row));
     return result ? [result] : [];
   });
 }
