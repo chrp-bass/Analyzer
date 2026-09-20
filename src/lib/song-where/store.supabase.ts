@@ -46,7 +46,7 @@ type MatchRow = {
 
 export async function matchesForAnalysis(db: Db, analysisId: string): Promise<SongWhereMatch[]> {
   const { data, error } = await db.from("song_opportunity_matches")
-    .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(name,trust_level,active,terms_status,robots_status,auth_scope))")
+    .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(name,trust_level,active,terms_status,robots_status,auth_scope))")
     .eq("analysis_id", analysisId).eq("opportunities.status", "open")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true).limit(100);
@@ -80,7 +80,7 @@ export async function matchForRedirect(db: Db, matchId: string): Promise<{
   analysisId: string; creatorId: string; scanId: string; url: string;
 } | null> {
   const { data, error } = await db.from("song_opportunity_matches")
-    .select("id,analysis_id,fit_band,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
+    .select("id,analysis_id,fit_band,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("id", matchId).eq("opportunities.synthetic", false).limit(1);
   if (error) throw error;
   const row = (data as unknown as Array<{

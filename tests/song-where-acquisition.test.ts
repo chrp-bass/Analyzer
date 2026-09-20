@@ -4,11 +4,24 @@ import { publicHttpsUrl } from "../src/lib/song-where/sources/public-url.server"
 import { POST as inbound } from "../src/app/api/song-where/inbound/route";
 import { configuredSearchIndex, scoutQueries, watchlist } from "../src/lib/song-where/sources/scout.server";
 import { parsePublicOpportunityPage } from "../src/lib/song-where/sources/public-page.server";
+import { classifySpecificity, songMatchable } from "../src/lib/song-where/specificity.server";
 
 const source = "https://briefs.example.org/feed.xml";
 const futureDeadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 describe("autonomous acquisition safety", () => {
+  it("classifies only explicit song criteria and suppresses partial/general fit", () => {
+    expect(classifySpecificity({ requestText: "Looking for: upbeat pop for a sports ad" })).toBe("A");
+    expect(classifySpecificity({ requestText: "Looking for: upbeat tracks" })).toBe("B");
+    expect(classifySpecificity({ requestText: "All genres welcome for film, TV and advertising" })).toBe("C");
+    expect(classifySpecificity({ criteria: { genre: "all genres", usage: "film, TV, advertising" } })).toBe("C");
+    expect(classifySpecificity({ target: { modes: ["Ready"], arousal: { min: 0.7, max: 1 } } })).toBe("A");
+    expect(songMatchable("A", { modes: ["Ready"], arousal: { min: 0.7, max: 1 } })).toBe(true);
+    expect(songMatchable("A", {})).toBe(false);
+    expect(songMatchable("A", { epiFloor: 80 })).toBe(false);
+    expect(songMatchable("B", { modes: ["Ready"] })).toBe(false);
+    expect(songMatchable("C", { modes: ["Ready"] })).toBe(false);
+  });
   it("admits factual public pointers without copying the brief, but rejects closed or route-less pages", () => {
     const url = "https://publisher.example.org/call";
     const html = `<html><h1>Pitch Your Music</h1><p>2026 Open Call</p>
@@ -21,6 +34,12 @@ describe("autonomous acquisition safety", () => {
       submissionUrl: url, provenanceUrl: url, rawText: null, target: {},
       eligibilityText: "All genres are welcome.", verificationStatus: "verified",
     });
+    expect(classifySpecificity({ requestText: parsePublicOpportunityPage(html, url, now)?.specificityRequest }))
+      .toBe("C");
+    const specific = parsePublicOpportunityPage(html.replace("<p>2026 Open Call</p>",
+      "<p>2026 Open Call</p><p>Looking for: upbeat pop tracks for a sports ad.</p>"), url, now);
+    expect(classifySpecificity({ requestText: specific?.specificityRequest })).toBe("A");
+    expect(songMatchable("A", specific?.target)).toBe(false);
     expect(parsePublicOpportunityPage(html.replace("<form><button type=\"submit\">Submit Form</button></form>", ""), url, now)).toBeNull();
     expect(parsePublicOpportunityPage(html, url, new Date("2026-09-26T12:00:00Z"))).toBeNull();
     expect(parsePublicOpportunityPage(html.replace("Open Call", "Call Closed"), url, now)).toBeNull();

@@ -45,6 +45,7 @@ describe("Song Where isolation", () => {
         submission_url: "https://example.org/private-submit-token",
         route_verified_at: new Date().toISOString(), provenance_url: "https://example.org/brief",
         applicant_count: null, competition_level: null, eligibility_requirements: {},
+        specificity_tier: "A", song_matchable: true,
         opportunity_sources: { name: "Approved source", trust_level: "verified", active: true,
           terms_status: "permitted", robots_status: "allow", auth_scope: "none" } },
     };
@@ -57,6 +58,11 @@ describe("Song Where isolation", () => {
     expect(Object.keys(matches[0]).sort()).toEqual(
       ["matchId", "title", "sourceName", "trust", "fit", "deadline", "goHref"].sort());
     expect(JSON.stringify(matches)).not.toMatch(/91\.357|private-submit-token|match_score|submission_url|weights|reasons|formula|threshold/i);
+    row.opportunities.specificity_tier = "B";
+    row.opportunities.song_matchable = false;
+    expect(await matchesForAnalysis(db as never, "analysis-id")).toEqual([]);
+    row.opportunities.specificity_tier = "C";
+    expect(await matchesForAnalysis(db as never, "analysis-id")).toEqual([]);
 
     const visit = (path: string): string[] => readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
       entry.isDirectory() ? visit(join(path, entry.name)) : [join(path, entry.name)]);
@@ -130,9 +136,14 @@ describe("Song Where matching", () => {
       submission_url: "https://example.org/apply", route_verified_at: now.toISOString(),
       provenance_url: "https://example.org/brief", applicant_count: 3,
       competition_level: "low", eligibility_requirements: {},
+      specificity_tier: "A", song_matchable: true,
       opportunity_sources: { active: true, trust_level: "verified", terms_status: "permitted",
         robots_status: "allow", auth_scope: "none" } };
     expect(qualityStatus(base, "strong", now)).toBe("LIVE_VERIFIED");
+    expect(qualityStatus({ ...base, specificity_tier: "B", song_matchable: false }, "strong", now))
+      .toBe("NOT_SONG_MATCHABLE");
+    expect(qualityStatus({ ...base, specificity_tier: "C", song_matchable: false }, "strong", now))
+      .toBe("NOT_SONG_MATCHABLE");
     expect(qualityStatus({ ...base, opportunity_sources: { ...base.opportunity_sources,
       terms_status: "public_pointer" } }, "strong", now)).toBe("LIVE_VERIFIED");
     expect(qualityStatus({ ...base, deadline: "2026-09-19T12:00:00Z" }, "strong", now)).toBe("EXPIRED");

@@ -9,6 +9,7 @@ import { registeredSources } from "./sources/registered.server";
 import { isCompletePaidPayload } from "@/lib/reports/store";
 import { qualityStatus, verifySubmissionRoute, type QualityEvidence } from "./quality.server";
 import { publicHttpsUrl } from "./sources/public-url.server";
+import { classifySpecificity, songMatchable } from "./specificity.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 type Stage = "ingest" | "match" | "alert";
@@ -49,6 +50,9 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
       if (duplicate?.length && duplicate[0].external_ref !== item.externalRef) continue;
       const verifiedAt = await verifySubmissionRoute(item.submissionUrl);
       if (!verifiedAt) continue;
+      const specificityTier = classifySpecificity({ target: item.target,
+        criteria: item.songCriteria ?? { mood: item.moodContext ?? undefined,
+          usage: item.useText ?? undefined }, requestText: item.specificityRequest });
       const { error } = await db.from("opportunities").upsert({
         source_id: source.id, external_ref: item.externalRef, title: item.title,
         raw_text: null, status: item.status, submission_url: item.submissionUrl,
@@ -64,6 +68,8 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
         eligibility_text: item.eligibilityText ?? null,
         fetched_at: item.fetchedAt ?? new Date().toISOString(),
         verification_status: item.verificationStatus ?? "verified",
+        specificity_tier: specificityTier,
+        song_matchable: songMatchable(specificityTier, item.target),
       }, { onConflict: "source_id,external_ref" });
       if (error) throw error;
       ingested++;
@@ -109,7 +115,7 @@ export async function healthOnce(db: Db = createAdminClient()): Promise<Record<s
 /** Refresh private source priorities from the observed funnel, never from search snippets. */
 export async function qualityOnce(db: Db = createAdminClient()): Promise<{ scored: number }> {
   const { data, error } = await db.from("song_where_source_funnel")
-    .select("source_id,failure_count,candidates_discovered,candidates_verified,opportunities_ingested,actionable,stale,matches,routing_clicks,outcomes_known")
+    .select("source_id,failure_count,candidates_discovered,candidates_verified,opportunities_ingested,actionable,stale,matches,routing_clicks,outcomes_known,tier_a,matchable")
     .limit(50);
   if (error) throw error;
   for (const row of data ?? []) {
@@ -118,7 +124,8 @@ export async function qualityOnce(db: Db = createAdminClient()): Promise<{ score
     const stale = Number(row.stale);
     const score = Math.max(0, Math.min(100, 50 +
       Math.min(20, actionable * 5) + Math.min(10, Number(row.matches) * 2) +
-      Math.min(10, Number(row.routing_clicks) * 3) + Math.min(10, Number(row.outcomes_known) * 5) -
+      Math.min(10, Number(row.routing_clicks) * 3) + Math.min(10, Number(row.outcomes_known) * 5) +
+      Math.min(15, Number(row.tier_a) * 5) + Math.min(10, Number(row.matchable) * 5) -
       Math.min(30, Number(row.failure_count) * 10) -
       (ingested >= 3 ? Math.round(20 * stale / ingested) : 0)));
     const { error: updateError } = await db.from("opportunity_sources")
@@ -155,8 +162,8 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
     circumplex: unknown; songs: { track_key: string }; reports: { payload: unknown };
   }>;
   const { data: opportunities, error: opportunityError } = await db.from("opportunities")
-    .select("id,target,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope)")
-    .eq("status", "open").eq("synthetic", false)
+    .select("id,target,specificity_tier,song_matchable,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope)")
+    .eq("status", "open").eq("synthetic", false).eq("specificity_tier", "A").eq("song_matchable", true)
     .eq("opportunity_sources.active", true).limit(100);
   if (opportunityError) throw opportunityError;
   const now = new Date().toISOString();

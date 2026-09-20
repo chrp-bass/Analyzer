@@ -19,6 +19,7 @@ beforeAll(async () => {
   await client.query(readFileSync("supabase/migrations/20260920162002_song_where_quality_gate.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920170113_song_where_source_quality.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920193000_song_where_public_pointers.sql", "utf8"));
+  await client.query(readFileSync("supabase/migrations/20260920211307_song_where_matchability_gate.sql", "utf8"));
 }, 180_000);
 
 afterAll(async () => { await client?.end(); await pg?.stop(); });
@@ -77,5 +78,16 @@ describe("Song Where migration", () => {
       where table_name='opportunities' and column_name in
       ('eligibility_text','fetched_at','verification_status')`);
     expect(rows).toHaveLength(3);
+  });
+
+  it("defaults legacy opportunities to general and records tier funnel privately", async () => {
+    const { rows } = await client.query(`select column_default from information_schema.columns
+      where table_name='opportunities' and column_name='specificity_tier'`);
+    expect(rows[0].column_default).toContain("'C'");
+    const funnel = await client.query(`select tier_a,tier_b,tier_c,matchable from song_where_source_funnel
+      where source_id in (select id from opportunity_sources where name='source-a')`);
+    expect(funnel.rows[0]).toMatchObject({ tier_a: "0", tier_b: "0", tier_c: "0", matchable: "0" });
+    const grants = await client.query(`select has_table_privilege('anon','song_where_source_funnel','select') as public_read`);
+    expect(grants.rows[0].public_read).toBe(false);
   });
 });

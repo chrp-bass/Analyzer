@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeTarget } from "../normalize.server";
 import { publicHttpsUrl } from "./public-url.server";
 import { verifySubmissionRoute } from "../quality.server";
+import { classifySpecificity, songMatchable } from "../specificity.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 export type InboundBrief = { messageId: string; from: string; subject: string;
@@ -50,6 +51,15 @@ export async function ingestInboundBrief(input: InboundBrief, db: Db = createAdm
   let opportunityId: string | null = null;
   const verifiedAt = admissible ? await verifySubmissionRoute(destination.href) : null;
   if (admissible && verifiedAt) {
+    const tier = classifySpecificity({ target, criteria: {
+      mood: explicit(input.text, "Mood", 500) ?? undefined,
+      usage: explicit(input.text, "Use", 300) ?? undefined,
+      genre: explicit(input.text, "Genre", 100) ?? undefined,
+      energy: explicit(input.text, "Energy", 100) ?? undefined,
+      vocal: explicit(input.text, "Vocal", 100) ?? undefined,
+      tempo: explicit(input.text, "Tempo", 100) ?? undefined,
+      reference: explicit(input.text, "Reference", 200) ?? undefined,
+    } });
     const contentHash = createHash("sha256").update(JSON.stringify({
       subject: input.subject, text: input.text, destination: destination.href,
     })).digest("hex");
@@ -60,6 +70,7 @@ export async function ingestInboundBrief(input: InboundBrief, db: Db = createAdm
       provenance_url: provenance.href, budget_text: explicit(input.text, "Budget", 200),
       use_text: explicit(input.text, "Use", 300), territory_text: explicit(input.text, "Territory", 200),
       mood_context: explicit(input.text, "Mood", 500), synthetic: false,
+      specificity_tier: tier, song_matchable: songMatchable(tier, target),
       route_verified_at: verifiedAt,
       eligibility_requirements: explicit(input.text, "Eligibility", 1000)
         ? { unverified: explicit(input.text, "Eligibility", 1000) } : {},

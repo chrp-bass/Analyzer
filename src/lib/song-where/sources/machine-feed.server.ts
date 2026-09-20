@@ -45,6 +45,12 @@ function normalize(row: Row): SourceOpportunity | null {
     deadline, status, target, contentHash, provenanceUrl: provenance.href,
     budgetText: metadata.budget, useText: metadata.use,
     territoryText: metadata.territory, moodContext: metadata.mood,
+    songCriteria: { mood: metadata.mood ?? undefined, usage: metadata.use ?? undefined,
+      genre: text(row.genre, 80) ?? undefined, energy: text(row.energy, 80) ?? undefined,
+      vocal: text(row.vocal, 80) ?? undefined, tempo: text(row.tempo, 80) ?? undefined,
+      reference: text(row.reference, 120) ?? undefined },
+    specificityRequest: rawText && /^\s*(?:looking for|seeking|music needed)\b/i.test(rawText)
+      ? rawText.slice(0, 1200) : null,
     applicantCount, competitionLevel, eligibilityRequirements };
 }
 

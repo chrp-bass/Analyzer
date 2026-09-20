@@ -3,13 +3,15 @@ import { publicHttpsUrl } from "./sources/public-url.server";
 import type { FitBand } from "./dto";
 
 export type QualityStatus = "LIVE_VERIFIED" | "LIVE_HIGH_COMPETITION" | "STALE" |
-  "EXPIRED" | "NO_SUBMISSION_PATH" | "ELIGIBILITY_MISMATCH" | "SOURCE_UNCERTAIN";
+  "EXPIRED" | "NO_SUBMISSION_PATH" | "ELIGIBILITY_MISMATCH" | "SOURCE_UNCERTAIN" |
+  "NOT_SONG_MATCHABLE";
 
 export type QualityEvidence = {
   status: string; deadline: string | null; submission_url: string;
   route_verified_at: string | null; provenance_url: string | null;
   applicant_count: number | null; competition_level: string | null;
   eligibility_requirements: unknown;
+  specificity_tier: string; song_matchable: boolean;
   opportunity_sources: { active: boolean; trust_level: string; terms_status: string;
     robots_status: string; auth_scope: string } | null;
 };
@@ -32,6 +34,8 @@ export function qualityStatus(opportunity: QualityEvidence, fit: FitBand | null,
   const requirements = opportunity.eligibility_requirements;
   if (!requirements || typeof requirements !== "object" || Array.isArray(requirements) ||
       Object.keys(requirements).length > 0) return "ELIGIBILITY_MISMATCH";
+  if (opportunity.specificity_tier !== "A" || opportunity.song_matchable !== true)
+    return "NOT_SONG_MATCHABLE";
   if (!fit) return "ELIGIBILITY_MISMATCH";
   if (opportunity.competition_level === "high" ||
       opportunity.applicant_count !== null && opportunity.applicant_count >= 100) return "LIVE_HIGH_COMPETITION";
