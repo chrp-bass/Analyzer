@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicHttpsUrl } from "./public-url.server";
 import { configuredSearchIndex, scoutQueries, watchlist } from "./scout.server";
+import { parsePublicOpportunityPage } from "./public-page.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 // Discovery never signs in or submits a form.
@@ -68,11 +69,7 @@ function linkedSourcePages(html: string, page: URL): URL[] {
   return Array.from(found.values());
 }
 
-function cc0Rights(html: string): boolean {
-  return /<link\b[^>]*\brel\s*=\s*["']license["'][^>]*\bhref\s*=\s*["']https:\/\/creativecommons\.org\/publicdomain\/zero\/1\.0\/?["'][^>]*>/i.test(html);
-}
-
-/** Unknown terms, robots or feed shape are quarantined, never silently admitted. */
+/** Public pointers require access verification, not a license to republish text. */
 export async function discoverOnce(db: Db = createAdminClient()): Promise<{
   examined: number; candidates: number; admitted: number; searchActive: boolean;
 }> {
@@ -115,15 +112,39 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
     let policy = "";
     let robots: "allow" | "deny" | "unverified" = "unverified";
     try {
-      policy = await boundedGet(new URL("/robots.txt", page), "text/plain");
-      robots = robotsStatus(policy, page.pathname);
+      const robotsResponse = await fetch(new URL("/robots.txt", page), { cache: "no-store", redirect: "error",
+        headers: { "User-Agent": "CHRP-SongWhere/1.0" }, signal: AbortSignal.timeout(8000) });
+      if (robotsResponse.status === 404 || robotsResponse.status === 410) robots = "allow";
+      else if (robotsResponse.ok) {
+        policy = await robotsResponse.text();
+        if (policy.length > 200_000) throw new Error("robots too large");
+        robots = robotsStatus(policy, page.pathname);
+      }
       if (robots === "allow") html = await boundedGet(page, "text/html");
     } catch { /* Inability to verify is a quarantine, not permission. */ }
+    const parsed = html ? parsePublicOpportunityPage(html, page.href) : null;
+    const admissiblePage = robots === "allow" && !!parsed;
+    const pageSourceName = `public-${page.hostname}-${createHash("sha256").update(page.href).digest("hex").slice(0, 8)}`;
     const { error: checkedError } = await db.from("opportunity_source_candidates").update({
-      robots_status: robots, checked_at: new Date().toISOString(),
-      reason: robots === "allow" ? "reuse_rights_unverified" : "robots_unverified_or_denied",
-    }).eq("url", page.href).eq("status", "quarantined");
+      robots_status: robots, terms_status: robots === "allow" ? "public_pointer" : "unverified",
+      status: admissiblePage ? "admitted" : "quarantined", checked_at: new Date().toISOString(),
+      reason: admissiblePage ? null : robots === "allow" ? "no_verified_open_opportunity" : "robots_unverified_or_denied",
+    }).eq("url", page.href);
     if (checkedError) throw checkedError;
+    if (admissiblePage) {
+      const { error } = await db.from("opportunity_sources").upsert({ name: pageSourceName, kind: "page",
+        trust_level: "verified", base_url: page.origin, source_url: page.href,
+        access_type: "page", robots_status: "allow", terms_status: "public_pointer",
+        auth_scope: "none", active: true, updated_at: new Date().toISOString(),
+      }, { onConflict: "name" });
+      if (error) throw error;
+      admitted++;
+    } else {
+      const { error } = await db.from("opportunity_sources").update({ active: false,
+        quarantine_reason: robots === "allow" ? "no_verified_open_opportunity" : "robots_unverified_or_denied",
+        updated_at: new Date().toISOString() }).eq("name", pageSourceName);
+      if (error) throw error;
+    }
     if (html) for (const linked of linkedSourcePages(html, page)) {
       const { error } = await db.from("opportunity_source_candidates").upsert({
         url: linked.href, discovered_from: page.href, access_type: "page",
@@ -135,14 +156,13 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
     const links = html ? feedLinks(html, page) : [];
     for (const feed of links.slice(0, 5)) {
       candidates++;
-      const feedRobots = policy ? robotsStatus(policy, feed.pathname) : "unverified";
-      const rights = cc0Rights(html);
-      const admissible = feedRobots === "allow" && rights;
+      const feedRobots = policy ? robotsStatus(policy, feed.pathname) : robots;
+      const admissible = feedRobots === "allow";
       const { error } = await db.from("opportunity_source_candidates").upsert({
         url: feed.href, discovered_from: page.href, access_type: "feed",
-        robots_status: feedRobots, terms_status: rights ? "cc0" : "unverified",
+        robots_status: feedRobots, terms_status: admissible ? "public_pointer" : "unverified",
         status: admissible ? "admitted" : "quarantined",
-        reason: admissible ? null : feedRobots !== "allow" ? "robots_unverified_or_denied" : "reuse_rights_unverified",
+        reason: admissible ? null : "robots_unverified_or_denied",
         checked_at: new Date().toISOString(),
       }, { onConflict: "url" });
       if (error) throw error;
@@ -151,7 +171,7 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
       const { error: sourceError } = await db.from("opportunity_sources").upsert({
         name, kind: "feed", trust_level: "verified", base_url: feed.origin,
         source_url: feed.href, access_type: "feed", robots_status: "allow",
-        terms_status: "cc0", terms_url: page.href, auth_scope: "none",
+        terms_status: "public_pointer", terms_url: page.href, auth_scope: "none",
         active: true, updated_at: new Date().toISOString(),
       }, { onConflict: "name" });
       if (sourceError) throw sourceError;

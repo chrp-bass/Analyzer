@@ -55,13 +55,13 @@ export function SongWhere({ scanId }: { scanId: string }) {
             <div>
               <h3 className="font-display text-[20px]">{match.title}</h3>
               <p className="font-sans text-[11px] text-ink-soft mt-1">
-                {match.sourceName} · {match.trust} source · {match.fit.replace("_", " ")} fit
+                Original source: {match.sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "")} · {match.trust} source · {match.fit.replace("_", " ")} fit
                 {match.deadline ? ` · Closes ${new Date(match.deadline).toLocaleDateString()}` : ""}
               </p>
             </div>
             <div className="flex flex-col items-end gap-2 self-center">
               <a href={match.goHref} className="font-sans font-bold text-[12px] underline">
-                View submission →
+                View original source and apply →
               </a>
               {outcomes[match.matchId] ? (
                 <span className="font-sans text-[11px] text-ink-soft">Marked {outcomes[match.matchId]}</span>

@@ -23,7 +23,7 @@ export function qualityStatus(opportunity: QualityEvidence, fit: FitBand | null,
       !Number.isFinite(Date.parse(opportunity.deadline))) return "STALE";
   const source = opportunity.opportunity_sources;
   if (!source?.active || !["verified", "curated"].includes(source.trust_level) ||
-      !["cc0", "permitted"].includes(source.terms_status) ||
+      !["cc0", "permitted", "public_pointer"].includes(source.terms_status) ||
       source.robots_status !== "allow" || source.auth_scope !== "none" ||
       !opportunity.provenance_url || !publicHttpsUrl(opportunity.provenance_url)) return "SOURCE_UNCERTAIN";
   if (!publicHttpsUrl(opportunity.submission_url) || !opportunity.route_verified_at ||

@@ -3,11 +3,28 @@ import { parseMachineFeed } from "../src/lib/song-where/sources/machine-feed.ser
 import { publicHttpsUrl } from "../src/lib/song-where/sources/public-url.server";
 import { POST as inbound } from "../src/app/api/song-where/inbound/route";
 import { configuredSearchIndex, scoutQueries, watchlist } from "../src/lib/song-where/sources/scout.server";
+import { parsePublicOpportunityPage } from "../src/lib/song-where/sources/public-page.server";
 
 const source = "https://briefs.example.org/feed.xml";
 const futureDeadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 describe("autonomous acquisition safety", () => {
+  it("admits factual public pointers without copying the brief, but rejects closed or route-less pages", () => {
+    const url = "https://publisher.example.org/call";
+    const html = `<html><h1>Pitch Your Music</h1><p>2026 Open Call</p>
+      <p>Deadline: 25 September 2026</p><p>All genres are welcome.</p>
+      <form><button type="submit">Submit Form</button></form>
+      <p>Private creative direction must not be stored.</p></html>`;
+    const now = new Date("2026-09-20T12:00:00Z");
+    expect(parsePublicOpportunityPage(html, url, now)).toMatchObject({
+      title: "Pitch Your Music", deadline: "2026-09-25T23:59:59.000Z",
+      submissionUrl: url, provenanceUrl: url, rawText: null, target: {},
+      eligibilityText: "All genres are welcome.", verificationStatus: "verified",
+    });
+    expect(parsePublicOpportunityPage(html.replace("<form><button type=\"submit\">Submit Form</button></form>", ""), url, now)).toBeNull();
+    expect(parsePublicOpportunityPage(html, url, new Date("2026-09-26T12:00:00Z"))).toBeNull();
+    expect(parsePublicOpportunityPage(html.replace("Open Call", "Call Closed"), url, now)).toBeNull();
+  });
   it("rotates public watchlist and search queries without implying source permission", () => {
     const previous = process.env.SONG_WHERE_BRAVE_SEARCH_KEY;
     delete process.env.SONG_WHERE_BRAVE_SEARCH_KEY;
