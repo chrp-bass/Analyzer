@@ -45,9 +45,25 @@ function feedLinks(html: string, page: URL): URL[] {
     const type = tag.match(/\btype\s*=\s*["']([^"']+)["']/i)?.[1] ?? "";
     const href = tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
     if (!rel.split(/\s+/).includes("alternate") || !/application\/(?:rss\+xml|atom\+xml|feed\+json|json)/i.test(type) || !href) return [];
-    const url = publicHttpsUrl(new URL(href, page).href);
-    return url && url.origin === page.origin ? [url] : [];
+    try {
+      const url = publicHttpsUrl(new URL(href, page).href);
+      return url && url.origin === page.origin ? [url] : [];
+    } catch { return []; }
   });
+}
+
+function linkedSourcePages(html: string, page: URL): URL[] {
+  const anchors = Array.from(html.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([^<]{0,120})/gi));
+  const found = new Map<string, URL>();
+  for (const [, href, label] of anchors.slice(0, 200)) {
+    if (!/\b(?:sync|music|briefs?|opportunit(?:y|ies))\b/i.test(`${href} ${label}`)) continue;
+    try {
+      const url = publicHttpsUrl(new URL(href, page).href);
+      if (url && url.origin !== page.origin) found.set(url.href, url);
+    } catch { continue; }
+    if (found.size >= 5) break;
+  }
+  return Array.from(found.values());
 }
 
 function cc0Rights(html: string): boolean {
@@ -58,9 +74,14 @@ function cc0Rights(html: string): boolean {
 export async function discoverOnce(db: Db = createAdminClient()): Promise<{
   examined: number; candidates: number; admitted: number;
 }> {
+  const { data: queued, error: queueError } = await db.from("opportunity_source_candidates")
+    .select("url").eq("access_type", "page").eq("status", "quarantined")
+    .order("checked_at", { ascending: true, nullsFirst: true }).limit(6);
+  if (queueError) throw queueError;
+  const pages = [...SEEDS, ...(queued ?? []).map((row) => row.url)];
   let candidates = 0;
   let admitted = 0;
-  for (const seed of SEEDS) {
+  for (const seed of pages) {
     const page = publicHttpsUrl(seed);
     if (!page) continue;
     let html = "";
@@ -71,6 +92,21 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
       robots = robotsStatus(policy, page.pathname);
       if (robots === "allow") html = await boundedGet(page, "text/html");
     } catch { /* Inability to verify is a quarantine, not permission. */ }
+    if (!SEEDS.includes(seed)) {
+      const { error } = await db.from("opportunity_source_candidates").update({
+        robots_status: robots, checked_at: new Date().toISOString(),
+        reason: robots === "allow" ? "reuse_rights_unverified" : "robots_unverified_or_denied",
+      }).eq("url", seed);
+      if (error) throw error;
+    }
+    if (html) for (const linked of linkedSourcePages(html, page)) {
+      const { error } = await db.from("opportunity_source_candidates").upsert({
+        url: linked.href, discovered_from: page.href, access_type: "page",
+        status: "quarantined", reason: "awaiting_public_source_review",
+      }, { onConflict: "url", ignoreDuplicates: true });
+      if (error) throw error;
+      candidates++;
+    }
     const links = html ? feedLinks(html, page) : [];
     for (const feed of links.slice(0, 5)) {
       candidates++;
@@ -97,5 +133,5 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
       admitted++;
     }
   }
-  return { examined: SEEDS.length, candidates, admitted };
+  return { examined: pages.length, candidates, admitted };
 }

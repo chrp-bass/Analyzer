@@ -13,7 +13,8 @@ redirects. A discovered feed is admitted only when robots permits access and
 the source publishes an explicit CC0 license link. Other candidates remain
 quarantined in `opportunity_source_candidates`; they never become supply.
 The initial public starting points are Played, HRDRV Pitch, Tracksynk and The
-Sync Brief. None is assumed to be an approved opportunity source.
+Sync Brief. Each cycle also follows a bounded queue of newly linked, relevant
+public source pages. None is assumed to be an approved opportunity source.
 
 Registered feeds are bounded to ten per cycle, fifty items each, and an eight
 second request timeout. Only an item with an explicit open/closed status,
