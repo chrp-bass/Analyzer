@@ -5,6 +5,7 @@ import { profileFromAnalysis } from "./profile.server";
 import { normalizeTarget } from "./normalize.server";
 import { matchSong, MATCHER_VERSION } from "./match.server";
 import { configuredSources } from "./sources/feed.server";
+import { registeredSources } from "./sources/registered.server";
 import { isCompletePaidPayload } from "@/lib/reports/store";
 
 type Db = ReturnType<typeof createAdminClient>;
@@ -23,7 +24,7 @@ async function saveCursor(db: Db, stage: Stage, cursor: string | null): Promise<
 }
 
 export async function ingestOnce(db: Db = createAdminClient()): Promise<{ sources: number; ingested: number; failed: number }> {
-  const sources = configuredSources();
+  const sources = [...configuredSources(), ...await registeredSources(db)];
   let ingested = 0;
   let failed = 0;
   for (const adapter of sources.slice(0, 10)) {
@@ -34,24 +35,59 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
         base_url: adapter.baseUrl, active: true }, { onConflict: "name" }).select("id").single();
     if (sourceError || !source) throw sourceError ?? new Error("source upsert failed");
     for (const item of items) {
+      const { data: duplicate, error: duplicateError } = await db.from("opportunities")
+        .select("id,external_ref").eq("source_id", source.id)
+        .eq("content_hash", item.contentHash).limit(1);
+      if (duplicateError) throw duplicateError;
+      if (duplicate?.length && duplicate[0].external_ref !== item.externalRef) continue;
       const { error } = await db.from("opportunities").upsert({
         source_id: source.id, external_ref: item.externalRef, title: item.title,
         raw_text: item.rawText, status: item.status, submission_url: item.submissionUrl,
         deadline: item.deadline, target: item.target, normalizer_version: "explicit-v1",
         content_hash: item.contentHash, last_seen_at: new Date().toISOString(),
+        provenance_url: item.provenanceUrl ?? null, budget_text: item.budgetText ?? null,
+        use_text: item.useText ?? null, territory_text: item.territoryText ?? null,
+        mood_context: item.moodContext ?? null, synthetic: false,
       }, { onConflict: "source_id,external_ref" });
       if (error) throw error;
       ingested++;
     }
+    const { error: healthyError } = await db.from("opportunity_sources").update({
+      active: true, failure_count: 0, quarantine_reason: null,
+      last_successful_ingest_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("id", source.id);
+    if (healthyError) throw healthyError;
     } catch {
       failed++;
       // A broken feed cannot stop other sources or produce user-facing records.
+      const { data: current } = await db.from("opportunity_sources")
+        .select("failure_count").eq("name", adapter.name).limit(1);
       const { error } = await db.from("opportunity_sources")
-        .update({ active: false }).eq("name", adapter.name);
+        .update({ active: false, quarantine_reason: "ingest_failed",
+          failure_count: Math.min(1000, Number(current?.[0]?.failure_count ?? 0) + 1),
+          updated_at: new Date().toISOString() }).eq("name", adapter.name);
       if (error) console.error("[song-where] source quarantine failed");
     }
   }
   return { sources: sources.length, ingested, failed };
+}
+
+export async function healthOnce(db: Db = createAdminClient()): Promise<Record<string, number>> {
+  const queries = [
+    ["activeSources", db.from("opportunity_sources").select("id", { count: "exact", head: true }).eq("active", true)],
+    ["opportunities", db.from("opportunities").select("id", { count: "exact", head: true }).eq("synthetic", false)],
+    ["parseFailures", db.from("opportunity_inbox_messages").select("id", { count: "exact", head: true }).eq("status", "quarantined")],
+    ["matches", db.from("song_opportunity_matches").select("id", { count: "exact", head: true })],
+    ["routingClicks", db.from("submission_clicks").select("id", { count: "exact", head: true })],
+    ["alertsSent", db.from("opportunity_alerts").select("id", { count: "exact", head: true }).eq("status", "sent")],
+    ["sourceFailures", db.from("opportunity_sources").select("id", { count: "exact", head: true }).gt("failure_count", 0)],
+  ] as const;
+  const results = await Promise.all(queries.map(async ([name, query]) => {
+    const { count, error } = await query;
+    if (error) throw error;
+    return [name, count ?? 0] as const;
+  }));
+  return Object.fromEntries(results);
 }
 
 export async function expireOnce(db: Db = createAdminClient()): Promise<{ expired: number }> {
@@ -81,7 +117,8 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
   }>;
   const { data: opportunities, error: opportunityError } = await db.from("opportunities")
     .select("id,target,deadline,opportunity_sources!inner(active,trust_level)")
-    .eq("status", "open").eq("opportunity_sources.active", true).limit(100);
+    .eq("status", "open").eq("synthetic", false)
+    .eq("opportunity_sources.active", true).limit(100);
   if (opportunityError) throw opportunityError;
   const now = new Date().toISOString();
   let matches = 0;

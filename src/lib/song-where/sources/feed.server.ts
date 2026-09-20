@@ -12,11 +12,16 @@ export type SourceOpportunity = {
   status: "open" | "closed";
   target: OpportunityTarget;
   contentHash: string;
+  provenanceUrl?: string | null;
+  budgetText?: string | null;
+  useText?: string | null;
+  territoryText?: string | null;
+  moodContext?: string | null;
 };
 
 export interface OpportunitySourceAdapter {
   name: string;
-  kind: "api";
+  kind: "api" | "feed";
   trust: "verified" | "curated";
   baseUrl: string;
   fetch(): Promise<SourceOpportunity[]>;

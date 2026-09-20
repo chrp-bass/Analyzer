@@ -30,6 +30,7 @@ jobs:
           }
           validation="$(call_stage validate)"
           if [ "$(printf '%s' "$validation" | jq -r '.result')" != PASS ]; then exit 1; fi
+          call_stage discovery
           call_stage ingest
           call_stage expire
           for attempt in 1 2 3 4 5; do
@@ -37,3 +38,4 @@ jobs:
             if [ "$(printf '%s' "$result" | jq -r '.more')" != true ]; then break; fi
           done
           call_stage alert
+          call_stage health

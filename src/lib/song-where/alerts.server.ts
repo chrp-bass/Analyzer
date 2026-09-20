@@ -25,6 +25,7 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   let query = db.from("song_opportunity_matches")
     .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(title,status,deadline,opportunity_sources!inner(active))")
     .eq("fit_band", "strong").eq("opportunities.status", "open")
+    .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true)
     .order("id", { ascending: true }).limit(10);
   if (cursor) query = query.gt("id", cursor);

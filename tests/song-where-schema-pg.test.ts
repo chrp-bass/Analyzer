@@ -15,6 +15,7 @@ beforeAll(async () => {
   await client.query("create role anon nologin; create role authenticated nologin;");
   await client.query("create table creators (id uuid primary key); create table analyses (id uuid primary key references creators(id));");
   await client.query(readFileSync("db/migrations/0004_song_where.sql", "utf8"));
+  await client.query(readFileSync("supabase/migrations/20260920143438_song_where_acquisition.sql", "utf8"));
 }, 180_000);
 
 afterAll(async () => { await client?.end(); await pg?.stop(); });
@@ -23,8 +24,9 @@ describe("Song Where migration", () => {
   it("creates only new service-only tables, with RLS on every one", async () => {
     const { rows } = await client.query(`select relname, relrowsecurity from pg_class where relname in
       ('opportunity_sources','opportunities','song_opportunity_matches','song_opportunity_match_history',
-       'song_where_prefs','opportunity_alerts','submission_clicks','song_where_job_state') order by relname`);
-    expect(rows).toHaveLength(8);
+       'song_where_prefs','opportunity_alerts','submission_clicks','song_where_job_state',
+       'opportunity_source_candidates','opportunity_inbox_messages') order by relname`);
+    expect(rows).toHaveLength(10);
     expect(rows.every((row) => row.relrowsecurity === true)).toBe(true);
     const grants = await client.query(`select has_table_privilege('authenticated', 'song_opportunity_matches', 'select') as can_read,
       has_table_privilege('anon', 'opportunities', 'select') as anon_read`);
