@@ -2,6 +2,7 @@ import { ReportPayload, ScoreRow } from "@/lib/fixtures/tracks";
 import { EpiPlate } from "@/components/EpiPlate";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportOwnership } from "@/components/report/ReportOwnership";
+import { SongWhere } from "@/components/report/SongWhere";
 import { RhodesVoice } from "@/components/report/RhodesVoice";
 
 /**
@@ -180,6 +181,7 @@ export function ReportBody({
       {/* Ownership, after the intelligence. Value first, then the reason
           to keep it. Applies to the free first report and the paid one
           alike — entitlement differs, ownership UX does not. */}
+      <SongWhere scanId={id} />
       <ReportOwnership scanId={id} songTitle={report.track.title} />
 
       <Footer id={report.report_meta.id} reportId={id} />

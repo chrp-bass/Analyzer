@@ -1,0 +1,36 @@
+name: Song Where
+
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: song-where
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ingest, rematch and alert
+        env:
+          SONG_WHERE_JOB_SECRET: ${{ secrets.SONG_WHERE_JOB_SECRET }}
+        run: |
+          set -euo pipefail
+          call_stage() {
+            curl --fail --silent --show-error --max-time 65 \
+              -X POST "https://scan.chrp.ai/api/song-where/jobs/run?stage=$1" \
+              -H "Authorization: Bearer $SONG_WHERE_JOB_SECRET" \
+              -H 'Content-Type: application/json'
+          }
+          call_stage ingest
+          for attempt in 1 2 3 4 5; do
+            result="$(call_stage match)"
+            if [ "$(printf '%s' "$result" | jq -r '.more')" != true ]; then break; fi
+          done
+          call_stage alert
