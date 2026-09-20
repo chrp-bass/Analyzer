@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeTarget } from "../normalize.server";
 import { publicHttpsUrl } from "./public-url.server";
+import { verifySubmissionRoute } from "../quality.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 export type InboundBrief = { messageId: string; from: string; subject: string;
@@ -58,6 +59,9 @@ export async function ingestInboundBrief(input: InboundBrief, db: Db = createAdm
       provenance_url: provenance.href, budget_text: explicit(input.text, "Budget", 200),
       use_text: explicit(input.text, "Use", 300), territory_text: explicit(input.text, "Territory", 200),
       mood_context: explicit(input.text, "Mood", 500), synthetic: false,
+      route_verified_at: await verifySubmissionRoute(destination.href),
+      eligibility_requirements: explicit(input.text, "Eligibility", 1000)
+        ? { unverified: explicit(input.text, "Eligibility", 1000) } : {},
     }, { onConflict: "source_id,external_ref" }).select("id").single();
     if (error) throw error;
     opportunityId = data.id;

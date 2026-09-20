@@ -31,13 +31,20 @@ function normalize(row: Row): SourceOpportunity | null {
     budget: text(row.budget, 200), use: text(row.use, 300),
     territory: text(row.territory, 200), mood: text(row.mood, 500),
   };
+  const applicantCount = Number.isSafeInteger(row.applicantCount) && Number(row.applicantCount) >= 0
+    ? Number(row.applicantCount) : null;
+  const competitionLevel = ["low", "medium", "high"].includes(String(row.competitionLevel))
+    ? row.competitionLevel as "low" | "medium" | "high" : null;
+  const eligibilityRequirements = object(row.eligibilityRequirements);
   const contentHash = createHash("sha256").update(JSON.stringify({
     title, route: destination.href, deadline, status, target, rawText, metadata,
+    applicantCount, competitionLevel, eligibilityRequirements,
   })).digest("hex");
   return { externalRef: id, title, rawText, submissionUrl: destination.href,
     deadline, status, target, contentHash, provenanceUrl: provenance.href,
     budgetText: metadata.budget, useText: metadata.use,
-    territoryText: metadata.territory, moodContext: metadata.mood };
+    territoryText: metadata.territory, moodContext: metadata.mood,
+    applicantCount, competitionLevel, eligibilityRequirements };
 }
 
 /** Feed metadata alone is never treated as an opportunity or submission route. */
@@ -71,6 +78,10 @@ export function parseMachineFeed(body: string, contentType: string, feedUrl: str
         target: item["songwhere:target"] ? JSON.parse(String(item["songwhere:target"])) : item.target,
         budget: item["songwhere:budget"], use: item["songwhere:use"],
         territory: item["songwhere:territory"], mood: item["songwhere:mood"],
+        applicantCount: item["songwhere:applicantCount"],
+        competitionLevel: item["songwhere:competitionLevel"],
+        eligibilityRequirements: item["songwhere:eligibilityRequirements"]
+          ? JSON.parse(String(item["songwhere:eligibilityRequirements"])) : undefined,
       };
     });
   }

@@ -7,6 +7,7 @@ import { matchSong, MATCHER_VERSION } from "./match.server";
 import { configuredSources } from "./sources/feed.server";
 import { registeredSources } from "./sources/registered.server";
 import { isCompletePaidPayload } from "@/lib/reports/store";
+import { qualityStatus, verifySubmissionRoute, type QualityEvidence } from "./quality.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 type Stage = "ingest" | "match" | "alert";
@@ -25,9 +26,11 @@ async function saveCursor(db: Db, stage: Stage, cursor: string | null): Promise<
 
 export async function ingestOnce(db: Db = createAdminClient()): Promise<{ sources: number; ingested: number; failed: number }> {
   const sources = [...configuredSources(), ...await registeredSources(db)];
+  const stopAt = Date.now() + 40_000;
   let ingested = 0;
   let failed = 0;
   for (const adapter of sources.slice(0, 10)) {
+    if (Date.now() >= stopAt) break;
     try {
     const items = await adapter.fetch();
     const { data: source, error: sourceError } = await db.from("opportunity_sources")
@@ -35,6 +38,7 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
         base_url: adapter.baseUrl, active: true }, { onConflict: "name" }).select("id").single();
     if (sourceError || !source) throw sourceError ?? new Error("source upsert failed");
     for (const item of items) {
+      if (Date.now() >= stopAt) break;
       const { data: duplicate, error: duplicateError } = await db.from("opportunities")
         .select("id,external_ref").eq("source_id", source.id)
         .eq("content_hash", item.contentHash).limit(1);
@@ -48,6 +52,10 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
         provenance_url: item.provenanceUrl ?? null, budget_text: item.budgetText ?? null,
         use_text: item.useText ?? null, territory_text: item.territoryText ?? null,
         mood_context: item.moodContext ?? null, synthetic: false,
+        route_verified_at: await verifySubmissionRoute(item.submissionUrl),
+        applicant_count: item.applicantCount ?? null,
+        competition_level: item.competitionLevel ?? null,
+        eligibility_requirements: item.eligibilityRequirements ?? {},
       }, { onConflict: "source_id,external_ref" });
       if (error) throw error;
       ingested++;
@@ -116,7 +124,7 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
     circumplex: unknown; songs: { track_key: string }; reports: { payload: unknown };
   }>;
   const { data: opportunities, error: opportunityError } = await db.from("opportunities")
-    .select("id,target,deadline,opportunity_sources!inner(active,trust_level)")
+    .select("id,target,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope)")
     .eq("status", "open").eq("synthetic", false)
     .eq("opportunity_sources.active", true).limit(100);
   if (opportunityError) throw opportunityError;
@@ -127,9 +135,11 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
     const profile = profileFromAnalysis(row);
     if (!profile) continue;
     for (const opportunity of (opportunities ?? []) as unknown as Array<{
-      id: string; target: unknown; deadline: string | null;
+      id: string; target: unknown;
       opportunity_sources: { trust_level: string };
-    }>) {
+    } & QualityEvidence>) {
+      const gate = qualityStatus(opportunity, "worth_exploring", new Date(now));
+      if (gate !== "LIVE_VERIFIED") continue;
       if (opportunity.deadline && opportunity.deadline < now) continue;
       const target = normalizeTarget(opportunity.target);
       if (!target) continue;

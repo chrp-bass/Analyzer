@@ -5,6 +5,7 @@ import { profileFromAnalysis } from "../src/lib/song-where/profile.server";
 import { normalizeTarget } from "../src/lib/song-where/normalize.server";
 import { matchSong } from "../src/lib/song-where/match.server";
 import { rankMatches } from "../src/lib/song-where/rank.server";
+import { qualityStatus } from "../src/lib/song-where/quality.server";
 import { matchesForAnalysis, safeSubmissionUrl } from "../src/lib/song-where/store.supabase";
 import { GET as getSongWhere } from "../src/app/api/song-where/[scanId]/route";
 import { POST as runJob } from "../src/app/api/song-where/jobs/run/route";
@@ -40,9 +41,12 @@ describe("Song Where isolation", () => {
   it("serializes only approved match metadata and never logs backend errors", async () => {
     const row = {
       id: "match-id", match_score: 91.357, fit_band: "strong",
-      opportunities: { title: "Open brief", deadline: null, status: "open",
+      opportunities: { title: "Open brief", deadline: "2027-01-01T00:00:00Z", status: "open",
         submission_url: "https://example.org/private-submit-token",
-        opportunity_sources: { name: "Approved source", trust_level: "verified", active: true } },
+        route_verified_at: new Date().toISOString(), provenance_url: "https://example.org/brief",
+        applicant_count: null, competition_level: null, eligibility_requirements: {},
+        opportunity_sources: { name: "Approved source", trust_level: "verified", active: true,
+          terms_status: "permitted", robots_status: "allow", auth_scope: "none" } },
     };
     const query = {
       select: () => query, eq: () => query, limit: async () => ({ data: [row], error: null }),
@@ -111,13 +115,37 @@ describe("Song Where matching", () => {
     expect(matchSong(profile!, { epiFloor: 90, modes: ["Ready"] })).toBeNull();
   });
 
-  it("ranks fit first, then source trust, then score", () => {
+  it("ranks fit and source trust with private fit strength", () => {
     const candidates = [
-      { fit: "strong" as const, trust: "scraped" as const, score: 99, deadline: null },
+      { fit: "strong" as const, trust: "scraped" as const, score: 90, deadline: null },
       { fit: "strong" as const, trust: "verified" as const, score: 80, deadline: null },
       { fit: "moderate" as const, trust: "verified" as const, score: 98, deadline: null },
     ];
     expect(rankMatches(candidates)).toEqual([candidates[1], candidates[0], candidates[2]]);
+  });
+
+  it("rejects every non-live quality status and orders fresh, less saturated peers", () => {
+    const now = new Date("2026-09-20T12:00:00Z");
+    const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
+      submission_url: "https://example.org/apply", route_verified_at: now.toISOString(),
+      provenance_url: "https://example.org/brief", applicant_count: 3,
+      competition_level: "low", eligibility_requirements: {},
+      opportunity_sources: { active: true, trust_level: "verified", terms_status: "permitted",
+        robots_status: "allow", auth_scope: "none" } };
+    expect(qualityStatus(base, "strong", now)).toBe("LIVE_VERIFIED");
+    expect(qualityStatus({ ...base, deadline: "2026-09-19T12:00:00Z" }, "strong", now)).toBe("EXPIRED");
+    expect(qualityStatus({ ...base, deadline: null }, "strong", now)).toBe("STALE");
+    expect(qualityStatus({ ...base, route_verified_at: null }, "strong", now)).toBe("NO_SUBMISSION_PATH");
+    expect(qualityStatus({ ...base, eligibility_requirements: { geography: "US" } }, "strong", now))
+      .toBe("ELIGIBILITY_MISMATCH");
+    expect(qualityStatus({ ...base, opportunity_sources: { ...base.opportunity_sources,
+      terms_status: "unverified" } }, "strong", now)).toBe("SOURCE_UNCERTAIN");
+    expect(qualityStatus({ ...base, applicant_count: 120 }, "strong", now)).toBe("LIVE_HIGH_COMPETITION");
+    const fresh = { fit: "strong" as const, trust: "verified" as const, score: 85,
+      deadline: "2026-09-27T12:00:00Z", applicantCount: 4 };
+    const stale = { ...fresh, deadline: "2026-09-21T12:00:00Z" };
+    const saturated = { ...fresh, applicantCount: 75 };
+    expect(rankMatches([stale, saturated, fresh], now)).toEqual([fresh, saturated, stale]);
   });
 
   it("rejects dangerous submission URLs", () => {
