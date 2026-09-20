@@ -56,14 +56,14 @@ function feedLinks(html: string, page: URL): URL[] {
   });
 }
 
-function linkedSourcePages(html: string, page: URL): URL[] {
+export function linkedSourcePages(html: string, page: URL): URL[] {
   const anchors = Array.from(html.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([^<]{0,120})/gi));
   const found = new Map<string, URL>();
   for (const [, href, label] of anchors.slice(0, 200)) {
-    if (!/\b(?:sync|music|briefs?|opportunit(?:y|ies))\b/i.test(`${href} ${label}`)) continue;
+    if (!/\b(?:sync|music|briefs?|opportunit(?:y|ies)|pitches?|open.calls?|submissions?)\b/i.test(`${href} ${label}`)) continue;
     try {
       const url = publicHttpsUrl(new URL(href, page).href);
-      if (url && url.origin !== page.origin) found.set(url.href, url);
+      if (url && url.href !== page.href) found.set(url.href, url);
     } catch { continue; }
     if (found.size >= 5) break;
   }

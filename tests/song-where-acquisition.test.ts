@@ -5,6 +5,7 @@ import { POST as inbound } from "../src/app/api/song-where/inbound/route";
 import { configuredSearchIndex, scoutQueries, watchlist } from "../src/lib/song-where/sources/scout.server";
 import { parsePublicOpportunityPage } from "../src/lib/song-where/sources/public-page.server";
 import { classifySpecificity, songMatchable } from "../src/lib/song-where/specificity.server";
+import { linkedSourcePages } from "../src/lib/song-where/sources/discovery.server";
 
 const source = "https://briefs.example.org/feed.xml";
 const futureDeadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
@@ -52,9 +53,18 @@ describe("autonomous acquisition safety", () => {
       expect(watchlist(0)).not.toEqual(watchlist(1));
       expect(scoutQueries(0)).not.toEqual(scoutQueries(1));
       expect(watchlist(0).every((url) => publicHttpsUrl(url))).toBe(true);
+      expect(scoutQueries(0).every((query) => /(?:mood|tempo|instrumental|genre|reference|vocals|BPM)/i.test(query))).toBe(true);
+      expect(Array.from({ length: 13 }, (_, day) => scoutQueries(day)).flat().some((query) =>
+        query.includes("site:tracksynk.com/briefs/"))).toBe(true);
     } finally {
       if (previous !== undefined) process.env.SONG_WHERE_BRAVE_SEARCH_KEY = previous;
     }
+  });
+  it("discovers individual same-site brief pointers without accepting them as verified", () => {
+    const page = new URL("https://publisher.example.org/briefs");
+    expect(linkedSourcePages(`<a href="/briefs/energetic-trailer-cue">Music brief</a>
+      <a href="/about">About</a>`, page).map((url) => url.href))
+      .toEqual(["https://publisher.example.org/briefs/energetic-trailer-cue"]);
   });
 
   it("uses licensed search only for public candidate URLs, never snippet evidence", async () => {
