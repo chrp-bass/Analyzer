@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unlockedScansFor } from "@/lib/commerce/entitlements";
 import { sendEmail, renderEmail } from "@/lib/email/send.server";
-import { qualityStatus, type QualityEvidence } from "./quality.server";
+import { qualityStatus, verifySubmissionRoute, type QualityEvidence } from "./quality.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -24,7 +24,7 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   if (stateError) throw stateError;
   const cursor = state?.[0]?.cursor;
   let query = db.from("song_opportunity_matches")
-    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
+    .select("id,fit_band,analyses!inner(creator_id,scan_id,songs!inner(track_key)),opportunities!inner(id,title,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("fit_band", "strong").eq("opportunities.status", "open")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true)
@@ -35,7 +35,7 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
   const rows = (data ?? []) as unknown as Array<{
     id: string;
     analyses: { creator_id: string; scan_id: string; songs: { track_key: string } };
-    opportunities: QualityEvidence & { title: string };
+    opportunities: QualityEvidence & { id: string; title: string };
   }>;
   let sent = 0;
   for (const row of rows) {
@@ -57,6 +57,12 @@ export async function alertBatch(db: Db = createAdminClient()): Promise<{
     if (creatorError) throw creatorError;
     const email = creators?.[0]?.email;
     if (!email) continue;
+    // A cached route check is not sufficient evidence for a new notification.
+    const verifiedAt = await verifySubmissionRoute(row.opportunities.submission_url);
+    const { error: verificationError } = await db.from("opportunities")
+      .update({ route_verified_at: verifiedAt }).eq("id", row.opportunities.id);
+    if (verificationError) throw verificationError;
+    if (!verifiedAt) continue;
     const { data: claim, error: claimError } = await db.from("opportunity_alerts")
       .insert({ match_id: row.id, status: "queued", channel: "email" })
       .select("id").single();

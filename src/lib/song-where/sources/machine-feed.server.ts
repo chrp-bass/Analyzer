@@ -18,13 +18,14 @@ function normalize(row: Row): SourceOpportunity | null {
   const route = text(row.submissionUrl ?? row.submission_url, 2000);
   const destination = route ? safeSubmissionUrl(route) : null;
   const status = row.status === "closed" ? "closed" : row.status === "open" ? "open" : null;
-  if (!id || !title || !destination || destination.protocol !== "https:" || !status) return null;
+  if (!id || !title || !destination || destination.protocol !== "https:" || status !== "open") return null;
   const sourceUrl = text(row.url ?? row.link, 2000);
   const provenance = sourceUrl ? safeSubmissionUrl(sourceUrl) : null;
   if (!provenance || provenance.protocol !== "https:") return null;
   const rawDeadline = text(row.deadline, 80);
   const deadline = rawDeadline && Number.isFinite(Date.parse(rawDeadline))
     ? new Date(rawDeadline).toISOString() : null;
+  if (!deadline || deadline <= new Date().toISOString()) return null;
   const target = normalizeTarget(row.target) ?? {};
   const rawText = text(row.description ?? row.summary ?? row.content_text, 5000);
   const metadata = {
@@ -40,7 +41,7 @@ function normalize(row: Row): SourceOpportunity | null {
     title, route: destination.href, deadline, status, target, rawText, metadata,
     applicantCount, competitionLevel, eligibilityRequirements,
   })).digest("hex");
-  return { externalRef: id, title, rawText, submissionUrl: destination.href,
+  return { externalRef: id, title, rawText: null, submissionUrl: destination.href,
     deadline, status, target, contentHash, provenanceUrl: provenance.href,
     budgetText: metadata.budget, useText: metadata.use,
     territoryText: metadata.territory, moodContext: metadata.mood,

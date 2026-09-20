@@ -9,7 +9,7 @@ type Db = ReturnType<typeof createAdminClient>;
 export async function registeredSources(db: Db): Promise<OpportunitySourceAdapter[]> {
   const { data, error } = await db.from("opportunity_sources")
     .select("name,kind,trust_level,source_url,base_url,terms_status,robots_status,auth_scope")
-    .eq("active", true).limit(10);
+    .eq("active", true).order("quality_score", { ascending: false }).limit(10);
   if (error) throw error;
   return (data ?? []).flatMap((row): OpportunitySourceAdapter[] => {
     if (row.kind !== "feed" || row.trust_level !== "verified" ||

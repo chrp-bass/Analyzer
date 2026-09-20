@@ -1,16 +1,49 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseMachineFeed } from "../src/lib/song-where/sources/machine-feed.server";
 import { publicHttpsUrl } from "../src/lib/song-where/sources/public-url.server";
 import { POST as inbound } from "../src/app/api/song-where/inbound/route";
+import { configuredSearchIndex, scoutQueries, watchlist } from "../src/lib/song-where/sources/scout.server";
 
 const source = "https://briefs.example.org/feed.xml";
+const futureDeadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 describe("autonomous acquisition safety", () => {
+  it("rotates public watchlist and search queries without implying source permission", () => {
+    const previous = process.env.SONG_WHERE_BRAVE_SEARCH_KEY;
+    delete process.env.SONG_WHERE_BRAVE_SEARCH_KEY;
+    try {
+      expect(configuredSearchIndex()).toBeNull();
+      expect(watchlist(0)).not.toEqual(watchlist(1));
+      expect(scoutQueries(0)).not.toEqual(scoutQueries(1));
+      expect(watchlist(0).every((url) => publicHttpsUrl(url))).toBe(true);
+    } finally {
+      if (previous !== undefined) process.env.SONG_WHERE_BRAVE_SEARCH_KEY = previous;
+    }
+  });
+
+  it("uses licensed search only for public candidate URLs, never snippet evidence", async () => {
+    const prior = process.env.SONG_WHERE_BRAVE_SEARCH_KEY;
+    const originalFetch = global.fetch;
+    process.env.SONG_WHERE_BRAVE_SEARCH_KEY = "existing-test-key";
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({ web: { results: [
+      { url: "https://publisher.example.org/brief", description: "open, guaranteed!" },
+      { url: "http://127.0.0.1/private", description: "open" },
+    ] } }), { status: 200 }));
+    try {
+      expect(await configuredSearchIndex()!.discover("sync brief")).toEqual([
+        "https://publisher.example.org/brief",
+      ]);
+    } finally {
+      global.fetch = originalFetch;
+      if (prior === undefined) delete process.env.SONG_WHERE_BRAVE_SEARCH_KEY;
+      else process.env.SONG_WHERE_BRAVE_SEARCH_KEY = prior;
+    }
+  });
   it("accepts only explicit routes and preserves unknown targets", () => {
     const feed = { items: [
       { id: "a", title: "Real publisher brief", url: "https://briefs.example.org/a",
         submissionUrl: "https://briefs.example.org/submit/a", status: "open",
-        deadline: "2026-10-10T00:00:00Z", budget: "$1000", mood: "cinematic" },
+        deadline: futureDeadline, budget: "$1000", mood: "cinematic" },
       { id: "b", title: "Article, not a brief", url: "https://briefs.example.org/b", status: "open" },
     ] };
     const results = parseMachineFeed(JSON.stringify(feed), "application/feed+json", source);
@@ -23,6 +56,7 @@ describe("autonomous acquisition safety", () => {
     const feed = `<rss version="2.0"><channel><item><guid>one</guid><title>Open call</title>
       <link>https://briefs.example.org/one</link><songwhere:submissionUrl>https://briefs.example.org/submit/one</songwhere:submissionUrl>
       <songwhere:status>open</songwhere:status><songwhere:target>{"modes":["Ready"]}</songwhere:target>
+      <songwhere:deadline>${futureDeadline}</songwhere:deadline>
       </item><item><guid>two</guid><title>News</title><link>https://briefs.example.org/two</link></item>
       </channel></rss>`;
     expect(parseMachineFeed(feed, "application/rss+xml", source)).toMatchObject([

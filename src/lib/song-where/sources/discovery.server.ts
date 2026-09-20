@@ -2,13 +2,10 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { publicHttpsUrl } from "./public-url.server";
+import { configuredSearchIndex, scoutQueries, watchlist } from "./scout.server";
 
 type Db = ReturnType<typeof createAdminClient>;
-// Public starting points only. Discovery never signs in or submits a form.
-const SEEDS = [
-  "https://played.fm/sync", "https://pitch.hrdrv.com/",
-  "https://www.tracksynk.com/news/briefs-are-live", "https://www.syncbrief.com/",
-];
+// Discovery never signs in or submits a form.
 
 async function boundedGet(url: URL, accept: string): Promise<string> {
   const response = await fetch(url, { cache: "no-store", redirect: "error",
@@ -24,17 +21,22 @@ async function boundedGet(url: URL, accept: string): Promise<string> {
 
 function robotsStatus(body: string, path: string): "allow" | "deny" | "unverified" {
   let applies = false;
+  let hasApplicableRules = false;
   let allow = "";
   let deny = "";
   for (const line of body.split(/\r?\n/)) {
     const clean = line.split("#", 1)[0].trim();
     const [key, ...rest] = clean.split(":");
     const value = rest.join(":").trim();
-    if (/^user-agent$/i.test(key)) applies = value === "*" || /^CHRP-SongWhere/i.test(value);
+    if (/^user-agent$/i.test(key)) {
+      applies = value === "*" || /^CHRP-SongWhere/i.test(value);
+      if (applies) hasApplicableRules = true;
+    }
     if (!applies) continue;
     if (/^allow$/i.test(key) && value && path.startsWith(value) && value.length > allow.length) allow = value;
     if (/^disallow$/i.test(key) && value && path.startsWith(value) && value.length > deny.length) deny = value;
   }
+  if (!hasApplicableRules) return "unverified";
   return deny.length > allow.length ? "deny" : "allow";
 }
 
@@ -72,22 +74,43 @@ function cc0Rights(html: string): boolean {
 
 /** Unknown terms, robots or feed shape are quarantined, never silently admitted. */
 export async function discoverOnce(db: Db = createAdminClient()): Promise<{
-  examined: number; candidates: number; admitted: number;
+  examined: number; candidates: number; admitted: number; searchActive: boolean;
 }> {
+  const day = Math.floor(Date.now() / 86_400_000);
+  const stopAt = Date.now() + 35_000;
+  const seeds = watchlist(day);
+  const search = configuredSearchIndex();
+  let candidates = 0;
+  if (search) for (const query of scoutQueries(day)) {
+    if (Date.now() >= stopAt) break;
+    try {
+      for (const url of await search.discover(query)) {
+        const { error } = await db.from("opportunity_source_candidates").upsert({
+          url, discovered_from: "licensed_search_index", access_type: "page",
+          status: "quarantined", reason: "awaiting_source_verification",
+        }, { onConflict: "url", ignoreDuplicates: true });
+        if (error) throw error;
+        candidates++;
+      }
+    } catch { /* Search failure cannot stop public-source checks. */ }
+  }
   const { data: queued, error: queueError } = await db.from("opportunity_source_candidates")
     .select("url").eq("access_type", "page").eq("status", "quarantined")
-    .order("checked_at", { ascending: true, nullsFirst: true }).limit(6);
+    .order("checked_at", { ascending: true, nullsFirst: true }).limit(4);
   if (queueError) throw queueError;
-  const pages = [...SEEDS, ...(queued ?? []).map((row) => row.url)];
-  const stopAt = Date.now() + 35_000;
+  const pages = Array.from(new Set([...seeds, ...(queued ?? []).map((row) => row.url)]));
   let examined = 0;
-  let candidates = 0;
   let admitted = 0;
   for (const seed of pages) {
     if (Date.now() >= stopAt) break;
     examined++;
     const page = publicHttpsUrl(seed);
     if (!page) continue;
+    const { error: seedError } = await db.from("opportunity_source_candidates").upsert({
+      url: page.href, discovered_from: seeds.includes(seed) ? "public_watchlist" : "linked_public_page",
+      access_type: "page", status: "quarantined", reason: "awaiting_source_verification",
+    }, { onConflict: "url", ignoreDuplicates: true });
+    if (seedError) throw seedError;
     let html = "";
     let policy = "";
     let robots: "allow" | "deny" | "unverified" = "unverified";
@@ -96,13 +119,11 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
       robots = robotsStatus(policy, page.pathname);
       if (robots === "allow") html = await boundedGet(page, "text/html");
     } catch { /* Inability to verify is a quarantine, not permission. */ }
-    if (!SEEDS.includes(seed)) {
-      const { error } = await db.from("opportunity_source_candidates").update({
-        robots_status: robots, checked_at: new Date().toISOString(),
-        reason: robots === "allow" ? "reuse_rights_unverified" : "robots_unverified_or_denied",
-      }).eq("url", seed);
-      if (error) throw error;
-    }
+    const { error: checkedError } = await db.from("opportunity_source_candidates").update({
+      robots_status: robots, checked_at: new Date().toISOString(),
+      reason: robots === "allow" ? "reuse_rights_unverified" : "robots_unverified_or_denied",
+    }).eq("url", page.href).eq("status", "quarantined");
+    if (checkedError) throw checkedError;
     if (html) for (const linked of linkedSourcePages(html, page)) {
       const { error } = await db.from("opportunity_source_candidates").upsert({
         url: linked.href, discovered_from: page.href, access_type: "page",
@@ -137,5 +158,5 @@ export async function discoverOnce(db: Db = createAdminClient()): Promise<{
       admitted++;
     }
   }
-  return { examined, candidates, admitted };
+  return { examined, candidates, admitted, searchActive: !!search };
 }

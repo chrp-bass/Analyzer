@@ -61,18 +61,20 @@ export function jsonFeedAdapter(config: {
         const row = item as Record<string, unknown>;
         const destination = typeof row.submissionUrl === "string" ? safeSubmissionUrl(row.submissionUrl) : null;
         const target = normalizeTarget(row.target);
+        const provenance = typeof row.url === "string" ? safeSubmissionUrl(row.url) : null;
         if (typeof row.id !== "string" || !row.id || row.id.length > 200 ||
             typeof row.title !== "string" || !row.title || row.title.length > 300 ||
-            !destination || !target || (row.status !== "open" && row.status !== "closed")) return [];
+            !destination || !provenance || !target || row.status !== "open") return [];
         const deadline = typeof row.deadline === "string" && Number.isFinite(Date.parse(row.deadline))
           ? new Date(row.deadline).toISOString() : null;
+        if (!deadline || deadline <= new Date().toISOString()) return [];
         const status = row.status;
         const rawText = typeof row.description === "string" ? row.description.slice(0, 5000) : null;
         const contentHash = createHash("sha256").update(JSON.stringify({
           title: row.title, submissionUrl: destination.href, deadline, status, target, rawText,
         })).digest("hex");
-        return [{ externalRef: row.id, title: row.title, rawText, submissionUrl: destination.href,
-          deadline, status, target, contentHash }];
+        return [{ externalRef: row.id, title: row.title, rawText: null, submissionUrl: destination.href,
+          deadline, status, target, contentHash, provenanceUrl: provenance.href }];
       });
     },
   };
