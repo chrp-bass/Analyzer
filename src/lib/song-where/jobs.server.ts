@@ -26,9 +26,11 @@ async function saveCursor(db: Db, stage: Stage, cursor: string | null): Promise<
 
 export async function ingestOnce(db: Db = createAdminClient()): Promise<{ sources: number; ingested: number; failed: number }> {
   const sources = [...configuredSources(), ...await registeredSources(db)];
+  const stopAt = Date.now() + 40_000;
   let ingested = 0;
   let failed = 0;
   for (const adapter of sources.slice(0, 10)) {
+    if (Date.now() >= stopAt) break;
     try {
     const items = await adapter.fetch();
     const { data: source, error: sourceError } = await db.from("opportunity_sources")
@@ -36,6 +38,7 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
         base_url: adapter.baseUrl, active: true }, { onConflict: "name" }).select("id").single();
     if (sourceError || !source) throw sourceError ?? new Error("source upsert failed");
     for (const item of items) {
+      if (Date.now() >= stopAt) break;
       const { data: duplicate, error: duplicateError } = await db.from("opportunities")
         .select("id,external_ref").eq("source_id", source.id)
         .eq("content_hash", item.contentHash).limit(1);
