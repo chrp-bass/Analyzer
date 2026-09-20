@@ -49,6 +49,28 @@ export interface AuditContext {
   hasObservedBehaviour?: boolean;
   hasStructure?: boolean;
   /**
+   * True when a Soundcharts lyric ANALYSIS with real content was supplied, or
+   * a Finding grounded in measured speechiness says the recording foregrounds
+   * language. It licenses lyric vocabulary ("the lyric analysis reads
+   * as…", which is the phrasing the prompt itself prescribes). It never
+   * licenses quoting or interpreting the words — `lyric-interpretation`
+   * below is not suppressible.
+   */
+  hasLyricAnalysis?: boolean;
+  /**
+   * True when a chart Finding (OBSERVED_MARKET) was supplied. It licenses
+   * naming the chart facts that finding carries. It does NOT license any
+   * claim about what listeners did — streams, skips, retention and the rest
+   * stay under `audience-behaviour`, which a chart can never unlock.
+   */
+  hasChartEvidence?: boolean;
+  /**
+   * True when Soundcharts' weekly score Finding supplied a fanbase score.
+   * Licenses naming that score; "fanbase" as a description of an audience
+   * remains a demographic claim under `demographics`.
+   */
+  hasFanbaseScore?: boolean;
+  /**
    * True when the intelligence layer supplied a Finding tagged
    * OBSERVED_MARKET (playlist / stream / audience / chart / radio evidence).
    * Suppresses `market-claim` only — the "someone wants this" fabrications
@@ -92,11 +114,30 @@ const RULES: Rule[] = [
     suppressedBy: "hasStructure",
   },
   {
+    // Lyric VOCABULARY. A fabrication when nothing about the lyric was
+    // supplied — and only then. When Soundcharts' lyric analysis is in the
+    // input, the prompt tells Rhodes to write "the lyric analysis reads as…"
+    // and the findings layer's own text says "the lyric is part of what
+    // carries the moment"; flagging those contradicted the data pipeline and
+    // failed real reports. What stays forbidden either way is below.
     rule: "invented-lyrics",
     severity: "fabrication",
     pattern:
-      /\b(the lyric|the lyrics|lyrically|lyrical (content|attention|focus|weight|detail|meaning)|the words|sings about|the singer says|the narrator)\b/gi,
+      /\b(the lyric|the lyrics|lyrically|lyrical (content|attention|focus|weight|detail|meaning)|the words)\b/gi,
     why: "No lyric content was supplied.",
+    suppressedBy: "hasLyricAnalysis",
+  },
+  {
+    // Lyric INTERPRETATION. Never suppressible: a semantic analysis is a
+    // label a model assigned, not the words themselves, so even with it in
+    // hand Rhodes may not report what the song says, declares or is sung
+    // about, or speak for a narrator. (These were previously caught only as
+    // a side effect of matching "the lyric".)
+    rule: "lyric-interpretation",
+    severity: "fabrication",
+    pattern:
+      /\b(sings about|the singer says|the narrator|the (lyric|lyrics|song|chorus) (says?|declares?|preach(?:es)?|proclaims?|tells us))\b/gi,
+    why: "Reports what the words say. Only a semantic ANALYSIS of the lyric can ever be supplied, never the lyric itself — describe the analysis, not the message.",
   },
   {
     rule: "invented-instrumentation",
@@ -178,21 +219,52 @@ const RULES: Rule[] = [
     why: "Judges or directs the creative work. CHRP advises on commercial application and never on whether the song is finished.",
   },
   {
+    // What LISTENERS did. No behavioural data is ever supplied, so this never
+    // unlocks today — and a chart or a playlist must not unlock it: a chart
+    // position is a published ranking, not an observation of anyone's
+    // listening.
     rule: "audience-behaviour",
     severity: "fabrication",
     pattern:
-      /\b(skip rate|skips?\b|retention|replay(s|ed)?|completion rate|save rate|streams?\b|stream count|chart(ed|ing|s)?\b|engagement rate)\b/gi,
+      /\b(skip rate|skips?\b|retention|replay(s|ed)?|completion rate|save rate|streams?\b|stream count|engagement rate)\b/gi,
     why: "No listening or behavioural data of any kind was supplied.",
     suppressedBy: "hasObservedBehaviour",
+  },
+  {
+    // Chart language, separated from the rule above. It used to live inside
+    // `audience-behaviour`, whose only off-switch nothing ever set — so for a
+    // song that IS charting, the chart finding's own sentence ("The song is
+    // currently charting in 3 places") was a fabrication, and the report
+    // could fail closed for having real chart data. A chart Finding now
+    // licenses chart language, and nothing else does.
+    rule: "chart-claim",
+    severity: "fabrication",
+    pattern: /\b(chart(ed|ing|s)?)\b/gi,
+    why: "No chart data was supplied.",
+    suppressedBy: "hasChartEvidence",
   },
 
   // ── Fabrication: demographics and listener psychology ────────────────────
   {
+    // "fanbase" as an AUDIENCE is a demographic claim, always. "fanbase 61" /
+    // "fanbase score" is the name of a Soundcharts number and is handled by
+    // the rule below, so it is excluded here.
     rule: "demographics",
     severity: "fabrication",
     pattern:
-      /\b(gen ?z|millennials?|boomers?|teenagers?|men who|women who|aged \d|demographic|fanbase|core audience)\b/gi,
+      /\b(gen ?z|millennials?|boomers?|teenagers?|men who|women who|aged \d|demographic|fanbase(?!\s*(?:score\b|\d))|core audience)\b/gi,
     why: "No audience data was supplied. Human STATE is allowed; demographics are not.",
+  },
+  {
+    // The Soundcharts score Finding states "fanbase 61, trending 44" in its
+    // own signal; with "fanbase" inside `demographics`, repeating a supplied
+    // number was a fabrication. Naming the score is licensed by that Finding
+    // and by nothing else.
+    rule: "fanbase-score",
+    severity: "fabrication",
+    pattern: /\bfanbase\s*(?:score\b|\d+)/gi,
+    why: "No Soundcharts fanbase score was supplied.",
+    suppressedBy: "hasFanbaseScore",
   },
   {
     rule: "listener-diagnosis",
@@ -213,16 +285,21 @@ const RULES: Rule[] = [
 
   // ── Fabrication: specs and durations nobody supplied ─────────────────────
   {
+    // Durations and cut lengths. Nothing supplies these, ever.
     rule: "invented-spec",
     severity: "fabrication",
     pattern:
-      /\b(\d+[- ]second|\d+[- ]sec\b|thirty[- ]second|sixty[- ]second|ninety[- ]second|\d+\s?bpm|\d+\s?beats per minute)\b/gi,
-    why: "No duration, cut length or tempo was supplied.",
+      /\b(\d+[- ]second|\d+[- ]sec\b|thirty[- ]second|sixty[- ]second|ninety[- ]second)\b/gi,
+    why: "No duration or cut length was supplied.",
   },
   {
+    // Tempo — the words AND the number. "152 bpm" used to sit in the
+    // never-suppressible rule above, so a song whose tempo WAS supplied could
+    // say "the tempo" but not the tempo itself. Both follow the same fact now.
     rule: "invented-tempo",
     severity: "fabrication",
-    pattern: /\b(the tempo|its tempo|the bpm|beats per minute)\b/gi,
+    pattern:
+      /\b(the tempo|its tempo|the bpm|beats per minute|\d+(?:\.\d+)?\s?bpm)\b/gi,
     why: "Tempo was not supplied. It is an input to the scoring, not an output of it.",
     suppressedBy: "hasTempo",
   },

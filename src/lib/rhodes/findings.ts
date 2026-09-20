@@ -73,6 +73,9 @@ export type FindingKind =
  */
 export type UnlockableRule =
   | "market-claim"
+  | "chart-claim"
+  | "invented-lyrics"
+  | "fanbase-score"
   | "audience-behaviour"
   | "invented-genre"
   | "named-genre"
@@ -310,7 +313,11 @@ function extractProfileEpiContradiction(
       confidence: "high",
     };
   }
-  return highEpi ? null : null;
+  // Every other pairing of leading dimension and EPI is left alone on
+  // purpose. These two are the configurations creators actually misread;
+  // naming a "contradiction" anywhere else would be inventing a tension the
+  // measurements do not show.
+  return null;
 }
 
 /**
@@ -347,7 +354,6 @@ function extractVerbalLoad(input: FindingsInput): Finding | null {
       evidence,
       implication: `That architecture is compatible with contexts that ask for low verbal load (background listening, instrumental beds, focus-adjacent sync). It does NOT mean listeners will use it for concentration — that is a behavioural claim CHRP has no evidence for.`,
       action: `Worth testing against instrumental-adjacent placements and against a stripped or reduced-vocal alternate mix if one exists.`,
-      unlocks: ["invented-tempo"],
       confidence: "high",
     };
   }
@@ -368,6 +374,10 @@ function extractVerbalLoad(input: FindingsInput): Finding | null {
     signal: `Verbal-load-heavy: the recording foregrounds language.`,
     evidence,
     implication: `The song's foreground work is done with words. That widens what a supervisor or programmer can use it FOR — the lyric is part of what carries the moment — and narrows how it can be dropped underneath dialogue.`,
+    // This finding's own sentence says "the lyric". It is grounded — the
+    // measured speechiness says the recording foregrounds language — so it
+    // licenses lyric VOCABULARY. What the words say stays off limits.
+    unlocks: ["invented-lyrics"],
     confidence: "medium",
   };
 }
@@ -563,6 +573,9 @@ function extractSoundchartsScore(input: FindingsInput): Finding | null {
     signal: `Soundcharts's proprietary weekly score for this song is ${fanbase !== null ? `fanbase ${Math.round(fanbase)}` : "not returned"}${trending !== null ? `, trending ${Math.round(trending)}` : ""}.`,
     evidence,
     implication: `Soundcharts's own aggregate score for the recording — a Soundcharts view of audience and momentum, NOT a CHRP verdict and not a prediction. Useful as a cross-signal only. Do not interpret it psychologically, and do not translate a number into a listener state.`,
+    // Licenses naming the SCORE ("fanbase 61", "fanbase score") — never the
+    // fanbase itself, which stays a demographic claim nobody can support.
+    ...(fanbase !== null ? { unlocks: ["fanbase-score" as const] } : {}),
     confidence: "low",
   };
 }
@@ -699,7 +712,9 @@ function extractChartPresence(input: FindingsInput): Finding | null {
     signal: `The song is currently charting in ${items.length} place${items.length === 1 ? "" : "s"}${countries.size > 1 ? ` across ${countries.size} countries` : ""}.`,
     evidence,
     implication: `These are OBSERVED chart positions at a snapshot in time. They tell you where the song currently ranks; they are NOT a prediction of where it will go, and NOT evidence for what a listener is doing. Position, peak and time-on-chart are the shape of the trajectory a supervisor or programmer would recognise as real market presence.`,
-    unlocks: ["market-claim"],
+    // `chart-claim` lets Rhodes name the chart facts above. It deliberately
+    // does NOT include `audience-behaviour`: a ranking is not a listener.
+    unlocks: ["market-claim", "chart-claim"],
     confidence: "high",
   };
 }
@@ -784,7 +799,6 @@ function extractWhitespace(
       ],
       implication: `CHRP cannot claim the song improves concentration — that would be a behavioural finding we do not have. What we can say is the architecture matches what those contexts commonly ask for.`,
       action: `Worth testing against focus-adjacent and study-adjacent placements; also worth naming this shape in outreach if a matching brief comes up.`,
-      unlocks: ["invented-tempo"],
       confidence: "medium",
     };
   }

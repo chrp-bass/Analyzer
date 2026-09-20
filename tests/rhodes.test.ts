@@ -422,7 +422,9 @@ describe("the evidence governor catches fabrication", () => {
 
   it("a spec, a duration or a tempo nobody gave it", () => {
     fabricates("Perfect for the right sixty-second moment.", "invented-spec");
-    fabricates("At 152 bpm it drives hard.", "invented-spec");
+    // A tempo NUMBER follows the tempo fact, like "the tempo" does — it is
+    // a fabrication only when no tempo was supplied.
+    fabricates("At 152 bpm it drives hard.", "invented-tempo");
   });
 
   it("instrumentation and lyrics", () => {

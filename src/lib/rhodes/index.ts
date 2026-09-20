@@ -303,6 +303,24 @@ export function findingsInputFor(
   };
 }
 
+/**
+ * Does the lyric analysis carry anything? The enrichment step builds the
+ * object whenever the endpoint answers, even if every field came back empty —
+ * and an empty shell is not something Rhodes was given to talk about.
+ */
+function hasLyricContent(
+  la: NonNullable<SongIntelligenceInput["context"]>["lyricsAnalysis"],
+): boolean {
+  if (!la) return false;
+  return Object.values(la).some((v) =>
+    Array.isArray(v)
+      ? v.length > 0
+      : typeof v === "number"
+        ? Number.isFinite(v)
+        : typeof v === "string" && v.trim().length > 0,
+  );
+}
+
 /** Which governor rules this input's supplied facts unlock. */
 export function auditContextFor(input: SongIntelligenceInput): AuditContext {
   const c = input.context;
@@ -311,7 +329,15 @@ export function auditContextFor(input: SongIntelligenceInput): AuditContext {
   const findings = deriveFindings(findingsInputFor(input));
   const unlocks = unlocksFrom(findings);
   return {
-    hasTempo: typeof c?.bpm === "number" || unlocks.has("invented-tempo"),
+    // Tempo reaches Rhodes as `audioExtras.tempo` — it is printed in his
+    // AVAILABLE CONTEXT block. `bpm` is the older field and is never
+    // populated by the pipeline, so keying on it alone meant tempo was
+    // supplied and forbidden at the same time.
+    hasTempo:
+      typeof c?.bpm === "number" ||
+      (typeof c?.audioExtras?.tempo === "number" &&
+        Number.isFinite(c.audioExtras.tempo)) ||
+      unlocks.has("invented-tempo"),
     hasKey: typeof c?.key === "string" && c.key.length > 0,
     hasGenre: Array.isArray(c?.genres) && c!.genres!.length > 0,
     hasComparableArtists:
@@ -323,6 +349,13 @@ export function auditContextFor(input: SongIntelligenceInput): AuditContext {
     // to name what that finding EXPLICITLY carries. He may not extrapolate
     // beyond it; the governor still catches unsupported specifics.
     hasObservedBehaviour: unlocks.has("audience-behaviour"),
+    // A chart Finding licenses chart language — and only chart language.
+    hasChartEvidence: unlocks.has("chart-claim"),
+    // A lyric analysis with real content licenses talking about the analysis.
+    // …as does a Finding whose own grounded text speaks of "the lyric".
+    hasLyricAnalysis:
+      hasLyricContent(c?.lyricsAnalysis) || unlocks.has("invented-lyrics"),
+    hasFanbaseScore: unlocks.has("fanbase-score"),
     hasStructure: false,
     hasMarketEvidence: unlocks.has("market-claim"),
     // The Christian-context gate. True only when trusted Soundcharts genre
