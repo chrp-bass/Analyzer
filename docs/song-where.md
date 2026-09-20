@@ -10,9 +10,14 @@ checkout, email return and Rhodes paths do not call Song Where.
 2. Set a random `SONG_WHERE_JOB_SECRET` (at least 32 characters) in Vercel
    Production and in the GitHub repository Actions secret of the same name.
 3. Deploy with `SONG_WHERE_ENABLED=false`. Verify normal Analyzer health and
-   that Song Where routes return 404.
-4. Set `SONG_WHERE_ENABLED=true` and redeploy. Run `workflow_dispatch` for the
-   Song Where workflow. Check the bounded ingest, match and alert responses.
+   that customer Song Where routes return 404. The authenticated job route
+   remains callable for `validate`, `ingest`, `expire`, and `match` while off;
+   `alert` remains unavailable.
+4. Run `workflow_dispatch` feature-off and verify its black-box validation,
+   ingest, expiration and bounded matching stages. Do not enable the customer
+   feature without an automatically acquired, provenance-verified opportunity,
+   a real match and a working submission route. Then set
+   `SONG_WHERE_ENABLED=true` and redeploy.
 5. Leave `SONG_WHERE_ALERTS_ENABLED=false` until a real opportunity, song
    match, routing click and email opt-in have been verified in production.
 

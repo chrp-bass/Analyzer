@@ -28,7 +28,10 @@ jobs:
               -H "Authorization: Bearer $SONG_WHERE_JOB_SECRET" \
               -H 'Content-Type: application/json'
           }
+          validation="$(call_stage validate)"
+          if [ "$(printf '%s' "$validation" | jq -r '.result')" != PASS ]; then exit 1; fi
           call_stage ingest
+          call_stage expire
           for attempt in 1 2 3 4 5; do
             result="$(call_stage match)"
             if [ "$(printf '%s' "$result" | jq -r '.more')" != true ]; then break; fi

@@ -22,10 +22,12 @@ async function saveCursor(db: Db, stage: Stage, cursor: string | null): Promise<
   if (error) throw error;
 }
 
-export async function ingestOnce(db: Db = createAdminClient()): Promise<{ sources: number; ingested: number }> {
+export async function ingestOnce(db: Db = createAdminClient()): Promise<{ sources: number; ingested: number; failed: number }> {
   const sources = configuredSources();
   let ingested = 0;
-  for (const adapter of sources.slice(0, 1)) {
+  let failed = 0;
+  for (const adapter of sources.slice(0, 10)) {
+    try {
     const items = await adapter.fetch();
     const { data: source, error: sourceError } = await db.from("opportunity_sources")
       .upsert({ name: adapter.name, kind: adapter.kind, trust_level: adapter.trust,
@@ -41,15 +43,35 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
       if (error) throw error;
       ingested++;
     }
+    } catch {
+      failed++;
+      // A broken feed cannot stop other sources or produce user-facing records.
+      const { error } = await db.from("opportunity_sources")
+        .update({ active: false }).eq("name", adapter.name);
+      if (error) console.error("[song-where] source quarantine failed");
+    }
   }
-  return { sources: sources.length, ingested };
+  return { sources: sources.length, ingested, failed };
+}
+
+export async function expireOnce(db: Db = createAdminClient()): Promise<{ expired: number }> {
+  const now = new Date().toISOString();
+  const { data: due, error: listError } = await db.from("opportunities")
+    .select("id").eq("status", "open").lt("deadline", now).limit(100);
+  if (listError) throw listError;
+  if (!due?.length) return { expired: 0 };
+  const { data, error } = await db.from("opportunities")
+    .update({ status: "expired" }).eq("status", "open")
+    .in("id", due.map((row) => row.id)).select("id");
+  if (error) throw error;
+  return { expired: data?.length ?? 0 };
 }
 
 export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyzed: number; matches: number; more: boolean }> {
   const cursor = await cursorFor(db, "match");
   let query = db.from("analyses")
     .select("id,status,epi_score,mode,scores,circumplex,songs!inner(track_key),reports!inner(payload)")
-    .eq("status", "complete").order("id", { ascending: true }).limit(1);
+    .eq("status", "complete").order("id", { ascending: true }).limit(25);
   if (cursor) query = query.gt("id", cursor);
   const { data: analyses, error } = await query;
   if (error) throw error;
@@ -112,6 +134,6 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
       matches++;
     }
   }
-  await saveCursor(db, "match", rows.length === 1 ? rows[0].id : null);
-  return { analyzed: rows.length, matches, more: rows.length === 1 };
+  await saveCursor(db, "match", rows.length === 25 ? rows[rows.length - 1].id : null);
+  return { analyzed: rows.length, matches, more: rows.length === 25 };
 }
