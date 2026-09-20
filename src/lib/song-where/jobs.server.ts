@@ -8,6 +8,7 @@ import { configuredSources } from "./sources/feed.server";
 import { registeredSources } from "./sources/registered.server";
 import { isCompletePaidPayload } from "@/lib/reports/store";
 import { qualityStatus, verifySubmissionRoute, type QualityEvidence } from "./quality.server";
+import { publicHttpsUrl } from "./sources/public-url.server";
 
 type Db = ReturnType<typeof createAdminClient>;
 type Stage = "ingest" | "match" | "alert";
@@ -39,20 +40,24 @@ export async function ingestOnce(db: Db = createAdminClient()): Promise<{ source
     if (sourceError || !source) throw sourceError ?? new Error("source upsert failed");
     for (const item of items) {
       if (Date.now() >= stopAt) break;
+      if (item.status !== "open" || !item.deadline || item.deadline <= new Date().toISOString() ||
+          !item.provenanceUrl || !publicHttpsUrl(item.provenanceUrl)) continue;
       const { data: duplicate, error: duplicateError } = await db.from("opportunities")
         .select("id,external_ref").eq("source_id", source.id)
         .eq("content_hash", item.contentHash).limit(1);
       if (duplicateError) throw duplicateError;
       if (duplicate?.length && duplicate[0].external_ref !== item.externalRef) continue;
+      const verifiedAt = await verifySubmissionRoute(item.submissionUrl);
+      if (!verifiedAt) continue;
       const { error } = await db.from("opportunities").upsert({
         source_id: source.id, external_ref: item.externalRef, title: item.title,
-        raw_text: item.rawText, status: item.status, submission_url: item.submissionUrl,
+        raw_text: null, status: item.status, submission_url: item.submissionUrl,
         deadline: item.deadline, target: item.target, normalizer_version: "explicit-v1",
         content_hash: item.contentHash, last_seen_at: new Date().toISOString(),
         provenance_url: item.provenanceUrl ?? null, budget_text: item.budgetText ?? null,
         use_text: item.useText ?? null, territory_text: item.territoryText ?? null,
         mood_context: item.moodContext ?? null, synthetic: false,
-        route_verified_at: await verifySubmissionRoute(item.submissionUrl),
+        route_verified_at: verifiedAt,
         applicant_count: item.applicantCount ?? null,
         competition_level: item.competitionLevel ?? null,
         eligibility_requirements: item.eligibilityRequirements ?? {},
@@ -96,6 +101,29 @@ export async function healthOnce(db: Db = createAdminClient()): Promise<Record<s
     return [name, count ?? 0] as const;
   }));
   return Object.fromEntries(results);
+}
+
+/** Refresh private source priorities from the observed funnel, never from search snippets. */
+export async function qualityOnce(db: Db = createAdminClient()): Promise<{ scored: number }> {
+  const { data, error } = await db.from("song_where_source_funnel")
+    .select("source_id,failure_count,candidates_discovered,candidates_verified,opportunities_ingested,actionable,stale,matches,routing_clicks,outcomes_known")
+    .limit(50);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const ingested = Number(row.opportunities_ingested);
+    const actionable = Number(row.actionable);
+    const stale = Number(row.stale);
+    const score = Math.max(0, Math.min(100, 50 +
+      Math.min(20, actionable * 5) + Math.min(10, Number(row.matches) * 2) +
+      Math.min(10, Number(row.routing_clicks) * 3) + Math.min(10, Number(row.outcomes_known) * 5) -
+      Math.min(30, Number(row.failure_count) * 10) -
+      (ingested >= 3 ? Math.round(20 * stale / ingested) : 0)));
+    const { error: updateError } = await db.from("opportunity_sources")
+      .update({ quality_score: score, last_quality_check_at: new Date().toISOString() })
+      .eq("id", row.source_id);
+    if (updateError) throw updateError;
+  }
+  return { scored: data?.length ?? 0 };
 }
 
 export async function expireOnce(db: Db = createAdminClient()): Promise<{ expired: number }> {

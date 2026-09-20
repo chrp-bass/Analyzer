@@ -46,20 +46,21 @@ export async function ingestInboundBrief(input: InboundBrief, db: Db = createAdm
     catch { return false; }
   });
   const admissible = input.dkimPass === true && input.spfPass === true && approved && provenance && destination &&
-    statusText === "open" && (!deadline || deadline > new Date().toISOString());
+    statusText === "open" && deadline && deadline > new Date().toISOString();
   let opportunityId: string | null = null;
-  if (admissible) {
+  const verifiedAt = admissible ? await verifySubmissionRoute(destination.href) : null;
+  if (admissible && verifiedAt) {
     const contentHash = createHash("sha256").update(JSON.stringify({
       subject: input.subject, text: input.text, destination: destination.href,
     })).digest("hex");
     const { data, error } = await db.from("opportunities").upsert({
       source_id: approved.id, external_ref: input.messageId, title: input.subject,
-      raw_text: input.text.slice(0, 5000), status: "open", submission_url: destination.href,
+      raw_text: null, status: "open", submission_url: destination.href,
       deadline, target, normalizer_version: "email-explicit-v1", content_hash: contentHash,
       provenance_url: provenance.href, budget_text: explicit(input.text, "Budget", 200),
       use_text: explicit(input.text, "Use", 300), territory_text: explicit(input.text, "Territory", 200),
       mood_context: explicit(input.text, "Mood", 500), synthetic: false,
-      route_verified_at: await verifySubmissionRoute(destination.href),
+      route_verified_at: verifiedAt,
       eligibility_requirements: explicit(input.text, "Eligibility", 1000)
         ? { unverified: explicit(input.text, "Eligibility", 1000) } : {},
     }, { onConflict: "source_id,external_ref" }).select("id").single();
@@ -69,10 +70,10 @@ export async function ingestInboundBrief(input: InboundBrief, db: Db = createAdm
   const { error: ledgerError } = await db.from("opportunity_inbox_messages").insert({
     provider_message_id: input.messageId, sender: input.from, subject: input.subject,
     received_at: new Date(input.receivedAt).toISOString(),
-    status: admissible ? "normalized" : "quarantined",
-    reason: admissible ? null : "unverified_sender_or_missing_explicit_fields",
+    status: opportunityId ? "normalized" : "quarantined",
+    reason: opportunityId ? null : "unverified_sender_route_or_missing_explicit_fields",
     opportunity_id: opportunityId,
   });
   if (ledgerError) throw ledgerError;
-  return { status: admissible ? "normalized" : "quarantined" };
+  return { status: opportunityId ? "normalized" : "quarantined" };
 }

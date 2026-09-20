@@ -37,5 +37,6 @@ jobs:
             result="$(call_stage match)"
             if [ "$(printf '%s' "$result" | jq -r '.more')" != true ]; then break; fi
           done
+          call_stage quality
           call_stage alert
           call_stage health
