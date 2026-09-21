@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCreatorBrief } from "../src/lib/song-where/creator-brief.server";
+import { parseCreatorBrief, parseModernBeatsCreatorUrl } from "../src/lib/song-where/creator-brief.server";
 import { verifiedResendInbound } from "../src/lib/song-where/resend-inbound.server";
 
 const now = new Date("2026-09-20T12:00:00Z");
@@ -47,5 +47,34 @@ Genre: all genres` }, now);
         if (value === undefined) delete process.env[key]; else process.env[key] = value;
       }
     }
+  });
+
+  it("extracts only explicit Tier A facts from a creator-supplied public listing URL", () => {
+    const html = `<html><body>
+      <img id="img_11544"><h3>Pop and R&amp;B for television</h3>
+      <p id="sh_11544"><span>Deadline 10/20/26</span>
+      <b>POP &amp; R&amp;B BEATS AND SONGS (Mid-tempo to up-tempo Pop and R&amp;B with casual/positive feel)
+      are needed for original TV shows on major networks.</b>
+      This listing is accepting both instrumental beats and full songs w/ vocals.</p>
+    </body></html>`;
+    expect(parseModernBeatsCreatorUrl(html,
+      "https://www.modernbeats.com/song-submit/index.php#sh_11544", now)).toMatchObject({
+      title: "Pop and R&B for television", tier: "A", matchable: true,
+      sourceUrl: "https://www.modernbeats.com/song-submit/index.php#sh_11544",
+      destination: "https://www.modernbeats.com/song-submit/registration.php",
+      criteria: { mood: "casual/positive feel", energy: "Mid-tempo to up-tempo",
+        genre: "POP & R&B", vocal: "both instrumental beats and full songs w/ vocals" },
+    });
+  });
+
+  it("rejects ambiguous, stale, or non-matchable public listing pointers", () => {
+    const broad = `<html><body><img id="img_7"><h3>All music</h3><p id="sh_7">
+      Deadline 10/20/26 <b>All genres welcome.</b></p></body></html>`;
+    expect(parseModernBeatsCreatorUrl(broad,
+      "https://www.modernbeats.com/song-submit/index.php#sh_7", now)).toBeNull();
+    expect(parseModernBeatsCreatorUrl(broad,
+      "https://www.modernbeats.com/song-submit/index.php#sh_7", new Date("2026-10-21"))).toBeNull();
+    expect(parseModernBeatsCreatorUrl(broad,
+      "https://example.com/song-submit/index.php#sh_7", now)).toBeNull();
   });
 });

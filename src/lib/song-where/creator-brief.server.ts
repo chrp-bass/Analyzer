@@ -54,10 +54,65 @@ export function parseCreatorBrief(input: { subject: string; text: string }, now 
   };
 }
 
+const decodeHtml = (value: string) => value.replace(/&amp;/gi, "&").replace(/&nbsp;/gi, " ")
+  .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+  .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+/** A deliberately narrow public-pointer parser; it retains facts, never the source body. */
+export function parseModernBeatsCreatorUrl(html: string, rawUrl: string, now = new Date()) {
+  const page = publicHttpsUrl(rawUrl);
+  const listingId = page?.hash.match(/^#sh_(\d{1,12})$/)?.[1];
+  if (!page || page.hostname !== "www.modernbeats.com" ||
+      page.pathname !== "/song-submit/index.php" || !listingId || html.length > 1_100_000) return null;
+  const escaped = listingId.replace(/[^0-9]/g, "");
+  const block = html.match(new RegExp(`<p\\b[^>]*id=["']sh_${escaped}["'][^>]*>([\\s\\S]*?)<\\/p>`, "i"))?.[1];
+  const titleBlock = html.match(new RegExp(
+    `<img\\b[^>]*id=["']img_${escaped}["'][^>]*>[\\s\\S]{0,1200}?<h3\\b[^>]*>([\\s\\S]*?)<\\/h3>`, "i"))?.[1];
+  if (!block || !titleBlock) return null;
+  const text = decodeHtml(block);
+  const title = decodeHtml(titleBlock).slice(0, 250);
+  const deadlineParts = text.match(/\bdeadline\s+(\d{1,2})\/(\d{1,2})\/(\d{2})\b/i);
+  if (!title || !deadlineParts) return null;
+  const deadline = new Date(Date.UTC(2000 + Number(deadlineParts[3]),
+    Number(deadlineParts[1]) - 1, Number(deadlineParts[2]), 23, 59, 59));
+  if (!Number.isFinite(deadline.getTime()) || deadline <= now) return null;
+  const mood = text.match(/\b(?:casual\/positive feel|uplifting|hopeful|joyful|positive)\b/i)?.[0] ?? null;
+  const energy = text.match(/\b(?:mid[- ]tempo to up[- ]tempo|high[- ]energy|upbeat)\b/i)?.[0] ?? null;
+  const genre = text.match(/\b(?:pop\s*&\s*r&b|edm|dubstep|drum[- ]n[- ]bass|dance|rock|country)\b/i)?.[0] ?? null;
+  const vocal = text.match(/\b(?:both instrumental beats? and (?:full )?songs? w\/ vocals|instrumental only|songs? with vocals)\b/i)?.[0] ?? null;
+  const usage = text.match(/\b(?:original tv shows?[^.!]{0,120}|film\/tv placement[^.!]{0,120}|reality tv[^.!]{0,120})/i)?.[0] ?? null;
+  const criteria = Object.fromEntries(Object.entries({ mood, energy, genre, vocal, usage })
+    .filter((entry): entry is [string, string] => !!entry[1]));
+  const target: { valence?: { min: number; max: number }; arousal?: { min: number; max: number } } = {};
+  if (mood && /positive|uplifting|hopeful|joyful/i.test(mood)) target.valence = { min: 0.65, max: 1 };
+  if (energy && /up[- ]tempo|high[- ]energy|upbeat/i.test(energy)) target.arousal = { min: 0.7, max: 1 };
+  const tier = classifySpecificity({ criteria });
+  if (tier !== "A" || !songMatchable(tier, target)) return null;
+  return { title, destination: "https://www.modernbeats.com/song-submit/registration.php",
+    deadline: deadline.toISOString(), criteria, tier, target, matchable: true,
+    sourceUrl: page.href, submissionRequirement: "unknown", submissionCost: null };
+}
+
+async function parseCreatorPublicUrl(text: string, now = new Date()) {
+  const urls = Array.from(text.matchAll(/https:\/\/[^\s<>]+/g), ([url]) => url.replace(/[),.;]+$/, ""));
+  if (urls.length !== 1) return null;
+  const page = publicHttpsUrl(urls[0]);
+  if (!page || page.hostname !== "www.modernbeats.com") return null;
+  const robots = await fetch(new URL("/robots.txt", page), { cache: "no-store", redirect: "error",
+    headers: { "User-Agent": "CHRP-SongWhere/1.0" }, signal: AbortSignal.timeout(8000) });
+  if (!robots.ok || !/(?:^|\n)\s*allow:\s*\/\s*(?:\n|$)/i.test(await robots.text())) return null;
+  const response = await fetch(page, { cache: "no-store", redirect: "error",
+    headers: { Accept: "text/html", "User-Agent": "CHRP-SongWhere/1.0" },
+    signal: AbortSignal.timeout(10000) });
+  if (!response.ok || Number(response.headers.get("content-length")) > 1_100_000) return null;
+  const html = await response.text();
+  return parseModernBeatsCreatorUrl(html, page.href, now);
+}
+
 /** This path never makes creator-supplied content global inventory. */
 export async function ingestCreatorBrief(db: Db, creatorId: string,
   input: { messageId: string; subject: string; text: string; receivedAt?: string }) {
-  const parsed = parseCreatorBrief(input);
+  const parsed = parseCreatorBrief(input) ?? await parseCreatorPublicUrl(input.text);
   if (!parsed || !input.messageId || input.messageId.length > 255) return { status: "quarantined" as const };
   const verifiedAt = await verifySubmissionRoute(parsed.destination);
   if (!verifiedAt) return { status: "quarantined" as const };
