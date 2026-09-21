@@ -77,4 +77,18 @@ Genre: all genres` }, now);
     expect(parseModernBeatsCreatorUrl(broad,
       "https://example.com/song-submit/index.php#sh_7", now)).toBeNull();
   });
+
+  it("maps an explicitly tense brief to approved high-arousal output only", () => {
+    const html = `<html><body>
+      <img id="img_11592"><h3>Reality TV cues</h3>
+      <p id="sh_11592"><span>Deadline 10/29/26</span>
+      <b>HIP-HOP, R&amp;B, POP, and DRAMEDY are needed for reality TV.</b>
+      Cues should be suspenseful, quirky, sexy, tense, or funny. Instrumental cues only.</p>
+    </body></html>`;
+    expect(parseModernBeatsCreatorUrl(html,
+      "https://www.modernbeats.com/song-submit/index.php#sh_11592", now)).toMatchObject({
+      tier: "A", matchable: true, criteria: { mood: "suspenseful" },
+      target: { arousal: { min: 0.7, max: 1 } },
+    });
+  });
 });

@@ -76,7 +76,7 @@ export function parseModernBeatsCreatorUrl(html: string, rawUrl: string, now = n
   const deadline = new Date(Date.UTC(2000 + Number(deadlineParts[3]),
     Number(deadlineParts[1]) - 1, Number(deadlineParts[2]), 23, 59, 59));
   if (!Number.isFinite(deadline.getTime()) || deadline <= now) return null;
-  const mood = text.match(/\b(?:casual\/positive feel|uplifting|hopeful|joyful|positive)\b/i)?.[0] ?? null;
+  const mood = text.match(/\b(?:casual\/positive feel|uplifting|hopeful|joyful|positive|tense|suspenseful)\b/i)?.[0] ?? null;
   const energy = text.match(/\b(?:mid[- ]tempo to up[- ]tempo|high[- ]energy|upbeat)\b/i)?.[0] ?? null;
   const genre = text.match(/\b(?:pop\s*&\s*r&b|edm|dubstep|drum[- ]n[- ]bass|dance|rock|country)\b/i)?.[0] ?? null;
   const vocal = text.match(/\b(?:both instrumental beats? and (?:full )?songs? w\/ vocals|instrumental only|songs? with vocals)\b/i)?.[0] ?? null;
@@ -85,7 +85,8 @@ export function parseModernBeatsCreatorUrl(html: string, rawUrl: string, now = n
     .filter((entry): entry is [string, string] => !!entry[1]));
   const target: { valence?: { min: number; max: number }; arousal?: { min: number; max: number } } = {};
   if (mood && /positive|uplifting|hopeful|joyful/i.test(mood)) target.valence = { min: 0.65, max: 1 };
-  if (energy && /up[- ]tempo|high[- ]energy|upbeat/i.test(energy)) target.arousal = { min: 0.7, max: 1 };
+  if ((mood && /tense|suspenseful/i.test(mood)) ||
+      (energy && /up[- ]tempo|high[- ]energy|upbeat/i.test(energy))) target.arousal = { min: 0.7, max: 1 };
   const tier = classifySpecificity({ criteria });
   if (tier !== "A" || !songMatchable(tier, target)) return null;
   return { title, destination: "https://www.modernbeats.com/song-submit/registration.php",
