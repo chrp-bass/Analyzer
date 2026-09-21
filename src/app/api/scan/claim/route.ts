@@ -5,6 +5,7 @@ import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { prepareReportForScan } from "@/lib/reports/prepare.server";
 import { grantFreeFirst, hasUsedFreeFirst } from "@/lib/commerce/free-first.server";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
+import { waitUntil } from "@vercel/functions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,6 +92,20 @@ export async function POST(req: Request) {
         console.error(
           `[api/scan/claim] could not save ${scanId} to the library: ${saved.reason}` +
             (saved.detail ? ` — ${saved.detail}` : ""),
+        );
+      }
+      if (saved.ok) {
+        // Start the paid report while the creator is reading the free reveal.
+        // The response is not held open; the fenced report claim prevents a
+        // save or unlock request from duplicating this work.
+        waitUntil(
+          prepareReportForScan(userId, scanId).then((result) => {
+            if (result.status === "failed") {
+              console.error(
+                `[api/scan/claim] report prewarm failed for ${scanId}: ${result.reason}`,
+              );
+            }
+          }),
         );
       }
       return NextResponse.json(

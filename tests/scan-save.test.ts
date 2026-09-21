@@ -32,6 +32,7 @@ vi.mock("@/lib/scan/fulfillment.server", () => ({
 vi.mock("@/lib/reports/prepare.server", () => ({
   prepareReportForScan: vi.fn(),
 }));
+vi.mock("@vercel/functions", () => ({ waitUntil: (promise: Promise<unknown>) => void promise }));
 
 import { currentUserId } from "@/lib/commerce/entitlements";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
@@ -85,7 +86,7 @@ describe("POST /api/scan/save", () => {
   it("persists the analysis under the cookie identity and returns no content", async () => {
     const res = await post({ scanId: REAL_SCAN, userId: "someone-else" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "saved", reportStatus: "ready" });
+    expect(await res.json()).toEqual({ status: "saved" });
     expect(persistMock).toHaveBeenCalledTimes(1);
     // The caller cannot name an identity: only the session's is used.
     expect(persistMock).toHaveBeenCalledWith("user-1", REAL_SCAN);
@@ -133,11 +134,11 @@ describe("POST /api/scan/save", () => {
     expect(prepareMock).not.toHaveBeenCalled();
   });
 
-  it("persists report readiness during save so unlock reuses it", async () => {
+  it("starts report readiness during save so unlock can reuse it", async () => {
     const res = await post({ scanId: REAL_SCAN });
     expect(res.status).toBe(200);
     expect(prepareMock).toHaveBeenCalledWith("user-1", REAL_SCAN);
-    expect(await res.json()).toMatchObject({ reportStatus: "ready" });
+    expect(await res.json()).toEqual({ status: "saved" });
   });
 
   it("preserves the saved analysis when report prewarm fails", async () => {
@@ -149,7 +150,7 @@ describe("POST /api/scan/save", () => {
     });
     const res = await post({ scanId: REAL_SCAN });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "saved", reportStatus: "unavailable" });
+    expect(await res.json()).toEqual({ status: "saved" });
   });
 });
 
@@ -170,6 +171,7 @@ describe("saving prepares fulfillment but cannot grant paid access", () => {
         "@/lib/scan-id",
         "@/lib/scan/fulfillment.server",
         "@/lib/reports/prepare.server",
+        "@vercel/functions",
       ].sort(),
     );
   });

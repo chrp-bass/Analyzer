@@ -119,7 +119,7 @@ describe("the unpaid reveal (403)", () => {
       outcome: { kind: "reveal", free: free() },
     });
     expect(html).toContain(free().free_statement);
-    expect(html).toContain("Unlock this song");
+    expect(html).toContain("Preparing your report");
     for (const value of [
       paidSections().rhodes,
       paidSections().signature,
