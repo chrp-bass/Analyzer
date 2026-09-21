@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { currentUserId, unlockedScansFor } from "@/lib/commerce/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ingestCreatorBrief } from "@/lib/song-where/creator-brief.server";
-import { isCompletePaidPayload } from "@/lib/reports/store";
+import { hasCompletePaidReport } from "@/lib/song-where/report-eligibility.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,11 +20,11 @@ export async function GET() {
     if (error) throw error;
     const rows = (analyses ?? []) as unknown as Array<{
       id: string; scan_id: string; songs: { title: string; track_key: string };
-      reports: { payload: unknown };
+      reports: { payload: unknown } | Array<{ payload: unknown }>;
     }>;
     const unlocked = await unlockedScansFor(creatorId,
       rows.map((row) => ({ scanId: row.scan_id, trackKey: row.songs.track_key })));
-    const eligible = rows.filter((row) => unlocked.has(row.scan_id) && isCompletePaidPayload(row.reports.payload));
+    const eligible = rows.filter((row) => unlocked.has(row.scan_id) && hasCompletePaidReport(row.reports));
     const { data: briefs, error: briefError } = await db.from("opportunities")
       .select("id,title,deadline,submission_requirement,submission_cost,specificity_tier,explicit_criteria")
       .eq("owner_creator_id", creatorId).eq("access_class", "PRIVATE_TO_CREATOR")
