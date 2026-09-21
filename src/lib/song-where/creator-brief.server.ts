@@ -2,8 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unlockedScansFor } from "@/lib/commerce/entitlements";
-import { isCompletePaidPayload } from "@/lib/reports/store";
 import { isFixtureKey } from "@/lib/scan-id";
+import { hasCompletePaidReport } from "./report-eligibility.server";
 import { profileFromAnalysis } from "./profile.server";
 import { matchSong, MATCHER_VERSION } from "./match.server";
 import { classifySpecificity, songMatchable } from "./specificity.server";
@@ -145,14 +145,14 @@ export async function ingestCreatorBrief(db: Db, creatorId: string,
   const rows = (analyses ?? []) as unknown as Array<{
     id: string; scan_id: string; status: string; epi_score: number; mode: string;
     scores: unknown; circumplex: unknown; songs: { track_key: string; title: string };
-    reports: { payload: unknown };
+    reports: { payload: unknown } | Array<{ payload: unknown }>;
   }>;
   const unlocked = await unlockedScansFor(creatorId,
     rows.map((row) => ({ scanId: row.scan_id, trackKey: row.songs.track_key })));
   let matches = 0;
   for (const row of rows) {
     if (!unlocked.has(row.scan_id) || isFixtureKey(row.songs.track_key) ||
-        !isCompletePaidPayload(row.reports.payload)) continue;
+        !hasCompletePaidReport(row.reports)) continue;
     const profile = profileFromAnalysis(row);
     const fit = profile ? matchSong(profile, parsed.target) : null;
     if (!fit) continue;

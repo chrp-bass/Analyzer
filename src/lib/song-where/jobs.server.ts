@@ -6,7 +6,7 @@ import { normalizeTarget } from "./normalize.server";
 import { matchSong, MATCHER_VERSION } from "./match.server";
 import { configuredSources } from "./sources/feed.server";
 import { registeredSources } from "./sources/registered.server";
-import { isCompletePaidPayload } from "@/lib/reports/store";
+import { hasCompletePaidReport } from "./report-eligibility.server";
 import { qualityStatus, verifySubmissionRoute, type QualityEvidence } from "./quality.server";
 import { publicHttpsUrl } from "./sources/public-url.server";
 import { classifySpecificity, songMatchable } from "./specificity.server";
@@ -159,7 +159,8 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
   if (error) throw error;
   const rows = (analyses ?? []) as unknown as Array<{
     id: string; status: string; epi_score: number; mode: string; scores: unknown;
-    circumplex: unknown; songs: { track_key: string }; reports: { payload: unknown };
+    circumplex: unknown; songs: { track_key: string };
+    reports: { payload: unknown } | Array<{ payload: unknown }>;
   }>;
   const { data: opportunities, error: opportunityError } = await db.from("opportunities")
     .select("id,target,specificity_tier,song_matchable,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope)")
@@ -170,7 +171,7 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
   const now = new Date().toISOString();
   let matches = 0;
   for (const row of rows) {
-    if (isFixtureKey(row.songs.track_key) || !isCompletePaidPayload(row.reports.payload)) continue;
+    if (isFixtureKey(row.songs.track_key) || !hasCompletePaidReport(row.reports)) continue;
     const profile = profileFromAnalysis(row);
     if (!profile) continue;
     for (const opportunity of (opportunities ?? []) as unknown as Array<{
