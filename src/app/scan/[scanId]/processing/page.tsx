@@ -30,8 +30,10 @@ export default function Processing({
   // A fixture id that names no fixture is a malformed id, not a real song.
   if (isFixtureKey(trackSlug) && !fixture) notFound();
 
+  // The analysis wait sits on the dark brand ground, like the landing page
+  // the creator just came from and the reveal they are about to reach.
   return (
-    <div className="product-shell">
+    <div className="page-shell">
       <SiteHeader showCta={false} />
       <main>
         <ScanProcessing

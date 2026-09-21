@@ -201,6 +201,16 @@ export function ScanProcessing({
     );
   }
 
+  // The first line names the song, so the wait is unmistakably about THIS
+  // record. The later lines stay as they are: by then the song has been on
+  // screen for seven seconds and repeating it would read as a loop.
+  const waitingTitle = report?.track.title ?? pendingTitle;
+  const waitingArtist = report?.track.artist ?? pendingArtist;
+  const waitingLine =
+    statusIndex === 0 && waitingTitle
+      ? `Analyzing ${waitingTitle}${waitingArtist ? ` by ${waitingArtist}` : ""}\u2026`
+      : STATUS[statusIndex].line;
+
   const chip = report ? MODE_COLORS[report.epi.mode] : null;
   const rows = report
     ? AXIS_ORDER.map(
@@ -260,7 +270,7 @@ export function ScanProcessing({
             other. Each line is a real number the engine produced. */}
         <div className="rd-readout" aria-live="polite">
           {!revealing ? (
-            <p className="rd-waiting">{STATUS[statusIndex].line}</p>
+            <p className="rd-waiting">{waitingLine}</p>
           ) : (
             <>
               {rows.map((r, i) =>

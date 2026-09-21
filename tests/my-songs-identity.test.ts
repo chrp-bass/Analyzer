@@ -201,9 +201,11 @@ describe("the demo identity no longer speaks for the creator", () => {
     expect(body).not.toContain("getFreeReportById");
   });
 
-  it('"Reset demo state" is development-only', () => {
-    const at = dashboard.indexOf("Reset all demo state?");
-    const before = dashboard.slice(Math.max(0, at - 200), at);
-    expect(before).toContain("demoFallbackAllowed() &&");
+  it('"Reset demo state" is gone — not gated, removed', () => {
+    // It used to be development-only behind demoFallbackAllowed(). It is now
+    // deleted outright, so no build or environment can put it on My Songs.
+    expect(dashboard).not.toContain("Reset all demo state?");
+    expect(dashboard.toLowerCase()).not.toContain("reset demo state");
+    expect(dashboard).not.toContain("clearAllUserData");
   });
 });

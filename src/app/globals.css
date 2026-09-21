@@ -392,6 +392,11 @@ em { font-style: italic; }
   color: rgba(251, 251, 244, 0.62);
 }
 
+/* The copy column — and the scan field in it — always sits above the
+   atmosphere. Once the columns stack, the atmosphere's upward bleed lands on
+   the scan button, and its top edge drew a hard seam across the primary CTA. */
+.si-hero .wrap > div:first-child { position: relative; z-index: 1; }
+
 /* Hero portrait + overlapping instrument. */
 .si-hero-art { position: relative; }
 .si-hero-atmos {
@@ -403,6 +408,15 @@ em { font-style: italic; }
     rgba(64, 107, 214, 0.09) 68%,
     rgba(15, 14, 14, 0) 100%);
   pointer-events: none;
+}
+/* Stacked, the bleed has copy above it instead of empty ground, so its top
+   edge is feathered out rather than ending in a line. Side by side the field
+   is untouched. 947px is where the hero grid drops to one column. */
+@media (max-width: 947px) {
+  .si-hero-atmos {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 24%);
+  }
 }
 .si-hero-horizon {
   position: absolute;
@@ -2102,6 +2116,14 @@ em { font-style: italic; }
   justify-content: center;
   padding: 48px 24px;
 }
+/* The Reading runs on the dark brand ground. Its type is set in the
+   on-light tokens, so they are flipped here rather than per rule — the
+   instrument itself already follows the shell's polygon tokens. */
+.page-shell .rd-screen {
+  --on-light:   var(--on-dark);
+  --on-light-2: var(--on-dark-2);
+  --line-light: var(--line-dark);
+}
 .rd-stage {
   width: 100%;
   max-width: 380px;
@@ -2164,7 +2186,10 @@ em { font-style: italic; }
   max-width: 240px;
 }
 .rd-waiting {
-  margin: 0;
+  /* The line names the song, so it takes the stage's full measure rather
+     than the 240px the score rows are set to. */
+  margin: 0 calc((240px - min(380px, 100vw - 48px)) / 2);
+  text-wrap: balance;
   text-align: center;
   font-family: var(--d);
   font-style: italic;

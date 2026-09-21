@@ -13,12 +13,10 @@ import {
   markProfileUnlockSeen,
   hasSeenCatalogComplete,
   markCatalogCompleteSeen,
-  clearAllUserData,
   signOut,
 } from "@/lib/accounts";
 import {
   fetchServerCatalog,
-  demoFallbackAllowed,
   type ServerCatalogEntry,
 } from "@/lib/memory/catalog.client";
 import { fetchIdentityState } from "@/lib/identity-state";
@@ -300,19 +298,6 @@ export function Dashboard() {
           >
             Sign out
           </button>
-          {demoFallbackAllowed() && (
-          <button
-            onClick={async () => {
-              if (confirm("Reset all demo state? This wipes your scans, catalog, and account on this browser.")) {
-                await clearAllUserData();
-                refresh();
-              }
-            }}
-            className="font-sans text-[11px] tracking-wider uppercase text-ink-light hover:text-plum"
-          >
-            Reset demo state
-          </button>
-          )}
         </div>
       </section>
       <SiteFooter />

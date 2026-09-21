@@ -38,7 +38,10 @@ export function ScanInput() {
   const handedOff = search.get("q") ?? "";
 
   const [value, setValue] = useState(handedOff);
-  const [busy, setBusy] = useState(false);
+  // A query handed over from the hero is searched on mount, so the field
+  // opens already searching rather than idle for a frame and then busy.
+  const [busy, setBusy] = useState(Boolean(handedOff.trim()));
+  const [searchingFor, setSearchingFor] = useState(handedOff.trim());
   const [starting, setStarting] = useState<string | null>(null);
   const [results, setResults] = useState<SongSearchResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +50,7 @@ export function ScanInput() {
     async (query: string) => {
       setError(null);
       setResults(null);
+      setSearchingFor(query.trim());
       setBusy(true);
 
       try {
@@ -134,6 +138,7 @@ export function ScanInput() {
     <div>
       <form
         onSubmit={submit}
+        aria-busy={busy}
         style={{ display: "flex", flexDirection: "column", gap: 12 }}
       >
         <label htmlFor="scan-input" className="sr-only">
@@ -162,6 +167,36 @@ export function ScanInput() {
           {busy ? "Searching…" : "Find my song"}
         </button>
       </form>
+
+      {/* The answer to "did that do anything?". It appears on the same frame
+          as the submit, in the space the results are about to fill, so the
+          page visibly starts working before the catalogue has replied. */}
+      {busy && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            marginTop: 34,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            fontFamily: "var(--d)",
+            fontStyle: "italic",
+            fontSize: 17,
+            color: "var(--on-light-2)",
+          }}
+        >
+          <span
+            aria-hidden
+            className="w-4 h-4 shrink-0 border-2 border-chrp-black border-t-transparent rounded-full animate-spin motion-reduce:animate-none"
+          />
+          <span>
+            {searchingFor
+              ? `Searching for \u201C${searchingFor}\u201D\u2026`
+              : "Searching\u2026"}
+          </span>
+        </div>
+      )}
 
       {results && results.length > 0 && (
         <div style={{ marginTop: 34 }}>

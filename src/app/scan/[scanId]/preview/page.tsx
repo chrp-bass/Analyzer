@@ -41,8 +41,13 @@ export default function PreviewPage({
 
   if (!trackSlug) return <div className="product-shell" />;
 
+  // While the read is in flight the screen stays on the dark ground the
+  // analysis ran on, so a wait never flashes cream between two dark screens.
+  // Every settled state — reveal, report, error — keeps the product shell.
+  const shell = state.status === "working" ? "page-shell" : "product-shell";
+
   return (
-    <div className="product-shell">
+    <div className={shell}>
       <ScanPreview
         scanId={params.scanId}
         state={state}

@@ -55,6 +55,77 @@ export const PURCHASE_COPY: Record<
   },
 };
 
+type Copy = (typeof PURCHASE_COPY)[OfferKey];
+
+/** Escape text for the email's HTML body. Titles are catalogue data. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** One line, bounded: a subject is a header, and a title is not ours. */
+function oneLine(text: string, max: number): string {
+  const flat = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}\u2026` : flat;
+}
+
+/**
+ * The Song Intelligence copy, naming the song it is about.
+ *
+ * "Your Song Intelligence is ready" told a creator with several songs nothing
+ * about WHICH one, in the inbox or in the message. With a title on file the
+ * subject and body carry it; without one the specified generic copy stands,
+ * unchanged. Returns the subject as plain text and the body as safe HTML.
+ */
+export function copyForSong(
+  copy: Copy,
+  song: { title: string | null; artist: string | null } | null,
+): Copy {
+  const title = song?.title ? oneLine(song.title, 80) : "";
+  if (!title) return copy;
+  const artist = song?.artist ? oneLine(song.artist, 60) : "";
+  const named = artist ? `${title} by ${artist}` : title;
+  return {
+    ...copy,
+    subject: `Your Song Intelligence \u2014 ${named}`,
+    body: `Your complete report for ${escapeHtml(named)} is waiting for you.`,
+  };
+}
+
+/**
+ * The purchased song, as this creator's catalog knows it. Best-effort: any
+ * failure here means the generic copy, never a missing email.
+ */
+async function songForScan(
+  db: Db,
+  userId: string,
+  scanId: string,
+): Promise<{ title: string | null; artist: string | null } | null> {
+  try {
+    const { data, error } = await db
+      .from("analyses")
+      .select("songs!inner(title,artist_name)")
+      .eq("creator_id", userId)
+      .eq("scan_id", scanId)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    const joined = (data as { songs: unknown }).songs;
+    const song = (Array.isArray(joined) ? joined[0] : joined) as
+      | { title?: string | null; artist_name?: string | null }
+      | null
+      | undefined;
+    if (!song) return null;
+    return { title: song.title ?? null, artist: song.artist_name ?? null };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Send the confirmation for a completed purchase.
  *
@@ -75,7 +146,13 @@ export async function sendPurchaseEmail(
   const email = userData?.user?.email;
   if (userError || !email) return { ok: false, reason: "no_email_on_file" };
 
-  const copy = PURCHASE_COPY[input.offer];
+  const copy =
+    input.offer === "song_intelligence" && input.scanId
+      ? copyForSong(
+          PURCHASE_COPY.song_intelligence,
+          await songForScan(db, input.userId, input.scanId),
+        )
+      : PURCHASE_COPY[input.offer];
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://scan.chrp.ai").replace(
     /\/$/,
     "",
