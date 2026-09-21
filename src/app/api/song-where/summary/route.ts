@@ -24,6 +24,7 @@ export async function GET() {
     const { data: matches, error: matchError } = await db.from("song_opportunity_matches")
       .select("analysis_id,opportunities!inner(status,deadline,opportunity_sources!inner(active))")
       .in("analysis_id", eligible.map((row) => row.id)).eq("opportunities.status", "open")
+      .neq("opportunities.access_class", "PRIVATE_TO_CREATOR")
       .eq("opportunities.opportunity_sources.active", true).limit(2000);
     if (matchError) throw matchError;
     const scanByAnalysis = new Map(eligible.map((row) => [row.id, row.scan_id]));

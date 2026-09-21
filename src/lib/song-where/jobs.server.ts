@@ -163,7 +163,8 @@ export async function matchBatch(db: Db = createAdminClient()): Promise<{ analyz
   }>;
   const { data: opportunities, error: opportunityError } = await db.from("opportunities")
     .select("id,target,specificity_tier,song_matchable,status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope)")
-    .eq("status", "open").eq("synthetic", false).eq("specificity_tier", "A").eq("song_matchable", true)
+    .eq("status", "open").eq("synthetic", false).neq("access_class", "PRIVATE_TO_CREATOR")
+    .eq("specificity_tier", "A").eq("song_matchable", true)
     .eq("opportunity_sources.active", true).limit(100);
   if (opportunityError) throw opportunityError;
   const now = new Date().toISOString();

@@ -34,6 +34,7 @@ import { getCreatorProfile } from "@/lib/fixtures/profile";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { CreatorProfileStage } from "@/components/stages/CreatorProfileStage";
 import { ProgressCallout } from "@/components/dashboard/ProgressCallout";
+import { CreatorBriefs } from "@/components/dashboard/CreatorBriefs";
 import { useRouter } from "next/navigation";
 
 const UNLOCK_THRESHOLD = 8;
@@ -283,6 +284,8 @@ export function Dashboard() {
           unlockPrice={unlockPrice}
           opportunityCounts={opportunityCounts}
         />
+
+        <CreatorBriefs />
 
         <div className="mt-12 flex flex-wrap justify-end items-center gap-x-6 gap-y-2">
           <button

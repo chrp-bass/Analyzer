@@ -37,31 +37,33 @@ export function SongWhere({ scanId }: { scanId: string }) {
     }).catch(() => null);
     if (response?.ok) setOutcomes((current) => ({ ...current, [matchId]: status }));
   }
-  if (!matches) return null;
+  if (!matches?.length) return null;
   return (
     <section aria-labelledby="song-where-title" className="mt-12 border-t border-rule pt-8">
       <p className="font-sans uppercase tracking-wider text-[11px] text-ink-soft">Song Where</p>
       <h2 id="song-where-title" className="font-display text-[28px] md:text-[34px] mt-2">
-        {matches.length ? "Places to explore for this song" : "We’re watching for the right opening"}
+        Worth Your Move
       </h2>
       <p className="font-sans text-[13px] text-ink-soft mt-2 max-w-[56ch]">
-        {matches.length
-          ? "These external opportunities may fit your song’s measured profile. Check each listing’s terms and rights requirements before submitting. CHRP does not represent you or guarantee placement."
-          : "No current opportunity meets this song’s measured profile. We’ll only show a listing when its fit and submission route are clear."}
+        These briefs may align with this song’s approved emotional profile. Check all stated musical, rights and submission requirements yourself. CHRP does not represent you or guarantee placement.
       </p>
       <div className="mt-5 space-y-3">
-        {matches.map((match) => (
+        {matches.slice(0, 5).map((match) => (
           <div key={match.matchId} className="border border-rule p-4 flex flex-wrap justify-between gap-3">
             <div>
               <h3 className="font-display text-[20px]">{match.title}</h3>
               <p className="font-sans text-[11px] text-ink-soft mt-1">
                 Original source: {match.sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "")} · {match.trust} source · {match.fit.replace("_", " ")} fit
                 {match.deadline ? ` · Closes ${new Date(match.deadline).toLocaleDateString()}` : ""}
+                {match.submissionRequirement && match.submissionRequirement !== "unknown"
+                  ? ` · ${match.submissionRequirement} required to submit` : " · Submission requirement unknown"}
+                {match.submissionCost ? ` · ${match.submissionCost}` : ""}
               </p>
+              <p className="font-sans text-[12px] text-ink-soft mt-2">Approved emotional profile aligns with the brief’s stated direction; confirm all other criteria at the source.</p>
             </div>
             <div className="flex flex-col items-end gap-2 self-center">
-              <a href={match.goHref} className="font-sans font-bold text-[12px] underline">
-                View original source and apply →
+              <a href={match.goHref} target="_blank" rel="noopener noreferrer" className="font-sans font-bold text-[12px] underline">
+                View opportunity →
               </a>
               {outcomes[match.matchId] ? (
                 <span className="font-sans text-[11px] text-ink-soft">Marked {outcomes[match.matchId]}</span>

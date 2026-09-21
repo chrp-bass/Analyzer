@@ -20,6 +20,7 @@ beforeAll(async () => {
   await client.query(readFileSync("supabase/migrations/20260920170113_song_where_source_quality.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920193000_song_where_public_pointers.sql", "utf8"));
   await client.query(readFileSync("supabase/migrations/20260920211307_song_where_matchability_gate.sql", "utf8"));
+  await client.query(readFileSync("supabase/migrations/20260920225000_song_where_creator_briefs.sql", "utf8"));
 }, 180_000);
 
 afterAll(async () => { await client?.end(); await pg?.stop(); });
@@ -89,5 +90,18 @@ describe("Song Where migration", () => {
     expect(funnel.rows[0]).toMatchObject({ tier_a: "0", tier_b: "0", tier_c: "0", matchable: "0" });
     const grants = await client.query(`select has_table_privilege('anon','song_where_source_funnel','select') as public_read`);
     expect(grants.rows[0].public_read).toBe(false);
+  });
+
+  it("requires ownership for private briefs and keeps their fields service-only", async () => {
+    const columns = await client.query(`select column_name from information_schema.columns
+      where table_name='opportunities' and column_name in
+      ('access_class','owner_creator_id','explicit_criteria','submission_requirement','source_snapshot_at')`);
+    expect(columns.rows).toHaveLength(5);
+    const { rows } = await client.query(`select has_table_privilege('authenticated','opportunities','select') as can_read,
+      has_table_privilege('anon','opportunity_inbox_messages','select') as inbox_read`);
+    expect(rows[0]).toMatchObject({ can_read: false, inbox_read: false });
+    await expect(client.query(`insert into opportunities(source_id,external_ref,title,submission_url,
+      normalizer_version,content_hash,access_class) select id,'no-owner','Private','https://example.org/submit',
+      'v1','hash','PRIVATE_TO_CREATOR' from opportunity_sources limit 1`)).rejects.toThrow();
   });
 });
