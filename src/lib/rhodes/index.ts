@@ -520,17 +520,36 @@ export function buildUserMessage(input: SongIntelligenceInput): string {
   return blocks.join("\n\n");
 }
 
-/** Pull the JSON object out of a response that may be fenced or prefaced. */
-function extractJson(raw: string): string {
+/** Pull the first complete JSON object out of a response that may be fenced,
+ * prefaced, or followed by stray model output. Braces inside JSON strings do
+ * not affect the boundary. */
+export function extractJson(raw: string): string {
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "")
     .trim();
-  if (cleaned.startsWith("{")) return cleaned;
   const first = cleaned.indexOf("{");
-  const last = cleaned.lastIndexOf("}");
-  if (first >= 0 && last > first) return cleaned.slice(first, last + 1);
+  if (first < 0) return cleaned;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = first; i < cleaned.length; i += 1) {
+    const char = cleaned[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return cleaned.slice(first, i + 1);
+    }
+  }
   return cleaned;
 }
 

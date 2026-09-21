@@ -29,9 +29,13 @@ vi.mock("@/lib/commerce/entitlements", () => ({ currentUserId: vi.fn() }));
 vi.mock("@/lib/scan/fulfillment.server", () => ({
   ensureAnalysisPersisted: vi.fn(),
 }));
+vi.mock("@/lib/reports/prepare.server", () => ({
+  prepareReportForScan: vi.fn(),
+}));
 
 import { currentUserId } from "@/lib/commerce/entitlements";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
+import { prepareReportForScan } from "@/lib/reports/prepare.server";
 import { POST } from "@/app/api/scan/save/route";
 import { encodeIsrcScanId, encodeScanId } from "@/lib/scan-id";
 import { TRACK_SLUGS } from "@/lib/fixtures/tracks";
@@ -43,6 +47,7 @@ import {
 
 const userMock = vi.mocked(currentUserId);
 const persistMock = vi.mocked(ensureAnalysisPersisted);
+const prepareMock = vi.mocked(prepareReportForScan);
 
 const REAL_SCAN = encodeIsrcScanId("GBUM71029604")!;
 const FIXTURE_SCAN = encodeScanId(TRACK_SLUGS[0]);
@@ -61,6 +66,17 @@ beforeEach(() => {
   persistMock
     .mockReset()
     .mockResolvedValue({ ok: true, analysisId: "a-1", songId: "s-1" });
+  prepareMock.mockReset().mockResolvedValue({
+    status: "ready",
+    readiness: {
+      scanId: REAL_SCAN,
+      reportId: "r-1",
+      reportVersion: "chrp-rhodes-v2",
+      analysisId: "a-1",
+    },
+    reused: false,
+    timings: [],
+  });
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => vi.restoreAllMocks());
@@ -69,10 +85,11 @@ describe("POST /api/scan/save", () => {
   it("persists the analysis under the cookie identity and returns no content", async () => {
     const res = await post({ scanId: REAL_SCAN, userId: "someone-else" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "saved" });
+    expect(await res.json()).toEqual({ status: "saved", reportStatus: "ready" });
     expect(persistMock).toHaveBeenCalledTimes(1);
     // The caller cannot name an identity: only the session's is used.
     expect(persistMock).toHaveBeenCalledWith("user-1", REAL_SCAN);
+    expect(prepareMock).toHaveBeenCalledWith("user-1", REAL_SCAN);
     expect(res.headers.get("cache-control")).toContain("no-store");
   });
 
@@ -81,12 +98,14 @@ describe("POST /api/scan/save", () => {
     const res = await post({ scanId: REAL_SCAN });
     expect(res.status).toBe(401);
     expect(persistMock).not.toHaveBeenCalled();
+    expect(prepareMock).not.toHaveBeenCalled();
   });
 
   it("a bundled sample track is not saved", async () => {
     const res = await post({ scanId: FIXTURE_SCAN });
     expect(await res.json()).toEqual({ status: "not_eligible" });
     expect(persistMock).not.toHaveBeenCalled();
+    expect(prepareMock).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed request before touching identity or storage", async () => {
@@ -95,6 +114,7 @@ describe("POST /api/scan/save", () => {
     expect((await post({ scanId: "nope" })).status).toBe(400);
     expect(userMock).not.toHaveBeenCalled();
     expect(persistMock).not.toHaveBeenCalled();
+    expect(prepareMock).not.toHaveBeenCalled();
   });
 
   it("a song that cannot be analysed is an honest 409, with no payment wording", async () => {
@@ -110,17 +130,37 @@ describe("POST /api/scan/save", () => {
     configured = false;
     expect((await post({ scanId: REAL_SCAN })).status).toBe(503);
     expect(persistMock).not.toHaveBeenCalled();
+    expect(prepareMock).not.toHaveBeenCalled();
+  });
+
+  it("persists report readiness during save so unlock reuses it", async () => {
+    const res = await post({ scanId: REAL_SCAN });
+    expect(res.status).toBe(200);
+    expect(prepareMock).toHaveBeenCalledWith("user-1", REAL_SCAN);
+    expect(await res.json()).toMatchObject({ reportStatus: "ready" });
+  });
+
+  it("preserves the saved analysis when report prewarm fails", async () => {
+    prepareMock.mockResolvedValue({
+      status: "failed",
+      reason: "generation_failed",
+      message: "unavailable",
+      timings: [],
+    });
+    const res = await post({ scanId: REAL_SCAN });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "saved", reportStatus: "unavailable" });
   });
 });
 
-describe("saving cannot grant paid access", () => {
+describe("saving prepares fulfillment but cannot grant paid access", () => {
   const route = readFileSync("src/app/api/scan/save/route.ts", "utf8");
   const code = route
     .split("\n")
     .filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l))
     .join("\n");
 
-  it("imports only identity, scan-id and the analysis persister", () => {
+  it("imports only identity, scan-id, analysis persistence and report preparation", () => {
     const imports = Array.from(code.matchAll(/from "([^"]+)"/g)).map((m) => m[1]);
     expect(imports.sort()).toEqual(
       [
@@ -129,13 +169,13 @@ describe("saving cannot grant paid access", () => {
         "@/lib/commerce/entitlements",
         "@/lib/scan-id",
         "@/lib/scan/fulfillment.server",
+        "@/lib/reports/prepare.server",
       ].sort(),
     );
   });
 
-  it("reaches no report preparation, Rhodes, grant, entitlement write or Stripe", () => {
+  it("reaches no grant, entitlement write or Stripe", () => {
     for (const forbidden of [
-      "prepareReportForScan",
       "generatePaidSections",
       "grantFreeFirst",
       "createAdminClient",
