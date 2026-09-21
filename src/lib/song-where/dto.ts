@@ -9,6 +9,8 @@ export type SongWhereMatch = {
   fit: FitBand;
   deadline: string | null;
   goHref: string;
+  submissionRequirement?: "free" | "paid" | "membership" | "credits" | "unknown";
+  submissionCost?: string | null;
 };
 
 export type SongWhereResponse = { matches: SongWhereMatch[] };

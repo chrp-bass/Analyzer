@@ -50,13 +50,13 @@ describe("Song Where isolation", () => {
           terms_status: "permitted", robots_status: "allow", auth_scope: "none" } },
     };
     const query = {
-      select: () => query, eq: () => query, limit: async () => ({ data: [row], error: null }),
+      select: () => query, eq: () => query, neq: () => query, limit: async () => ({ data: [row], error: null }),
     };
     const db = { from: () => query };
     const matches = await matchesForAnalysis(db as never, "analysis-id");
     expect(matches).toHaveLength(1);
     expect(Object.keys(matches[0]).sort()).toEqual(
-      ["matchId", "title", "sourceName", "trust", "fit", "deadline", "goHref"].sort());
+      ["matchId", "title", "sourceName", "trust", "fit", "deadline", "goHref", "submissionRequirement", "submissionCost"].sort());
     expect(JSON.stringify(matches)).not.toMatch(/91\.357|private-submit-token|match_score|submission_url|weights|reasons|formula|threshold/i);
     row.opportunities.specificity_tier = "B";
     row.opportunities.song_matchable = false;

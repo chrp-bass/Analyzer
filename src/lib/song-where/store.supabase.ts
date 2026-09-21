@@ -40,14 +40,17 @@ type MatchRow = {
   fit_band: FitBand;
   opportunities: QualityEvidence & {
     title: string;
+    submission_requirement: "free" | "paid" | "membership" | "credits" | "unknown";
+    submission_cost: string | null;
     opportunity_sources: (NonNullable<QualityEvidence["opportunity_sources"]> & { name: string; trust_level: Trust }) | null;
   } | null;
 };
 
 export async function matchesForAnalysis(db: Db, analysisId: string): Promise<SongWhereMatch[]> {
   const { data, error } = await db.from("song_opportunity_matches")
-    .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(name,trust_level,active,terms_status,robots_status,auth_scope))")
+    .select("id,match_score,fit_band,opportunities!inner(title,deadline,status,access_class,submission_requirement,submission_cost,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(name,trust_level,active,terms_status,robots_status,auth_scope))")
     .eq("analysis_id", analysisId).eq("opportunities.status", "open")
+    .neq("opportunities.access_class", "PRIVATE_TO_CREATOR")
     .eq("opportunities.synthetic", false)
     .eq("opportunities.opportunity_sources.active", true).limit(100);
   if (error) throw error;
@@ -68,30 +71,42 @@ export async function matchesForAnalysis(db: Db, analysisId: string): Promise<So
       applicantCount: opportunity.applicant_count,
       competitionLevel: opportunity.competition_level,
       routeVerifiedAt: opportunity.route_verified_at,
+      submissionRequirement: opportunity.submission_requirement,
+      submissionCost: opportunity.submission_cost,
     }];
   });
   return rankMatches(ranked).slice(0, 20).map((item) => ({
     matchId: item.matchId, title: item.title, sourceName: item.sourceName,
     trust: item.trust, fit: item.fit, deadline: item.deadline, goHref: item.goHref,
+    submissionRequirement: item.submissionRequirement, submissionCost: item.submissionCost,
   }));
 }
 
 export async function matchForRedirect(db: Db, matchId: string): Promise<{
-  analysisId: string; creatorId: string; scanId: string; url: string;
+  analysisId: string; creatorId: string; scanId: string; url: string; accessClass: string;
 } | null> {
   const { data, error } = await db.from("song_opportunity_matches")
-    .select("id,analysis_id,fit_band,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
+    .select("id,analysis_id,fit_band,analyses!inner(creator_id,scan_id),opportunities!inner(status,deadline,access_class,owner_creator_id,submission_url,route_verified_at,provenance_url,applicant_count,competition_level,eligibility_requirements,specificity_tier,song_matchable,opportunity_sources!inner(active,trust_level,terms_status,robots_status,auth_scope))")
     .eq("id", matchId).eq("opportunities.synthetic", false).limit(1);
   if (error) throw error;
   const row = (data as unknown as Array<{
     analysis_id: string;
     fit_band: FitBand;
     analyses: { creator_id: string; scan_id: string };
-    opportunities: QualityEvidence;
+    opportunities: QualityEvidence & { access_class: string; owner_creator_id: string | null };
   }> | null)?.[0];
-  if (!row || qualityStatus(row.opportunities, row.fit_band) !== "LIVE_VERIFIED") return null;
+  if (!row) return null;
+  if (row.opportunities.access_class === "PRIVATE_TO_CREATOR") {
+    const brief = row.opportunities;
+    if (brief.owner_creator_id !== row.analyses.creator_id || brief.status !== "open" ||
+        brief.specificity_tier !== "A" || !brief.song_matchable ||
+        !brief.deadline || Date.parse(brief.deadline) <= Date.now() ||
+        !brief.route_verified_at || Date.now() - Date.parse(brief.route_verified_at) > 86_400_000 ||
+        !publicHttpsUrl(brief.submission_url)) return null;
+  } else if (qualityStatus(row.opportunities, row.fit_band) !== "LIVE_VERIFIED") return null;
   return { analysisId: row.analysis_id, creatorId: row.analyses.creator_id,
-    scanId: row.analyses.scan_id, url: row.opportunities.submission_url };
+    scanId: row.analyses.scan_id, url: row.opportunities.submission_url,
+    accessClass: row.opportunities.access_class };
 }
 
 export function safeSubmissionUrl(raw: string): URL | null {
