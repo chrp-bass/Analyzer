@@ -79,6 +79,62 @@ function beginPurchase(
   );
 }
 
+/**
+ * A repeat creator's report starts in the background when the free reveal is
+ * established. Keep unlock inert until the server confirms the complete row
+ * exists; if preparation fails and its claim disappears, expose the existing
+ * retry path after three consecutive empty reads.
+ */
+function useUnlockReadiness(scanId: string, enabled: boolean): boolean {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setReady(false);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let emptyReads = 0;
+
+    const check = async () => {
+      try {
+        const res = await fetch(
+          `/api/scan/prepare?scanId=${encodeURIComponent(scanId)}`,
+          { cache: "no-store" },
+        );
+        const body = (await res.json().catch(() => ({}))) as { status?: string };
+        if (cancelled) return;
+        if (res.ok && body.status === "ready") {
+          setReady(true);
+          return;
+        }
+        emptyReads = body.status === "preparing" ? 0 : emptyReads + 1;
+        if (emptyReads >= 3) {
+          // No live claim and no report: let the established click path retry.
+          setReady(true);
+          return;
+        }
+      } catch {
+        emptyReads += 1;
+        if (emptyReads >= 3) {
+          setReady(true);
+          return;
+        }
+      }
+      timer = setTimeout(check, 2_500);
+    };
+
+    void check();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [enabled, scanId]);
+
+  return ready;
+}
+
 export function ScanPreview({
   scanId,
   state,
@@ -102,6 +158,9 @@ export function ScanPreview({
   const search = useSearchParams();
   const welcomeEmail = search.get("email");
   const [showBanner, setShowBanner] = useState(search.get("welcome") === "1");
+  const revealVisible =
+    state.status === "settled" && state.outcome.kind === "reveal";
+  const unlockReady = useUnlockReadiness(scanId, revealVisible);
 
   if (state.status === "working") {
     // The persisted-report read, and the bounded post-payment confirmation,
@@ -148,8 +207,8 @@ export function ScanPreview({
   if (outcome.kind === "reveal") {
     return (
       <>
-        <FreeReveal report={outcome.free} scanId={scanId} />
-        <Boundary scanId={scanId} />
+        <FreeReveal report={outcome.free} scanId={scanId} unlockReady={unlockReady} />
+        <Boundary scanId={scanId} unlockReady={unlockReady} />
       </>
     );
   }
@@ -212,9 +271,11 @@ export function ScanPreview({
 function FreeReveal({
   report,
   scanId,
+  unlockReady,
 }: {
   report: FreeReport;
   scanId: string;
+  unlockReady: boolean;
 }) {
   const byName = new Map(report.chrp_scores.map((r) => [r.name, r]));
   const axes = AXIS_ORDER.map((name) => ({
@@ -288,7 +349,7 @@ function FreeReveal({
 
             <p className="rv-signature">{report.free_statement}</p>
 
-            <RevealActions scanId={scanId} />
+      <RevealActions scanId={scanId} unlockReady={unlockReady} />
           </div>
         </div>
 
@@ -309,7 +370,7 @@ function FreeReveal({
  * magic-link infrastructure — an email address and a link, no password and
  * no account setup step.
  */
-function RevealActions({ scanId }: { scanId: string }) {
+function RevealActions({ scanId, unlockReady }: { scanId: string; unlockReady: boolean }) {
   const [buying, setBuying] = useState(false);
   const [phase, setPhase] = useState<"preparing" | "checkout" | null>(null);
   const [saving, setSaving] = useState(false);
@@ -376,7 +437,7 @@ function RevealActions({ scanId }: { scanId: string }) {
         <button
           type="button"
           className="rv-cta"
-          disabled={buying}
+          disabled={buying || !unlockReady}
           onClick={() => {
             setBuying(true);
             beginPurchase(
@@ -391,7 +452,9 @@ function RevealActions({ scanId }: { scanId: string }) {
             );
           }}
         >
-          {buying
+          {!unlockReady
+            ? "Preparing your report…"
+            : buying
             ? phase === "preparing"
               ? "Preparing your report…"
               : "Opening checkout…"
@@ -649,7 +712,7 @@ export function ReportPreparing({
  * a filter. The boundary is stated as a list: here is what you have, here is
  * what you do not. Paid section contents are not present in this tree.
  */
-function Boundary({ scanId }: { scanId: string }) {
+function Boundary({ scanId, unlockReady }: { scanId: string; unlockReady: boolean }) {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"preparing" | "checkout" | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -685,7 +748,7 @@ function Boundary({ scanId }: { scanId: string }) {
             <button
               type="button"
               className="rv-buy"
-              disabled={busy}
+              disabled={busy || !unlockReady}
               onClick={() => {
                 setBusy(true);
                 beginPurchase(
@@ -700,7 +763,9 @@ function Boundary({ scanId }: { scanId: string }) {
                 );
               }}
             >
-              {busy
+              {!unlockReady
+                ? "Preparing your report…"
+                : busy
                 ? phase === "preparing"
                   ? "Preparing your report…"
                   : "Opening checkout…"

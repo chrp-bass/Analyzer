@@ -4,6 +4,7 @@ import { currentUserId } from "@/lib/commerce/entitlements";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
 import { prepareReportForScan } from "@/lib/reports/prepare.server";
+import { waitUntil } from "@vercel/functions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,11 +28,10 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
  * through the same `ensureAnalysisPersisted` the claim and paid paths use. It
  * then appears in My Songs.
  *
- * Saving is also the earliest durable report-readiness boundary. It prepares
- * and persists the complete paid report before returning "saved", so a later
- * unlock reuses that row instead of regenerating it. Preparation failure does
- * not undo the saved analysis or prevent the return-access email; unlock can
- * retry without starting the analysis over.
+ * Saving is also a report-readiness trigger. Preparation continues inside the
+ * Vercel function after the response, so save/email never waits on enrichment
+ * or Rhodes. The durable report lease makes this safe to trigger more than
+ * once; a later unlock reuses the persisted row instead of regenerating it.
  *
  * What it deliberately does NOT do:
  *   - insert or touch an entitlement, a credit, or the included-first marker;
@@ -93,19 +93,16 @@ export async function POST(req: Request) {
     );
   }
 
-  const prepared = await prepareReportForScan(userId, scanId);
-  if (prepared.status === "failed") {
-    console.error(
-      `[api/scan/save] report prewarm failed for ${scanId}: ${prepared.reason}` +
-        (prepared.detail ? ` — ${prepared.detail}` : ""),
-    );
-  }
-
-  return NextResponse.json(
-    {
-      status: "saved",
-      reportStatus: prepared.status === "ready" ? "ready" : "unavailable",
-    },
-    { headers: NO_STORE },
+  waitUntil(
+    prepareReportForScan(userId, scanId).then((prepared) => {
+      if (prepared.status === "failed") {
+        console.error(
+          `[api/scan/save] report prewarm failed for ${scanId}: ${prepared.reason}` +
+            (prepared.detail ? ` — ${prepared.detail}` : ""),
+        );
+      }
+    }),
   );
+
+  return NextResponse.json({ status: "saved" }, { headers: NO_STORE });
 }

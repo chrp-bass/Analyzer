@@ -205,6 +205,7 @@ vi.mock("@/lib/commerce/free-first.server", () => ({
   grantFreeFirst: h.grant,
 }));
 vi.mock("@/lib/reports/prepare.server", () => ({ prepareReportForScan: h.prepare }));
+vi.mock("@vercel/functions", () => ({ waitUntil: (promise: Promise<unknown>) => void promise }));
 vi.mock("@/lib/scan/fulfillment.server", () => ({ ensureAnalysisPersisted: h.persist }));
 vi.mock("@/lib/memory/catalog.server", () => ({ getCatalog: h.getCatalog }));
 
@@ -221,7 +222,11 @@ beforeEach(() => {
   h.ownedRows = [];
   h.entitlementWrites = 0;
   h.persist.mockReset().mockResolvedValue({ ok: true, analysisId: "a", songId: "s" });
-  h.prepare.mockReset();
+  h.prepare.mockReset().mockResolvedValue({
+    status: "preparing",
+    startedAt: NOW.toISOString(),
+    timings: [],
+  });
   h.grant.mockReset();
   h.getCatalog.mockReset();
   h.unlockedScansFor.mockReset();
@@ -235,8 +240,8 @@ describe("POST /api/scan/claim keeps every scanned song", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "already_used", saved: true });
     expect(h.persist).toHaveBeenCalledWith("user-1", A.scanId);
-    // No report prepared, no included-first grant, no entitlement write.
-    expect(h.prepare).not.toHaveBeenCalled();
+    // The report is prewarmed without granting access or writing entitlement.
+    expect(h.prepare).toHaveBeenCalledWith("user-1", A.scanId);
     expect(h.grant).not.toHaveBeenCalled();
     expect(h.entitlementWrites).toBe(0);
   });
