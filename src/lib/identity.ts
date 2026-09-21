@@ -36,6 +36,33 @@ export async function ensureIdentity(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+/** The one verified Workspace alias allowed to resolve to the canonical creator. */
+export function canonicalSignInEmail(email: string): string {
+  const normalized = email.trim().toLowerCase();
+  return normalized === "jeffs@chrp.ai" ? "jeff@chrp.ai" : normalized;
+}
+
+export type SignInEmailResult =
+  | { ok: true; email: string }
+  | { ok: false; reason: "not_configured" | "send_failed" };
+
+/** Send a real production Supabase return link without creating a second identity. */
+export async function signInWithEmail(email: string): Promise<SignInEmailResult> {
+  if (!supabaseConfigured() || typeof window === "undefined")
+    return { ok: false, reason: "not_configured" };
+  const canonical = canonicalSignInEmail(email);
+  const emailRedirectTo = `${window.location.origin}${AUTH_CALLBACK_PATH}`;
+  const { error } = await createClient().auth.signInWithOtp({
+    email: canonical,
+    options: { emailRedirectTo, shouldCreateUser: false },
+  });
+  if (error) {
+    console.error("[identity] sign-in link failed:", error.message);
+    return { ok: false, reason: "send_failed" };
+  }
+  return { ok: true, email: canonical };
+}
+
 /**
  * Attach an email to the current identity and send the return link.
  *
