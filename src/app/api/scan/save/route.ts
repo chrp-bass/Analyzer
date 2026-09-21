@@ -3,9 +3,11 @@ import { adminConfigured } from "@/lib/supabase/admin";
 import { currentUserId } from "@/lib/commerce/entitlements";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
+import { prepareReportForScan } from "@/lib/reports/prepare.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
 
@@ -25,8 +27,13 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
  * through the same `ensureAnalysisPersisted` the claim and paid paths use. It
  * then appears in My Songs.
  *
+ * Saving is also the earliest durable report-readiness boundary. It prepares
+ * and persists the complete paid report before returning "saved", so a later
+ * unlock reuses that row instead of regenerating it. Preparation failure does
+ * not undo the saved analysis or prevent the return-access email; unlock can
+ * retry without starting the analysis over.
+ *
  * What it deliberately does NOT do:
- *   - prepare or persist a paid report (no enrichments, no Rhodes call);
  *   - insert or touch an entitlement, a credit, or the included-first marker;
  *   - return any analysis content.
  *
@@ -86,5 +93,19 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json({ status: "saved" }, { headers: NO_STORE });
+  const prepared = await prepareReportForScan(userId, scanId);
+  if (prepared.status === "failed") {
+    console.error(
+      `[api/scan/save] report prewarm failed for ${scanId}: ${prepared.reason}` +
+        (prepared.detail ? ` — ${prepared.detail}` : ""),
+    );
+  }
+
+  return NextResponse.json(
+    {
+      status: "saved",
+      reportStatus: prepared.status === "ready" ? "ready" : "unavailable",
+    },
+    { headers: NO_STORE },
+  );
 }

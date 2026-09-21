@@ -4,7 +4,7 @@ import {
   generatePaidSections,
   type AnalysisFacts,
 } from "@/lib/reports/generate.server";
-import { buildUserMessage, auditContextFor } from "@/lib/rhodes";
+import { buildUserMessage, auditContextFor, extractJson } from "@/lib/rhodes";
 
 /**
  * The honesty rules around paid intelligence: production never serves a
@@ -131,5 +131,13 @@ describe("generation fails closed", () => {
     // interpret and no request is made.
     const result = await generatePaidSections({ ...FACTS, dimensions: null });
     expect(result).toMatchObject({ ok: false, reason: "generation_failed" });
+  });
+});
+
+describe("Rhodes response framing", () => {
+  it("extracts one complete object and ignores trailing model output", () => {
+    const object = '{"signature":"A {measured} shape","nested":{"value":"escaped \\\"} brace"}}';
+    expect(extractJson(`${object}\n${object}`)).toBe(object);
+    expect(extractJson(`preface\n\`\`\`json\n${object}\n\`\`\`\ntrailing`)).toBe(object);
   });
 });
