@@ -28,7 +28,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Conversation } from "@elevenlabs/client";
 import {
   RhodesVoiceSession,
   hasOverrides,
@@ -75,6 +74,9 @@ async function fetchSession(scanId: string, signal: AbortSignal): Promise<Sessio
 }
 
 async function connect(payload: SessionPayload, cb: ConnectCallbacks, options: ConnectOptions) {
+  // Voice is optional delight, so its browser SDK must not tax landing or
+  // report rendering. Load it only after the creator chooses to start.
+  const { Conversation } = await import("@elevenlabs/client");
   // The signed URL is used exactly here, exactly once, and not retained.
   return Conversation.startSession({
     signedUrl: payload.signedUrl,
