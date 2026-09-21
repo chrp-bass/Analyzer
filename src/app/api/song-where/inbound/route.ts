@@ -3,11 +3,13 @@ import { NextResponse } from "next/server";
 import { ingestInboundBrief, type InboundBrief } from "@/lib/song-where/sources/email-intake.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ingestCreatorBrief } from "@/lib/song-where/creator-brief.server";
+import { verifiedResendInbound } from "@/lib/song-where/resend-inbound.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (request.headers.has("svix-signature")) return receiveFromResend(request);
   const secret = process.env.SONG_WHERE_INBOUND_SECRET;
   if (!secret || secret.length < 32) return new Response(null, { status: 503 });
   const raw = await request.text();
@@ -50,4 +52,35 @@ export async function POST(request: Request) {
   } catch {
     return new Response(null, { status: 400 });
   }
+}
+
+async function receiveFromResend(request: Request) {
+  if (process.env.SONG_WHERE_PRIVATE_ENABLED !== "true") return new Response(null, { status: 404 });
+  const raw = await request.text();
+  if (raw.length > 60_000) return new Response(null, { status: 413 });
+  try {
+    const input = await verifiedResendInbound(raw, request.headers);
+    if (!input) return new Response(null, { status: 403 });
+    const sender = input.from.match(/<?([^<>\s]+@[^<>\s]+)>?$/)?.[1]?.toLowerCase();
+    if (!sender || !Number.isFinite(Date.parse(input.receivedAt))) return new Response(null, { status: 400 });
+    const db = createAdminClient();
+    const { data: creators, error } = await db.from("creators").select("id").eq("email", sender).limit(1);
+    if (error) throw error;
+    if (!creators?.[0]) return new Response(null, { status: 403 });
+    const { data: seen, error: seenError } = await db.from("opportunity_inbox_messages")
+      .select("id").eq("provider_message_id", input.messageId).limit(1);
+    if (seenError) throw seenError;
+    if (seen?.length) return NextResponse.json({ status: "duplicate" });
+    const result = await ingestCreatorBrief(db, creators[0].id, {
+      messageId: input.messageId, subject: input.subject, text: input.text, receivedAt: input.receivedAt,
+    });
+    const { error: ledgerError } = await db.from("opportunity_inbox_messages").insert({
+      provider_message_id: input.messageId, creator_id: creators[0].id, sender,
+      subject: input.subject.slice(0, 300), received_at: new Date(input.receivedAt).toISOString(),
+      status: result.status === "stored" ? "normalized" : "quarantined",
+      reason: result.status === "stored" ? null : "private_brief_not_verifiable",
+    });
+    if (ledgerError) throw ledgerError;
+    return NextResponse.json(result);
+  } catch { return new Response(null, { status: 400 }); }
 }
