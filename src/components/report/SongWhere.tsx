@@ -107,6 +107,9 @@ export function SongWhere({ scanId }: { scanId: string }) {
           Notify me when CHRP finds new strong opportunities for my songs
         </label>
       )}
+      <p className="font-sans text-[12px] text-ink-soft mt-4">
+        Found a brief yourself? <a href="/dashboard" className="underline">Paste it on your dashboard</a> and CHRP will match it against your catalog.
+      </p>
     </section>
   );
 }
