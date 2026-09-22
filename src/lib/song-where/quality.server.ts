@@ -16,9 +16,11 @@ export type QualityEvidence = {
     robots_status: string; auth_scope: string } | null;
 };
 
+const DEFAULT_ROUTE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 /** Unknown artist attributes cannot satisfy an explicit requirement. */
 export function qualityStatus(opportunity: QualityEvidence, fit: FitBand | null,
-  now = new Date()): QualityStatus {
+  now = new Date(), routeVerifiedTtlMs = DEFAULT_ROUTE_TTL_MS): QualityStatus {
   if (opportunity.status === "expired" || opportunity.deadline &&
       Date.parse(opportunity.deadline) <= now.getTime()) return "EXPIRED";
   if (opportunity.status !== "open" || !opportunity.deadline ||
@@ -30,7 +32,7 @@ export function qualityStatus(opportunity: QualityEvidence, fit: FitBand | null,
       !opportunity.provenance_url || !publicHttpsUrl(opportunity.provenance_url)) return "SOURCE_UNCERTAIN";
   if (!publicHttpsUrl(opportunity.submission_url) || !opportunity.route_verified_at ||
       !Number.isFinite(Date.parse(opportunity.route_verified_at)) ||
-      now.getTime() - Date.parse(opportunity.route_verified_at) > 24 * 60 * 60 * 1000) return "NO_SUBMISSION_PATH";
+      now.getTime() - Date.parse(opportunity.route_verified_at) > routeVerifiedTtlMs) return "NO_SUBMISSION_PATH";
   const requirements = opportunity.eligibility_requirements;
   if (!requirements || typeof requirements !== "object" || Array.isArray(requirements) ||
       Object.keys(requirements).length > 0) return "ELIGIBILITY_MISMATCH";

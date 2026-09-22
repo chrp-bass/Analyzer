@@ -161,6 +161,25 @@ describe("Song Where matching", () => {
     expect(rankMatches([stale, saturated, fresh], now)).toEqual([fresh, saturated, stale]);
   });
 
+  it("allows a wider route-verification window for redirects", () => {
+    const verified = new Date("2026-09-18T12:00:00Z");
+    const now = new Date("2026-09-20T12:00:00Z"); // 48 h after verification
+    const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
+      submission_url: "https://example.org/apply", route_verified_at: verified.toISOString(),
+      provenance_url: "https://example.org/brief", applicant_count: 3,
+      competition_level: "low", eligibility_requirements: {},
+      specificity_tier: "A", song_matchable: true,
+      opportunity_sources: { active: true, trust_level: "verified", terms_status: "permitted",
+        robots_status: "allow", auth_scope: "none" } };
+    // Default 24 h window → stale after 48 h
+    expect(qualityStatus(base, "strong", now)).toBe("NO_SUBMISSION_PATH");
+    // 72 h redirect window → still live at 48 h
+    expect(qualityStatus(base, "strong", now, 72 * 60 * 60 * 1000)).toBe("LIVE_VERIFIED");
+    // Beyond 72 h → stale even with wider window
+    const laterNow = new Date("2026-09-21T13:00:00Z"); // 73 h
+    expect(qualityStatus(base, "strong", laterNow, 72 * 60 * 60 * 1000)).toBe("NO_SUBMISSION_PATH");
+  });
+
   it("rejects dangerous submission URLs", () => {
     expect(safeSubmissionUrl("javascript:alert(1)")).toBeNull();
     expect(safeSubmissionUrl("https://user:pass@example.com/")).toBeNull();

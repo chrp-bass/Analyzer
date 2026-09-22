@@ -96,14 +96,17 @@ export async function matchForRedirect(db: Db, matchId: string): Promise<{
     opportunities: QualityEvidence & { access_class: string; owner_creator_id: string | null };
   }> | null)?.[0];
   if (!row) return null;
+  // Redirect uses a wider route-verification window (72 h) than display (24 h)
+  // so links shown on the dashboard stay clickable while the opportunity is live.
+  const REDIRECT_ROUTE_TTL_MS = 72 * 60 * 60 * 1000;
   if (row.opportunities.access_class === "PRIVATE_TO_CREATOR") {
     const brief = row.opportunities;
     if (brief.owner_creator_id !== row.analyses.creator_id || brief.status !== "open" ||
         brief.specificity_tier !== "A" || !brief.song_matchable ||
         !brief.deadline || Date.parse(brief.deadline) <= Date.now() ||
-        !brief.route_verified_at || Date.now() - Date.parse(brief.route_verified_at) > 86_400_000 ||
+        !brief.route_verified_at || Date.now() - Date.parse(brief.route_verified_at) > REDIRECT_ROUTE_TTL_MS ||
         !publicHttpsUrl(brief.submission_url)) return null;
-  } else if (qualityStatus(row.opportunities, row.fit_band) !== "LIVE_VERIFIED") return null;
+  } else if (qualityStatus(row.opportunities, row.fit_band, new Date(), REDIRECT_ROUTE_TTL_MS) !== "LIVE_VERIFIED") return null;
   return { analysisId: row.analysis_id, creatorId: row.analyses.creator_id,
     scanId: row.analyses.scan_id, url: row.opportunities.submission_url,
     accessClass: row.opportunities.access_class };
