@@ -3,6 +3,19 @@
 import { useEffect, useState } from "react";
 import type { SongWhereResponse } from "@/lib/song-where/dto";
 
+/** Extract a readable platform name from the source identifier. */
+function platformLabel(sourceName: string): string {
+  // Source names follow patterns like "public-www.example.com-abc123" or "feed-abc123" or "Approved source"
+  const hostMatch = sourceName.match(/^(?:public|feed)-(?:www\.)?([^-]+(?:\.[^-]+)*)-[a-f0-9]+$/);
+  if (hostMatch) {
+    const domain = hostMatch[1];
+    // Title-case the first segment of the domain
+    const name = domain.split(".")[0];
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  return sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "");
+}
+
 export function SongWhere({ scanId }: { scanId: string }) {
   const [matches, setMatches] = useState<SongWhereResponse["matches"] | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState<boolean | null>(null);
@@ -48,34 +61,44 @@ export function SongWhere({ scanId }: { scanId: string }) {
         These briefs may align with this song’s approved emotional profile. Check all stated musical, rights and submission requirements yourself. CHRP does not represent you or guarantee placement.
       </p>
       <div className="mt-5 space-y-3">
-        {matches.slice(0, 5).map((match) => (
-          <div key={match.matchId} className="border border-rule p-4 flex flex-wrap justify-between gap-3">
-            <div>
-              <h3 className="font-display text-[20px]">{match.title}</h3>
-              <p className="font-sans text-[11px] text-ink-soft mt-1">
-                Original source: {match.sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "")} · {match.trust} source · {match.fit.replace("_", " ")} fit
-                {match.deadline ? ` · Closes ${new Date(match.deadline).toLocaleDateString()}` : ""}
-                {match.submissionRequirement && match.submissionRequirement !== "unknown"
-                  ? ` · ${match.submissionRequirement} required to submit` : " · Submission requirement unknown"}
-                {match.submissionCost ? ` · ${match.submissionCost}` : ""}
+        {matches.slice(0, 5).map((match) => {
+          const platform = platformLabel(match.sourceName);
+          const costNote = match.submissionRequirement === "free" ? "Free to submit"
+            : match.submissionRequirement === "paid" ? `Paid submission${match.submissionCost ? ` (${match.submissionCost})` : ""}`
+            : match.submissionRequirement === "membership" ? "Membership required"
+            : match.submissionRequirement === "credits" ? "Credits required"
+            : "Check submission terms";
+          return (
+            <div key={match.matchId} className="border border-rule p-4">
+              <div className="flex flex-wrap justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-display text-[20px]">{match.title}</h3>
+                  <p className="font-sans text-[12px] text-ink-soft mt-1">
+                    {match.fit === "strong" ? "Strong" : match.fit === "moderate" ? "Moderate" : "Worth exploring"} emotional fit · {match.trust === "verified" ? "Verified" : match.trust === "curated" ? "Curated" : "Scraped"} source
+                    {match.deadline ? ` · Closes ${new Date(match.deadline).toLocaleDateString()}` : ""}
+                  </p>
+                  <p className="font-sans text-[11px] text-ink-soft mt-1">{costNote}</p>
+                </div>
+                <div className="flex flex-col items-end gap-2 self-center">
+                  <a href={match.goHref} target="_blank" rel="noopener noreferrer" className="font-sans font-bold text-[12px] underline">
+                    View on {platform} →
+                  </a>
+                  {outcomes[match.matchId] ? (
+                    <span className="font-sans text-[11px] text-ink-soft">Marked {outcomes[match.matchId]}</span>
+                  ) : (
+                    <span className="flex gap-3 font-sans text-[11px] text-ink-soft">
+                      <button type="button" onClick={() => void recordOutcome(match.matchId, "submitted")}>I submitted</button>
+                      <button type="button" onClick={() => void recordOutcome(match.matchId, "passed")}>Pass</button>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="font-sans text-[11px] text-ink-soft mt-2">
+                This takes you to a specific brief on {platform}. Verify all musical, rights and eligibility requirements before submitting.
               </p>
-              <p className="font-sans text-[12px] text-ink-soft mt-2">Approved emotional profile aligns with the brief’s stated direction; confirm all other criteria at the source.</p>
             </div>
-            <div className="flex flex-col items-end gap-2 self-center">
-              <a href={match.goHref} target="_blank" rel="noopener noreferrer" className="font-sans font-bold text-[12px] underline">
-                View opportunity →
-              </a>
-              {outcomes[match.matchId] ? (
-                <span className="font-sans text-[11px] text-ink-soft">Marked {outcomes[match.matchId]}</span>
-              ) : (
-                <span className="flex gap-3 font-sans text-[11px] text-ink-soft">
-                  <button type="button" onClick={() => void recordOutcome(match.matchId, "submitted")}>I submitted</button>
-                  <button type="button" onClick={() => void recordOutcome(match.matchId, "passed")}>Pass</button>
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {alertsEnabled !== null && (
         <label className="flex items-center gap-2 font-sans text-[12px] mt-5">

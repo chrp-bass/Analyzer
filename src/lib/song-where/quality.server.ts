@@ -1,5 +1,5 @@
 import "server-only";
-import { publicHttpsUrl } from "./sources/public-url.server";
+import { publicHttpsUrl, isSpecificSubmissionUrl } from "./sources/public-url.server";
 import type { FitBand } from "./dto";
 
 export type QualityStatus = "LIVE_VERIFIED" | "LIVE_HIGH_COMPETITION" | "STALE" |
@@ -30,7 +30,8 @@ export function qualityStatus(opportunity: QualityEvidence, fit: FitBand | null,
       !["cc0", "permitted", "public_pointer"].includes(source.terms_status) ||
       source.robots_status !== "allow" || source.auth_scope !== "none" ||
       !opportunity.provenance_url || !publicHttpsUrl(opportunity.provenance_url)) return "SOURCE_UNCERTAIN";
-  if (!publicHttpsUrl(opportunity.submission_url) || !opportunity.route_verified_at ||
+  if (!publicHttpsUrl(opportunity.submission_url) || !isSpecificSubmissionUrl(opportunity.submission_url) ||
+      !opportunity.route_verified_at ||
       !Number.isFinite(Date.parse(opportunity.route_verified_at)) ||
       now.getTime() - Date.parse(opportunity.route_verified_at) > routeVerifiedTtlMs) return "NO_SUBMISSION_PATH";
   const requirements = opportunity.eligibility_requirements;

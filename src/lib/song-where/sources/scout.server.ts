@@ -7,18 +7,18 @@ export interface SearchIndex {
 }
 
 const WATCHLIST = [
-  "https://www.tracksynk.com/briefs",
-  "https://pitch.hrdrv.com/",
-  "https://www.songtradr.com/musiccreators",
-  "https://www.taxi.com/",
-  "https://www.musicgateway.com/",
-  "https://dropcue.app/music-briefs",
-  "https://syncstarz.com/",
-  "https://www.pitchsynch.app/",
-  "https://groover.co/en/",
-  "https://www.syncbrief.com/",
-  "https://played.fm/sync",
-  "https://soalivemusicconference.com/conference/pitch-your-music/",
+  "https://www.tracksynk.com/briefs",     // Deep-linkable briefs, free to browse
+  "https://played.fm/sync",               // Individual brief URLs (/sync/{uuid}), $120-2500/project
+  "https://pitch.hrdrv.com/",             // HRDRV Pitch — submission tool (account may be needed)
+  "https://www.songtradr.com/musiccreators", // Major sync marketplace
+  "https://www.taxi.com/",                // Paid membership ($300/yr), aggregated listings
+  "https://www.musicgateway.com/",        // Sync briefs behind login (app.musicgateway.com)
+  "https://dropcue.app/music-briefs",     // Requires paid plan with Discovery
+  "https://syncstarz.com/",               // Sync briefs platform
+  "https://www.pitchsynch.app/",          // Pitch sync marketplace
+  "https://www.syncbrief.com/",           // Sync brief aggregator
+  // Removed: groover.co — music promotion/playlist pitching, not sync placement
+  // Removed: soalivemusicconference.com — single annual event, not a brief source
 ];
 
 const QUERIES = [

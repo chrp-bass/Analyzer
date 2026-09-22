@@ -7,6 +7,7 @@ import { matchSong } from "../src/lib/song-where/match.server";
 import { rankMatches } from "../src/lib/song-where/rank.server";
 import { qualityStatus } from "../src/lib/song-where/quality.server";
 import { matchesForAnalysis, safeSubmissionUrl } from "../src/lib/song-where/store.supabase";
+import { isSpecificSubmissionUrl } from "../src/lib/song-where/sources/public-url.server";
 import { GET as getSongWhere } from "../src/app/api/song-where/[scanId]/route";
 import { POST as runJob } from "../src/app/api/song-where/jobs/run/route";
 
@@ -42,7 +43,7 @@ describe("Song Where isolation", () => {
     const row = {
       id: "match-id", match_score: 91.357, fit_band: "strong",
       opportunities: { title: "Open brief", deadline: "2027-01-01T00:00:00Z", status: "open",
-        submission_url: "https://example.org/private-submit-token",
+        submission_url: "https://example.org/briefs/abc12345678/apply",
         route_verified_at: new Date().toISOString(), provenance_url: "https://example.org/brief",
         applicant_count: null, competition_level: null, eligibility_requirements: {},
         specificity_tier: "A", song_matchable: true,
@@ -57,7 +58,7 @@ describe("Song Where isolation", () => {
     expect(matches).toHaveLength(1);
     expect(Object.keys(matches[0]).sort()).toEqual(
       ["matchId", "title", "sourceName", "trust", "fit", "deadline", "goHref", "submissionRequirement", "submissionCost"].sort());
-    expect(JSON.stringify(matches)).not.toMatch(/91\.357|private-submit-token|match_score|submission_url|weights|reasons|formula|threshold/i);
+    expect(JSON.stringify(matches)).not.toMatch(/91\.357|abc12345678|match_score|submission_url|weights|reasons|formula|threshold/i);
     row.opportunities.specificity_tier = "B";
     row.opportunities.song_matchable = false;
     expect(await matchesForAnalysis(db as never, "analysis-id")).toEqual([]);
@@ -133,7 +134,7 @@ describe("Song Where matching", () => {
   it("rejects every non-live quality status and orders fresh, less saturated peers", () => {
     const now = new Date("2026-09-20T12:00:00Z");
     const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
-      submission_url: "https://example.org/apply", route_verified_at: now.toISOString(),
+      submission_url: "https://example.org/briefs/opp-20260920/apply", route_verified_at: now.toISOString(),
       provenance_url: "https://example.org/brief", applicant_count: 3,
       competition_level: "low", eligibility_requirements: {},
       specificity_tier: "A", song_matchable: true,
@@ -165,7 +166,7 @@ describe("Song Where matching", () => {
     const verified = new Date("2026-09-18T12:00:00Z");
     const now = new Date("2026-09-20T12:00:00Z"); // 48 h after verification
     const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
-      submission_url: "https://example.org/apply", route_verified_at: verified.toISOString(),
+      submission_url: "https://example.org/briefs/opp-20260920/apply", route_verified_at: verified.toISOString(),
       provenance_url: "https://example.org/brief", applicant_count: 3,
       competition_level: "low", eligibility_requirements: {},
       specificity_tier: "A", song_matchable: true,
@@ -184,5 +185,42 @@ describe("Song Where matching", () => {
     expect(safeSubmissionUrl("javascript:alert(1)")).toBeNull();
     expect(safeSubmissionUrl("https://user:pass@example.com/")).toBeNull();
     expect(safeSubmissionUrl("https://example.com/submit")?.hostname).toBe("example.com");
+  });
+
+  it("rejects generic sign-up pages and admits specific opportunity URLs", () => {
+    // Generic — should be rejected
+    expect(isSpecificSubmissionUrl("https://example.com/")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/submit")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/apply")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/signup")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/song-submit")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/briefs")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/musiccreators")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://example.com/sync")).toBe(false);
+    expect(isSpecificSubmissionUrl("https://groover.co/en/")).toBe(false);
+    // Specific — should pass
+    expect(isSpecificSubmissionUrl("https://played.fm/sync/abc12345678")).toBe(true);
+    expect(isSpecificSubmissionUrl("https://example.com/briefs/summer-pop-2026")).toBe(true);
+    expect(isSpecificSubmissionUrl("https://example.com/briefs/opp-12345/apply")).toBe(true);
+    expect(isSpecificSubmissionUrl("https://tracksynk.com/briefs/brief-4829")).toBe(true);
+    // Invalid URLs
+    expect(isSpecificSubmissionUrl("javascript:alert(1)")).toBe(false);
+    expect(isSpecificSubmissionUrl("not-a-url")).toBe(false);
+  });
+
+  it("filters generic URLs at quality gate level", () => {
+    const now = new Date("2026-09-20T12:00:00Z");
+    const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
+      submission_url: "https://example.org/submit", route_verified_at: now.toISOString(),
+      provenance_url: "https://example.org/brief", applicant_count: 3,
+      competition_level: "low", eligibility_requirements: {},
+      specificity_tier: "A", song_matchable: true,
+      opportunity_sources: { active: true, trust_level: "verified", terms_status: "permitted",
+        robots_status: "allow", auth_scope: "none" } };
+    // Generic URL → NO_SUBMISSION_PATH
+    expect(qualityStatus(base, "strong", now)).toBe("NO_SUBMISSION_PATH");
+    // Specific URL → LIVE_VERIFIED
+    expect(qualityStatus({ ...base, submission_url: "https://example.org/briefs/opp-12345/apply" },
+      "strong", now)).toBe("LIVE_VERIFIED");
   });
 });
