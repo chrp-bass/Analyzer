@@ -107,9 +107,12 @@ export async function matchForRedirect(db: Db, matchId: string): Promise<{
         !brief.route_verified_at || Date.now() - Date.parse(brief.route_verified_at) > REDIRECT_ROUTE_TTL_MS ||
         !publicHttpsUrl(brief.submission_url)) return null;
   } else if (qualityStatus(row.opportunities, row.fit_band, new Date(), REDIRECT_ROUTE_TTL_MS) !== "LIVE_VERIFIED") return null;
+  // Creator-forwarded briefs: link to the listing page (provenance) rather than
+  // the submission gate (which may be a generic login/registration page).
+  const url = row.opportunities.access_class === "PRIVATE_TO_CREATOR" && row.opportunities.provenance_url
+    ? row.opportunities.provenance_url : row.opportunities.submission_url;
   return { analysisId: row.analysis_id, creatorId: row.analyses.creator_id,
-    scanId: row.analyses.scan_id, url: row.opportunities.submission_url,
-    accessClass: row.opportunities.access_class };
+    scanId: row.analyses.scan_id, url, accessClass: row.opportunities.access_class };
 }
 
 export function safeSubmissionUrl(raw: string): URL | null {
