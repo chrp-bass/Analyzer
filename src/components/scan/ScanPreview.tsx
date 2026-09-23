@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
@@ -794,6 +794,10 @@ function ReportInterstitial({
   const [answered, setAnswered] = useState(false);
   const chip = report ? MODE_COLORS[report.epi.mode] : null;
 
+  // Stable ref so the polling effect never restarts from a new callback identity.
+  const onReadyRef = useRef(onReportReady);
+  onReadyRef.current = onReportReady;
+
   // ── Poll for report readiness ──────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -805,7 +809,7 @@ function ReportInterstitial({
         const res = await fetchEntitledReport(scanId);
         if (cancelled) return;
         if (res.status === "ok") {
-          onReportReady(res.data.report);
+          onReadyRef.current(res.data.report);
           return;
         }
         // Still preparing — keep polling
@@ -824,7 +828,7 @@ function ReportInterstitial({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [scanId, onReportReady]);
+  }, [scanId]);
 
   // ── Submit answer (fire-and-forget) ────────────────────────────────────
   const submitAnswer = useCallback(
