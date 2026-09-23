@@ -2662,6 +2662,90 @@ em { font-style: italic; }
   color: var(--on-dark-2);
 }
 
+/* ── RevealWait overlay (return-user interstitial) ─────────────────── */
+/* Full-screen modal so it sits above the fold on any viewport.
+   Colors are hardcoded to avoid product-shell variable overrides. */
+.rw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #1E1B22;
+}
+.rw-card {
+  margin-top: clamp(28px, 4vw, 44px);
+  width: 100%;
+  max-width: 380px;
+  padding: clamp(24px, 3vw, 32px);
+  background: rgba(251, 251, 244, 0.06);
+  border: 1px solid rgba(251, 251, 244, 0.12);
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.rw-card--compact { padding: clamp(18px, 2.5vw, 24px); }
+.rw-card-q {
+  margin: 0;
+  font-family: var(--d);
+  font-style: italic;
+  font-size: clamp(1rem, 1.15vw, 1.15rem);
+  line-height: 1.35;
+  text-align: center;
+  color: #EFEAE0;
+}
+.rw-card-opt {
+  appearance: none;
+  border: 1px solid rgba(251, 251, 244, 0.18);
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: #EFEAE0;
+  font-family: var(--s);
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 12px 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  text-align: center;
+}
+.rw-card-opt:hover {
+  background: rgba(251, 251, 244, 0.08);
+  border-color: rgba(251, 251, 244, 0.28);
+}
+.rw-card-opt--active {
+  background: var(--yellow);
+  color: #1E1B22;
+  border-color: var(--yellow);
+}
+.rw-card-skip {
+  appearance: none;
+  border: none;
+  background: none;
+  color: #A29C92;
+  font-family: var(--s);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.rw-card-skip:hover { opacity: 1; }
+.rw-card-ack {
+  margin: 0;
+  font-family: var(--s);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  text-align: center;
+  color: #A29C92;
+}
+
 /* ── The boundary ───────────────────────────────────────────────────── */
 .rv-boundary { padding: clamp(40px, 6vw, 88px) clamp(20px, 5vw, 56px); background: var(--ink); }
 .rv-boundary h2 {
