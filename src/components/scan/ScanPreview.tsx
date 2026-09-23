@@ -209,6 +209,12 @@ export function ScanPreview({
   }
 
   if (outcome.kind === "reveal") {
+    // While Rhodes is still generating, show the branded interstitial-style
+    // wait — the same polygon-radar + engagement-question experience that
+    // first-timers see. Once unlockReady flips, swap to the reveal + boundary.
+    if (!unlockReady) {
+      return <RevealWait report={outcome.free} scanId={scanId} />;
+    }
     return (
       <>
         <FreeReveal report={outcome.free} scanId={scanId} unlockReady={unlockReady} />
@@ -727,6 +733,141 @@ export function ReportPreparing({
   );
 }
 
+// ─── The reveal wait ────────────────────────────────────────────────────────
+/**
+ * Branded wait screen for return users.
+ *
+ * When the reveal outcome is settled but Rhodes is still generating in the
+ * background (unlockReady is false), this replaces the disabled-button reveal
+ * with the same branded polygon-radar + engagement-question experience that
+ * first-timers see on the interstitial.
+ *
+ * No polling here — the parent's unlockReady state drives the swap back to
+ * FreeReveal + Boundary the moment the report is ready.
+ */
+function RevealWait({
+  report,
+  scanId,
+}: {
+  report: FreeReport;
+  scanId: string;
+}) {
+  const [questionIndex] = useState(
+    () => Math.floor(Math.random() * INTERSTITIAL_QUESTIONS.length),
+  );
+  const q = INTERSTITIAL_QUESTIONS[questionIndex];
+  const [selected, setSelected] = useState<string | null>(null);
+  const [answered, setAnswered] = useState(false);
+  const chip = MODE_COLORS[report.epi.mode];
+
+  const submitAnswer = useCallback(
+    (value: string) => {
+      setSelected(value);
+      setAnswered(true);
+      fetch("/api/scan/insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId, questionKey: q.key, answer: value }),
+      }).catch(() => {});
+    },
+    [scanId, q.key],
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="chrp-aura w-full max-w-md flex flex-col items-center">
+        <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
+          CHRP &nbsp;//&nbsp; Emotional Intelligence
+        </div>
+
+        <div
+          className="font-display italic text-[18px] md:text-[20px] text-chrp-black text-center mb-8 min-h-[3rem]"
+          role="status"
+          aria-live="polite"
+        >
+          {answered
+            ? "Building your Song Intelligence report…"
+            : "Your report is on its way"}
+        </div>
+
+        <div style={{ minHeight: 220 }}>
+          <PolygonRadar
+            vertices={polygonFromChrpScores(report.chrp_scores)}
+            mode={report.epi.mode}
+            epiScore={report.epi.score}
+            size={220}
+          />
+        </div>
+
+        {chip && (
+          <div
+            className="mode-pill mt-3"
+            style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
+          >
+            <span className="font-sans font-bold text-[13px]">
+              {report.epi.mode} mode
+            </span>
+          </div>
+        )}
+
+        {/* ── Engagement question ──────────────────────────────────── */}
+        <AnimatePresence mode="wait">
+          {!answered ? (
+            <motion.div
+              key="question"
+              className="si-card"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+            >
+              <p className="si-card-q">{q.question}</p>
+              <div className="si-card-opts">
+                {q.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`si-card-opt${
+                      selected === opt.value ? " si-card-opt--active" : ""
+                    }`}
+                    onClick={() => submitAnswer(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="si-card-skip"
+                onClick={() => setAnswered(true)}
+              >
+                Skip
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="thanks"
+              className="si-card si-card--compact"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <p className="si-card-ack">
+                {selected ? "Thanks — " : ""}your full report is being
+                composed now.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="mt-6 font-sans text-[10px] tracking-wider uppercase text-ink-light text-center">
+          {report.track.title} &nbsp;//&nbsp; {report.track.artist}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── The interstitial ────────────────────────────────────────────────────────
 /**
  * The moment between the grant and the report.
@@ -777,7 +918,6 @@ const INTERSTITIAL_QUESTIONS = [
 function ReportInterstitial({
   report,
   scanId,
-  includedFirst: _includedFirst,
   onReportReady,
 }: {
   report: FreeReport;
