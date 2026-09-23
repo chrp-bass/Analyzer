@@ -5,6 +5,7 @@ import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { prepareReportForScan } from "@/lib/reports/prepare.server";
 import { grantFreeFirst, hasUsedFreeFirst } from "@/lib/commerce/free-first.server";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
+import { matchScanAgainstCreatorBriefs } from "@/lib/song-where/creator-brief.server";
 import { waitUntil } from "@vercel/functions";
 
 export const runtime = "nodejs";
@@ -107,6 +108,12 @@ export async function POST(req: Request) {
             }
           }),
         );
+        // Match this analysis against the creator's existing briefs.
+        waitUntil(
+          matchScanAgainstCreatorBriefs(userId, scanId).catch((err) =>
+            console.error(`[api/scan/claim] brief matching failed for ${scanId}:`, err),
+          ),
+        );
       }
       return NextResponse.json(
         { status: "already_used", saved: saved.ok },
@@ -130,7 +137,12 @@ export async function POST(req: Request) {
     // The included report could not be produced, but the song is still the
     // creator's scan. Preparation persists the analysis as its first stage;
     // this covers a failure before that stage. Best-effort, never blocking.
-    await ensureAnalysisPersisted(userId, scanId).catch(() => null);
+    const fallbackSaved = await ensureAnalysisPersisted(userId, scanId).catch(() => null);
+    if (fallbackSaved?.ok) {
+      waitUntil(
+        matchScanAgainstCreatorBriefs(userId, scanId).catch(() => null),
+      );
+    }
     return NextResponse.json(
       {
         status: "unavailable",
@@ -143,6 +155,10 @@ export async function POST(req: Request) {
 
   try {
     const outcome = await grantFreeFirst(db, userId, scanId, trackKey);
+    // The report is now persisted — match against creator's briefs in background.
+    waitUntil(
+      matchScanAgainstCreatorBriefs(userId, scanId).catch(() => null),
+    );
     return NextResponse.json(
       { status: outcome },
       { headers: { "Cache-Control": "private, no-store" } },

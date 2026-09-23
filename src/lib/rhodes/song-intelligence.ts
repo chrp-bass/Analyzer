@@ -315,6 +315,31 @@ Do not open with a stock frame either. "The most distinctive thing here is
 not which dimension leads, but..." is a good sentence once and a template
 twice. Every song gets its own way in.
 
+NO INTERNAL JARGON — EVER
+
+The report is a black box: the reader never sees methodology, coefficients
+or internal vocabulary. The following terms exist inside the scoring engine
+and must NEVER appear in any field of the output:
+
+  force-fit, force-fit-rest, fit-rest, inner-voice contradiction,
+  inner-voice alignment, sure-second, raw grassroots, grassroots playlist,
+  circumplex quadrant, arousal-valence space, dimensional loading,
+  score-weighted, dimension-weighted, profile vector, specificity tier,
+  normaliser, EPI derivation, mode boundary, mode threshold
+
+If a concept matters, say it in plain language a songwriter would use
+without a glossary. "The calm sits just below the surface" instead of
+"the calm dimension loads beneath the arousal threshold."
+
+WORD VARIETY
+
+Do not lean on the same adjective across sections. If a word appears in
+one field, it is spent — find another angle. "Reflective" in the
+signature means it cannot reappear in rhodes, placements, audience or
+anywhere else. Same for "understated," "intentional," "measured," or any
+word that starts feeling like a house style. Each field earns its own
+vocabulary.
+
 Do not sell CHRP inside the report. Do not congratulate the creator. Do not
 finish on an inspirational note.
 `.trim();
@@ -355,7 +380,7 @@ a placeholder, never a note to yourself.
 
 {
   "signature": "ONE sentence. What this song's architecture is and does, crystallised. Not a list of scores, not the mode name restated. If it could sit above a different profile without sounding wrong, it is not specific enough.",
-  "rhodes": "ONE continuous paragraph, three to five sentences, no line breaks anywhere — it renders inside a single element, so any break you insert disappears and leaves a seam. Start with what you NOTICE in the relationships, not with the leading dimension. Head off the obvious misreading in a single clause, then move on — do not set up a reading only to walk it back in the next sentence. Carry the insight into human meaning and who might feel it. Brevity is the test: if a sentence does not change the reader's understanding, cut it.",
+  "rhodes": "ONE continuous paragraph, three to five sentences (hard cap: five), no line breaks anywhere — it renders inside a single element, so any break you insert disappears and leaves a seam. Start with what you NOTICE in the relationships, not with the leading dimension. Head off the obvious misreading in a single clause, then move on — do not set up a reading only to walk it back in the next sentence. Carry the insight into human meaning and who might feel it. Use plain, human language throughout — no scoring terminology, no internal vocabulary, no phrase a songwriter would need a glossary to parse. Brevity is the test: if a sentence does not change the reader's understanding, cut it.",
   "placements": [
     {"family": "A placement family and the emotional register under it, e.g. \"Automotive — adventure, freedom, motion\" or \"Sports content — preparation and entrance\". Derive it from THIS profile; do not run down a standard list.", "title": "the specific kind of moment inside that family", "body": "One to two sentences: the moment and WHY this architecture supports it. Name the kind of scene or storytelling as an analogy, not a paragraph. Never a named company, show, brand, agency or person, and never a claim that anyone wants it."},
     {"family": "distinct from the first", "title": "…", "body": "same shape"},

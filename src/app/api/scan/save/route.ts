@@ -4,6 +4,7 @@ import { currentUserId } from "@/lib/commerce/entitlements";
 import { decodeScanId, isFixtureKey } from "@/lib/scan-id";
 import { ensureAnalysisPersisted } from "@/lib/scan/fulfillment.server";
 import { prepareReportForScan } from "@/lib/reports/prepare.server";
+import { matchScanAgainstCreatorBriefs } from "@/lib/song-where/creator-brief.server";
 import { waitUntil } from "@vercel/functions";
 
 export const runtime = "nodejs";
@@ -102,6 +103,14 @@ export async function POST(req: Request) {
         );
       }
     }),
+  );
+
+  // Match this newly-saved analysis against the creator's existing briefs so
+  // "YOUR BRIEFS" stays current without waiting for brief re-ingestion.
+  waitUntil(
+    matchScanAgainstCreatorBriefs(userId, scanId).catch((err) =>
+      console.error(`[api/scan/save] brief matching failed for ${scanId}:`, err),
+    ),
   );
 
   return NextResponse.json({ status: "saved" }, { headers: NO_STORE });

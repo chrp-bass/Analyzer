@@ -6,6 +6,7 @@ import { isFixtureKey } from "@/lib/scan-id";
 import { hasCompletePaidReport } from "./report-eligibility.server";
 import { profileFromAnalysis } from "./profile.server";
 import { matchSong, MATCHER_VERSION } from "./match.server";
+import type { OpportunityTarget } from "./normalize.server";
 import { classifySpecificity, songMatchable } from "./specificity.server";
 import { publicHttpsUrl } from "./sources/public-url.server";
 import { verifySubmissionRoute } from "./quality.server";
@@ -179,4 +180,93 @@ export async function ingestCreatorBrief(db: Db, creatorId: string,
     matches++;
   }
   return { status: "stored" as const, matches };
+}
+
+/**
+ * Reverse match: when a new analysis completes, match it against the
+ * creator's existing PRIVATE_TO_CREATOR opportunities. This is the mirror
+ * of the loop inside `ingestCreatorBrief`, which matches new briefs against
+ * existing analyses. Without this, a brief forwarded BEFORE a song is
+ * scanned never shows a match — and "YOUR BRIEFS" appears stale.
+ *
+ * Best-effort, fire-and-forget. Never blocks the scan response.
+ */
+export async function matchScanAgainstCreatorBriefs(
+  creatorId: string,
+  scanId: string,
+): Promise<number> {
+  const db = createAdminClient();
+
+  // Fetch the analysis for this scan.
+  const { data: analysis, error: analysisError } = await db
+    .from("analyses")
+    .select("id,scan_id,status,epi_score,mode,scores,circumplex,songs!inner(track_key,title),reports!inner(payload)")
+    .eq("creator_id", creatorId)
+    .eq("scan_id", scanId)
+    .eq("status", "complete")
+    .limit(1)
+    .single();
+  if (analysisError || !analysis) return 0;
+
+  const row = analysis as unknown as {
+    id: string; scan_id: string; status: string; epi_score: number; mode: string;
+    scores: unknown; circumplex: unknown; songs: { track_key: string; title: string };
+    reports: { payload: unknown } | Array<{ payload: unknown }>;
+  };
+
+  if (isFixtureKey(row.songs.track_key) || !hasCompletePaidReport(row.reports)) return 0;
+
+  const profile = profileFromAnalysis(row);
+  if (!profile) return 0;
+
+  // Fetch the creator's open, matchable, private opportunities.
+  const { data: opportunities, error: oppError } = await db
+    .from("opportunities")
+    .select("id,target")
+    .eq("owner_creator_id", creatorId)
+    .eq("access_class", "PRIVATE_TO_CREATOR")
+    .eq("status", "open")
+    .eq("song_matchable", true)
+    .gt("deadline", new Date().toISOString())
+    .limit(50);
+  if (oppError || !opportunities?.length) return 0;
+
+  const snapshot = new Date().toISOString();
+  let matches = 0;
+
+  for (const opp of opportunities) {
+    const target = opp.target as OpportunityTarget | null;
+    if (!target) continue;
+
+    const fit = matchSong(profile, target);
+    if (!fit) continue;
+
+    const { data: existing, error: existingError } = await db
+      .from("song_opportunity_matches")
+      .select("id,match_score,fit_band")
+      .eq("analysis_id", row.id)
+      .eq("opportunity_id", opp.id)
+      .limit(1);
+    if (existingError) continue;
+
+    const band = "worth_exploring";
+    if (existing?.[0] && Number(existing[0].match_score) === fit.score &&
+        existing[0].fit_band === band) { matches++; continue; }
+
+    const { error: matchError } = await db.from("song_opportunity_matches").upsert({
+      analysis_id: row.id, opportunity_id: opp.id, match_score: fit.score,
+      fit_band: band, trust_rank: 3, matcher_version: MATCHER_VERSION,
+      matched_at: snapshot,
+    }, { onConflict: "analysis_id,opportunity_id" });
+    if (matchError) continue; // best-effort
+
+    await db.from("song_opportunity_match_history").insert({
+      analysis_id: row.id, opportunity_id: opp.id, match_score: fit.score,
+      fit_band: band, matcher_version: MATCHER_VERSION,
+      event: existing?.length ? "rescored" : "created",
+    }).then(() => null, () => null); // best-effort history
+
+    matches++;
+  }
+  return matches;
 }
