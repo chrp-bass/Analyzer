@@ -122,43 +122,45 @@ export async function POST(req: Request) {
     }
   }
 
-  // The creator IS receiving this report, so the analysis becomes theirs
-  // and the full report is prepared now. A failure here consumes nothing.
-  // "preparing" means another request is generating it; the client polls
-  // and claims again — the grant waits for the report, never the reverse.
-  const prepared = await prepareReportForScan(userId, scanId);
-  if (prepared.status === "preparing") {
-    return NextResponse.json(
-      { status: "preparing" },
-      { status: 202, headers: { "Cache-Control": "private, no-store" } },
+  // ── Persist the analysis FIRST — fast (~3s), deterministic. ──────────
+  // The analysis must exist before the entitlement is written: a song that
+  // cannot be analysed must never consume the creator's included report.
+  const saved = await ensureAnalysisPersisted(userId, scanId);
+  if (!saved.ok) {
+    console.error(
+      `[api/scan/claim] analysis persistence failed for ${scanId}: ${saved.reason}` +
+        (saved.detail ? ` — ${saved.detail}` : ""),
     );
-  }
-  if (prepared.status === "failed") {
-    // The included report could not be produced, but the song is still the
-    // creator's scan. Preparation persists the analysis as its first stage;
-    // this covers a failure before that stage. Best-effort, never blocking.
-    const fallbackSaved = await ensureAnalysisPersisted(userId, scanId).catch(() => null);
-    if (fallbackSaved?.ok) {
-      waitUntil(
-        matchScanAgainstCreatorBriefs(userId, scanId).catch(() => null),
-      );
-    }
     return NextResponse.json(
-      {
-        status: "unavailable",
-        reason: prepared.reason,
-        message: prepared.message,
-      },
-      { status: 409 },
+      { status: "unavailable", reason: saved.reason },
+      { status: 409, headers: { "Cache-Control": "private, no-store" } },
     );
   }
 
+  // ── Grant the entitlement immediately. ─────────────────────────────────
+  // The analysis is persisted; the creator now owns this song. The Rhodes
+  // report is a DELIGHT layer (Tier 3) that runs in the background — the
+  // grant never waits on it, so the creator's first experience is ~3s
+  // instead of 20–60s.
   try {
     const outcome = await grantFreeFirst(db, userId, scanId, trackKey);
-    // The report is now persisted — match against creator's briefs in background.
+
+    // Rhodes and brief matching fire in the background. The durable report
+    // lease in prepareReportForScan makes this safe to trigger from any
+    // path — duplicates join rather than race.
+    waitUntil(
+      prepareReportForScan(userId, scanId).then((result) => {
+        if (result.status === "failed") {
+          console.error(
+            `[api/scan/claim] report generation failed for ${scanId}: ${result.reason}`,
+          );
+        }
+      }),
+    );
     waitUntil(
       matchScanAgainstCreatorBriefs(userId, scanId).catch(() => null),
     );
+
     return NextResponse.json(
       { status: outcome },
       { headers: { "Cache-Control": "private, no-store" } },

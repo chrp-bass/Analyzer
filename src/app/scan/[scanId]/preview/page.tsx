@@ -43,8 +43,14 @@ export default function PreviewPage({
 
   // While the read is in flight the screen stays on the dark ground the
   // analysis ran on, so a wait never flashes cream between two dark screens.
-  // Every settled state — reveal, report, error — keeps the product shell.
-  const shell = state.status === "working" ? "page-shell" : "product-shell";
+  // The interstitial (`preparing_included`) also stays on the dark ground —
+  // it continues the processing aesthetic while Rhodes runs in the background.
+  // Every other settled state — reveal, report, error — keeps the product shell.
+  const shell =
+    state.status === "working" ||
+    (state.status === "settled" && state.outcome.kind === "preparing_included")
+      ? "page-shell"
+      : "product-shell";
 
   return (
     <div className={shell}>

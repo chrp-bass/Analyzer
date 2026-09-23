@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
@@ -8,12 +8,12 @@ import { MODE_COLORS, type FreeReport } from "@/lib/fixtures/tracks";
 import { PolygonRadar } from "@/components/PolygonRadar";
 import { polygonFromChrpScores } from "@/lib/polygon";
 import { ReportBody } from "@/components/ReportPage";
-import { prepareReport } from "@/lib/data-source";
+import { prepareReport, fetchEntitledReport } from "@/lib/data-source";
 import { startCheckout } from "@/lib/payments";
 import { ensureIdentity, linkEmail } from "@/lib/identity";
 import { rememberPendingSave, saveScanToMySongs } from "@/lib/scan/save-scan";
 import { beginPurchaseWith } from "@/lib/scan/begin-purchase";
-import type { ReadState } from "@/lib/scan/read-path";
+import type { ReadState, ReadOutcome } from "@/lib/scan/read-path";
 
 /** Canonical EPI axis order. The payload stores them unordered. */
 const AXIS_ORDER = ["Focus", "Calm", "Motivation", "Balance"] as const;
@@ -161,6 +161,9 @@ export function ScanPreview({
   const revealVisible =
     state.status === "settled" && state.outcome.kind === "reveal";
   const unlockReady = useUnlockReadiness(scanId, revealVisible);
+  // When the interstitial resolves (Rhodes finishes), the full report
+  // replaces the interstitial outcome so the page transitions seamlessly.
+  const [resolvedReport, setResolvedReport] = useState<ReadOutcome | null>(null);
 
   if (state.status === "working") {
     // The persisted-report read, and the bounded post-payment confirmation,
@@ -182,7 +185,8 @@ export function ScanPreview({
     return <ReportPreparing report={state.free} paid={paidReturn} />;
   }
 
-  const { outcome } = state;
+  // If the interstitial has resolved to a full report, show that instead.
+  const outcome = resolvedReport ?? state.outcome;
 
   if (outcome.kind === "error") {
     return (
@@ -210,6 +214,23 @@ export function ScanPreview({
         <FreeReveal report={outcome.free} scanId={scanId} unlockReady={unlockReady} />
         <Boundary scanId={scanId} unlockReady={unlockReady} />
       </>
+    );
+  }
+
+  if (outcome.kind === "preparing_included") {
+    return (
+      <ReportInterstitial
+        report={outcome.free}
+        scanId={scanId}
+        includedFirst={outcome.includedFirst}
+        onReportReady={(report) =>
+          setResolvedReport({
+            kind: "persisted",
+            report,
+            includedFirst: outcome.includedFirst,
+          })
+        }
+      />
     );
   }
 
@@ -701,6 +722,216 @@ export function ReportPreparing({
             {report.track.title} &nbsp;//&nbsp; {report.track.artist}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── The interstitial ────────────────────────────────────────────────────────
+/**
+ * The moment between the grant and the report.
+ *
+ * Rhodes runs 20–60s in the background. Instead of a blank wait, the creator
+ * sees their song's shape and a single friendly question — "How did you find
+ * CHRP?" or "What are you hoping to do with this song?" — while the report
+ * generates behind the scenes.
+ *
+ * The question is optional (skip link). The answer is fire-and-forget to
+ * `/api/scan/insight`. The interstitial polls `/api/scan/prepare` and
+ * transitions to the full report the moment Rhodes finishes.
+ */
+
+const INTERSTITIAL_QUESTIONS = [
+  {
+    key: "role",
+    question: "What’s your relationship to this song?",
+    options: [
+      { label: "I wrote it", value: "songwriter" },
+      { label: "I produced it", value: "producer" },
+      { label: "I’m the artist", value: "artist" },
+      { label: "Just listening", value: "listener" },
+    ],
+  },
+  {
+    key: "discovery",
+    question: "How did you find CHRP?",
+    options: [
+      { label: "Search", value: "search" },
+      { label: "A friend", value: "friend" },
+      { label: "Social media", value: "social" },
+      { label: "Industry mention", value: "industry" },
+    ],
+  },
+  {
+    key: "intent",
+    question: "What are you hoping to do with this song?",
+    options: [
+      { label: "Pitch it", value: "pitch" },
+      { label: "Sync / placement", value: "sync" },
+      { label: "Understand my audience", value: "audience" },
+      { label: "Just curious", value: "curious" },
+    ],
+  },
+] as const;
+
+function ReportInterstitial({
+  report,
+  scanId,
+  includedFirst,
+  onReportReady,
+}: {
+  report: FreeReport;
+  scanId: string;
+  includedFirst: boolean;
+  onReportReady: (report: import("@/lib/fixtures/tracks").ReportPayload) => void;
+}) {
+  // Pick one question per session — stable across re-renders.
+  const [questionIndex] = useState(
+    () => Math.floor(Math.random() * INTERSTITIAL_QUESTIONS.length),
+  );
+  const q = INTERSTITIAL_QUESTIONS[questionIndex];
+  const [selected, setSelected] = useState<string | null>(null);
+  const [answered, setAnswered] = useState(false);
+  const chip = report ? MODE_COLORS[report.epi.mode] : null;
+
+  // ── Poll for report readiness ──────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+
+    const check = async () => {
+      try {
+        const res = await fetchEntitledReport(scanId);
+        if (cancelled) return;
+        if (res.status === "ok") {
+          onReportReady(res.data.report);
+          return;
+        }
+        // Still preparing — keep polling
+        attempts++;
+        // After 5 min of polling, give up gracefully
+        if (attempts > 120) return;
+      } catch {
+        // Network hiccup — keep trying
+      }
+      timer = setTimeout(check, 2_500);
+    };
+
+    // Start polling after a short delay — Rhodes needs a few seconds minimum
+    timer = setTimeout(check, 3_000);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [scanId, onReportReady]);
+
+  // ── Submit answer (fire-and-forget) ────────────────────────────────────
+  const submitAnswer = useCallback(
+    (value: string) => {
+      setSelected(value);
+      setAnswered(true);
+      fetch("/api/scan/insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId, questionKey: q.key, answer: value }),
+      }).catch(() => {
+        // Best effort — never blocks the experience.
+      });
+    },
+    [scanId, q.key],
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div className="chrp-aura w-full max-w-md flex flex-col items-center">
+        <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
+          CHRP &nbsp;//&nbsp; Emotional Intelligence
+        </div>
+
+        <div
+          className="font-display italic text-[18px] md:text-[20px] text-chrp-black text-center mb-8 min-h-[3rem]"
+          role="status"
+          aria-live="polite"
+        >
+          {answered
+            ? "Building your Song Intelligence report…"
+            : "Your report is on its way"}
+        </div>
+
+        <div style={{ minHeight: 220 }}>
+          <PolygonRadar
+            vertices={polygonFromChrpScores(report.chrp_scores)}
+            mode={report.epi.mode}
+            epiScore={report.epi.score}
+            size={220}
+          />
+        </div>
+
+        {chip && (
+          <div
+            className="mode-pill mt-3"
+            style={{ backgroundColor: chip.chipBg, color: chip.chipText }}
+          >
+            <span className="font-sans font-bold text-[13px]">
+              {report.epi.mode} mode
+            </span>
+          </div>
+        )}
+
+        {/* ── Question card ─────────────────────────────────────────── */}
+        <AnimatePresence mode="wait">
+          {!answered ? (
+            <motion.div
+              key="question"
+              className="si-card"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+            >
+              <p className="si-card-q">{q.question}</p>
+              <div className="si-card-opts">
+                {q.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`si-card-opt${
+                      selected === opt.value ? " si-card-opt--active" : ""
+                    }`}
+                    onClick={() => submitAnswer(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="si-card-skip"
+                onClick={() => setAnswered(true)}
+              >
+                Skip
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="thanks"
+              className="si-card si-card--compact"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <p className="si-card-ack">
+                {selected ? "Thanks — " : ""}your full report is being
+                composed now.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="mt-6 font-sans text-[10px] tracking-wider uppercase text-ink-light text-center">
+          {report.track.title} &nbsp;//&nbsp; {report.track.artist}
+        </div>
       </div>
     </div>
   );

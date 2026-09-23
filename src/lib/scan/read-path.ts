@@ -59,6 +59,16 @@ export type ReadOutcome =
   | { kind: "persisted"; report: ReportPayload; includedFirst: boolean }
   | { kind: "unavailable"; detail: string | null }
   | { kind: "reveal"; free: FreeReport }
+  | {
+      /**
+       * The included first report was granted and the analysis is persisted,
+       * but the full Rhodes report is still being generated in the background.
+       * The UI shows the interstitial while polling for readiness.
+       */
+      kind: "preparing_included";
+      free: FreeReport;
+      includedFirst: boolean;
+    }
   | { kind: "error"; message: string };
 
 export type ReadState =
@@ -152,8 +162,9 @@ export async function resolveScanReadPath(
   }
 
   // A creator's FIRST complete report is included. Identity is established
-  // silently so the included report has an owner; the server decides
-  // whether this song qualifies and prepares it in full before granting.
+  // silently so the included report has an owner; the server grants the
+  // entitlement after persisting the analysis and fires Rhodes in the
+  // background — the grant never waits on the full report.
   await deps.ensureIdentity();
   phase("preparing_included", free);
   const claim = await deps.claimFirstReport(scanId);
@@ -166,8 +177,14 @@ export async function resolveScanReadPath(
         includedFirst: claim === "granted",
       };
     }
+    // Entitled but the full report is still being generated (Rhodes running
+    // in background). Show the interstitial while polling for readiness.
     if (after.status === "unavailable" && after.entitled) {
-      return { kind: "unavailable", detail: after.detail ?? null };
+      return {
+        kind: "preparing_included",
+        free,
+        includedFirst: claim === "granted",
+      };
     }
   }
   return { kind: "reveal", free };
