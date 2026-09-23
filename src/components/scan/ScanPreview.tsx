@@ -777,7 +777,7 @@ const INTERSTITIAL_QUESTIONS = [
 function ReportInterstitial({
   report,
   scanId,
-  includedFirst,
+  includedFirst: _includedFirst,
   onReportReady,
 }: {
   report: FreeReport;
