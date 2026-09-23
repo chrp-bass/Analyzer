@@ -728,7 +728,6 @@ function SongRowItem({
 
 function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
   const router = useRouter();
-  const [tooltipOpen, setTooltipOpen] = useState(false);
   return (
     <motion.div
       initial={{ y: -60, opacity: 0 }}
@@ -748,8 +747,8 @@ function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
           </p>
           <p className="mt-2 font-sans text-[12.5px] md:text-[13px] leading-[1.55] max-w-[60ch]">
             Your signature is documented and the patterns across your songs
-            are mapped. Add new releases as they come out to keep the picture
-            current &mdash; each song you add changes what the others mean.
+            are mapped. CHRP can now match you to commercial briefs &mdash;
+            and each song you add sharpens the picture.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
@@ -758,21 +757,12 @@ function CatalogCompleteBand({ onDismiss }: { onDismiss: () => void }) {
             >
               Scan another track
             </button>
-            <div className="relative">
-              <button
-                onClick={() => setTooltipOpen((v) => !v)}
-                className="font-sans font-bold text-[11.5px] tracking-wider uppercase border border-chrp-black px-4 py-2.5"
-              >
-                Stay current with new releases
-              </button>
-              {tooltipOpen && (
-                <div className="absolute z-10 left-0 mt-2 w-[280px] bg-chrp-white border border-chrp-black p-3 text-chrp-black font-sans text-[11.5px] leading-snug">
-                  When you release new music, add it to your existing catalog
-                  to keep your fingerprint, signature, and reliability index
-                  reflecting your current body of work.
-                </div>
-              )}
-            </div>
+            <a
+              href="#briefs"
+              className="font-sans font-bold text-[11.5px] tracking-wider uppercase border border-chrp-black px-4 py-2.5 inline-block"
+            >
+              Match my catalog to briefs
+            </a>
           </div>
         </div>
         <button

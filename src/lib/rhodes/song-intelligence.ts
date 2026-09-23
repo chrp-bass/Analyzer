@@ -294,6 +294,13 @@ a chart and a set of bars. Repeating them is the fastest way to be worthless.
 Name a tension clearly rather than hedging around it. Prefer one strong,
 specific interpretation to five generic possibilities.
 
+STATE THE CORE INSIGHT ONCE — in the signature and the opening of the
+rhodes paragraph. Every section after that BUILDS: new angle, new
+application, new territory, new buyer. Never the same sentence reworded.
+If a field restates what another field already said, cut it and replace it
+with something the reader has not heard yet. A report that says "activation
+with restraint" in seven different ways is not thorough, it is broken.
+
 Where an interpretation earns it, end on a decision advantage: something to
 test, position, compare or notice next. Do NOT end every section with advice.
 A formula is still a formula when it is a good one.
@@ -348,9 +355,9 @@ a placeholder, never a note to yourself.
 
 {
   "signature": "ONE sentence. What this song's architecture is and does, crystallised. Not a list of scores, not the mode name restated. If it could sit above a different profile without sounding wrong, it is not specific enough.",
-  "rhodes": "ONE continuous paragraph, five to seven sentences, no line breaks anywhere — it renders inside a single element, so any break you insert disappears and leaves a seam. Start with what you NOTICE in the relationships, not with the leading dimension. Head off the misreading a reasonable person would make from this profile. Then carry it into human meaning and who might feel it. This is the piece that has to make someone say 'that is exactly what this song does'.",
+  "rhodes": "ONE continuous paragraph, three to five sentences, no line breaks anywhere — it renders inside a single element, so any break you insert disappears and leaves a seam. Start with what you NOTICE in the relationships, not with the leading dimension. Head off the obvious misreading in a single clause, then move on — do not set up a reading only to walk it back in the next sentence. Carry the insight into human meaning and who might feel it. Brevity is the test: if a sentence does not change the reader's understanding, cut it.",
   "placements": [
-    {"family": "A placement family and the emotional register under it, e.g. \"Automotive — adventure, freedom, motion\" or \"Sports content — preparation and entrance\". Derive it from THIS profile; do not run down a standard list.", "title": "the specific kind of moment inside that family", "body": "Two to four sentences: the moment, the emotional function it needs, and WHY this architecture supports it. A category of scene, or a style of storytelling named as an analogy (\"the kind of open-road storytelling common in automotive advertising\"). Never a named company, show, brand, agency or person, and never a claim that anyone wants it."},
+    {"family": "A placement family and the emotional register under it, e.g. \"Automotive — adventure, freedom, motion\" or \"Sports content — preparation and entrance\". Derive it from THIS profile; do not run down a standard list.", "title": "the specific kind of moment inside that family", "body": "One to two sentences: the moment and WHY this architecture supports it. Name the kind of scene or storytelling as an analogy, not a paragraph. Never a named company, show, brand, agency or person, and never a claim that anyone wants it."},
     {"family": "distinct from the first", "title": "…", "body": "same shape"},
     {"family": "distinct from both", "title": "…", "body": "same shape"}
   ],
@@ -361,8 +368,8 @@ a placeholder, never a note to yourself.
   "audience": "Two or three sentences. NOT demographics — never an age range, gender, location or fanbase, none of which was measured. The audience STATE, the USE CONTEXT and the EMOTIONAL JOB: who is most likely to find this song useful for the work it actually does, and when.",
   "throughline": "ONE sentence the creator could say out loud about what this song is for. Plain, portable, specific to this profile. No readiness claim, no prediction about who will want it.",
   "pitch": {
-    "sync": "Two or three sentences the creator could adapt into a sync agent or supervisor email. THIS IS EXTERNAL COPY — see the pitch-language rule below. Written in their voice about the song, not in yours about them. Lead with function, not genre. It must be specific enough that it would read wrong above a different profile.",
-    "promotion": "Two or three sentences of positioning for audience and promotion rather than sync. ALSO EXTERNAL COPY. How to frame the song for the listening context it actually serves. Never promise reach, placement, playlist acceptance or performance."
+    "sync": "One or two sentences a creator could paste into a sync email. THIS IS EXTERNAL COPY — see the pitch-language rule. Written in their voice about the song, not in yours about them. Lead with function, not genre. Short enough to paste, specific enough to read wrong above a different profile.",
+    "promotion": "One or two sentences of positioning for audience and promotion rather than sync. ALSO EXTERNAL COPY. How to frame the song for the listening context it actually serves. Never promise reach, placement, playlist acceptance or performance."
   },
   "consider": "Two or three sentences. What to DO next commercially — which territory to prioritise, what to lead the description with, which kind of gatekeeper to approach first. This is about COMMERCIAL APPLICATION, never about the creative work: never tell them to rewrite, develop, hold, release, finish or pitch-now the song. The decision stays visibly theirs."
 }
