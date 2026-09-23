@@ -360,8 +360,8 @@ export function auditContextFor(input: SongIntelligenceInput): AuditContext {
     hasMarketEvidence: unlocks.has("market-claim"),
     // The Christian-context gate. True only when trusted Soundcharts genre
     // metadata clearly named a Christian tradition; the governor uses this
-    // to permit AT MOST one restrained contextual sentence, and to reject
-    // any Christian terminology otherwise.
+    // to permit faith-context language across interpretive and commercial
+    // sections, and to reject any Christian terminology otherwise.
     christianContextPermitted: Boolean(c?.christianContext?.tradition),
     christianContextTradition: c?.christianContext?.tradition ?? null,
   };
@@ -478,21 +478,30 @@ export function buildUserMessage(input: SongIntelligenceInput): string {
         `Tradition: ${cc.tradition}`,
         `Evidence: ${cc.evidence.join(", ")}`,
         ``,
-        `You are already in the room. Speak naturally from inside this context — as one peer to another, not as an outside observer of it. Do NOT open the sentence with "Within the Christian tradition...", "Within Christian music contexts...", "Among Christians...", "For Christian audiences...", "Within Christian communities...", or any phrase that reads as an anthropologist describing a group from the outside. The gate has already established the room; you do not need to keep pointing at it, and you do not need to say the words "Christian tradition" or "Christian context" to earn the sentence. Neither should you slip into Christian-marketing clichés (God-sized, Kingdom impact, heart for worship, usher people into, powerful ministry moment, spirit-led, take people deeper).`,
+        `You are already in the room. Speak naturally from inside this context — as one peer to another, not as an outside observer of it. Do NOT open sentences with "Within the Christian tradition...", "Within Christian music contexts...", "Among Christians...", "For Christian audiences...", "Within Christian communities...", or any phrase that reads as an anthropologist describing a group from the outside. The gate has already established the room; you do not need to keep pointing at it, and you do not need to say the words "Christian tradition" or "Christian context" to earn the reference. Neither should you slip into Christian-marketing clichés (God-sized, Kingdom impact, heart for worship, usher people into, powerful ministry moment, spirit-led, take people deeper).`,
         ``,
         envelope,
         ``,
-        `You MAY include AT MOST ONE restrained sentence that reads the song's MEASURED emotional-performance posture in this setting. That sentence must:`,
-        `  - be woven into the existing 'rhodes' commentary, never a new heading, badge, section, callout or footer;`,
-        `  - use only the CHRP measurements shown above (Focus / Calm / Motivation / Balance / EPI / mode / arousal / valence);`,
-        `  - avoid predicting congregational adoption, ministry effectiveness, sync outcomes, or any specific liturgical setting;`,
-        `  - avoid theology, doctrine, divine activity, lyric interpretation, and any claim about the artist's faith.`,
+        `THE FAITH CONTEXT IS COMMERCIAL CONTEXT. For this artist, faith-based placements, faith-based audiences, and faith-informed positioning are the PRIMARY commercial territory — not an aside. A report that suggests only secular wellness or meditation placements for a CCM/Worship/Gospel artist is commercially wrong.`,
         ``,
-        `You MAY use interpretive posture words (reflective, activating, settling, energizing, contemplative, celebratory, personal, communal) IF the measured relationships actually support them; the sentence must be traceable to specific dimension values.`,
+        `RHODES COMMENTARY: You may weave up to three sentences of faith-context interpretation into the 'rhodes' field, grounded in the CHRP measurements. These must:`,
+        `  - use only the CHRP measurements shown above (Focus / Calm / Motivation / Balance / EPI / mode / arousal / valence);`,
+        `  - avoid theology, doctrine, divine activity, lyric interpretation, and any claim about the artist's faith;`,
+        `  - avoid predicting congregational adoption, ministry effectiveness, or any specific liturgical setting.`,
+        ``,
+        `PLACEMENTS: Include at least one faith-context placement (church media, faith-based film/documentary, worship environments, Christian radio, devotional content) ALONGSIDE any mainstream/crossover placements the profile supports. Both are real commercial territory — include both.`,
+        ``,
+        `BUYERS: Include at least one faith-context buyer (worship leaders, church media directors, Christian playlist curators, faith-based content producers) ALONGSIDE any mainstream buyers. The faith market IS the market for this music.`,
+        ``,
+        `PITCH: The pitch may reference the faith context naturally — it should be useful to someone pitching this song to both faith-based and mainstream buyers.`,
+        ``,
+        `AUDIENCE: Describe who actually responds to this song — if that includes faith-based listeners, say so.`,
+        ``,
+        `SIGNATURE and THROUGHLINE: These stay pure-measurement. No faith language here — just the EPI shape.`,
+        ``,
+        `You MAY use interpretive posture words (reflective, activating, settling, energizing, contemplative, celebratory, personal, communal) IF the measured relationships actually support them; every claim must be traceable to specific dimension values.`,
         ``,
         `You MUST NOT claim any of: repetition, singability, chorus architecture, ensemble structure, harmonic vocabulary, key range, congregational participation, or any other musicology CHRP did not measure.`,
-        ``,
-        `If you cannot ground a single sentence in the measurements you were given, add nothing.`,
       ].join("\n"),
     );
   } else {

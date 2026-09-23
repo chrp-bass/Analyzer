@@ -212,8 +212,8 @@ describe("buildUserMessage — the CHRISTIAN CONTEXT block is present in both st
     });
     expect(msg).toContain("CHRISTIAN CONTEXT — supplied by trusted Soundcharts");
     expect(msg).toContain("Tradition: gospel");
-    // The one-sentence permission and the always-prohibited rider.
-    expect(msg).toContain("AT MOST ONE restrained sentence");
+    // The faith-context permission and the always-prohibited rider.
+    expect(msg).toContain("up to three sentences");
     expect(msg).toContain("avoid theology");
   });
 
@@ -370,20 +370,28 @@ describe("governor — permit changes what counts as a fabrication", () => {
     expect(rules).toContain("christian-named-organization");
   });
 
-  it("enforces dosage: more than one Christian-context sentence in rhodes is a fabrication", () => {
+  it("enforces dosage: more than three Christian-context sentences in rhodes is a fabrication", () => {
     const sections = {
       rhodes:
-        "This reads as personal devotion. The measured settling supports contemplative worship. And the profile is a worship posture through and through.",
+        "This reads as personal devotion. The measured settling supports contemplative worship. The profile is a worship posture through and through. And the devotional architecture is unmistakable.",
     };
     const v = auditChristianDosageAndPlacement(sections);
     const rules = v.map((x) => x.rule);
     expect(rules).toContain("christian-dosage");
   });
 
-  it("enforces placement: Christian vocab in a placement, buyer or pitch is a fabrication", () => {
+  it("permits up to three Christian-context sentences in rhodes", () => {
+    const sections = {
+      rhodes:
+        "This reads as personal devotion. The measured settling supports contemplative worship. The profile carries a worship posture.",
+    };
+    const v = auditChristianDosageAndPlacement(sections);
+    expect(v.filter((x) => x.rule === "christian-dosage")).toHaveLength(0);
+  });
+
+  it("permits Christian vocab in placements, buyers and pitch when gate is open", () => {
     const sections = {
       rhodes: "The profile is contemplative.",
-      signature: "A worship-adjacent piece for personal devotion.",
       placements: [
         {
           family: "Faith",
@@ -395,9 +403,20 @@ describe("governor — permit changes what counts as a fabrication", () => {
       pitch: { sync: "Great for Christian sync briefs.", promotion: "…" },
     };
     const v = auditChristianDosageAndPlacement(sections);
+    // No placement violations — these sections are allowed when the gate is open.
+    expect(v.filter((x) => x.rule === "christian-placement")).toHaveLength(0);
+  });
+
+  it("still blocks Christian vocab in signature and throughline when gate is open", () => {
+    const sections = {
+      rhodes: "The profile is contemplative.",
+      signature: "A worship-adjacent piece for personal devotion.",
+      throughline: "A devotional settling posture.",
+    };
+    const v = auditChristianDosageAndPlacement(sections);
     const rules = v.map((x) => x.rule);
     expect(rules).toContain("christian-placement");
-    // Multiple placement rules can fire — signature, placements, buyers, pitch.
+    // Both signature and throughline should fire.
     expect(
       v.filter((x) => x.rule === "christian-placement").length,
     ).toBeGreaterThanOrEqual(2);

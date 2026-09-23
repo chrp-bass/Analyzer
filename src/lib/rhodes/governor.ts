@@ -690,9 +690,10 @@ export function hasFabrication(violations: Violation[]): boolean {
  *
  * Wide enough to catch the natural language a fluent voice reaches for
  * (personal devotion, faith-based storytelling, prayer, quiet reflection
- * inside a worship setting), so those phrases can appear in the one
- * permitted rhodes sentence but not spill into the signature, throughline,
- * audience, consider, placements, buyers, or the external pitch.
+ * inside a worship setting). When the gate is open, these terms are
+ * permitted naturally throughout the interpretive and commercial sections
+ * (rhodes, placements, buyers, pitch, audience, consider) but NOT in the
+ * pure-measurement summary fields (signature, throughline).
  */
 const CHRISTIAN_VOCAB =
   /\b(christian|worship|gospel|ccm|contemporary\s+christian|devotion(?:al)?|ministry|congregational|faith[- ]?(?:based|forward)|prayer)\b/i;
@@ -707,11 +708,20 @@ function countChristianSentences(text: string): number {
 }
 
 /**
- * When the Christian-context gate is open, Rhodes is permitted AT MOST ONE
- * contextual sentence, woven into the `rhodes` field only — never the
- * signature, throughline, placements, buyers, audience, pitch or consider
- * fields. This audit runs only when the gate is open; when it is closed
- * the ordinary vocab rule above catches any Christian language anywhere.
+ * When the Christian-context gate is open, Rhodes may speak naturally from
+ * inside the faith context across all interpretive and commercial sections.
+ * The dosage cap exists to prevent runaway repetition, not to silence the
+ * context — up to 3 Christian-context sentences in rhodes is natural for an
+ * artist whose entire identity is CCM/Worship/Gospel.
+ *
+ * Placement rule: Christian vocab is permitted in rhodes, placements, buyers,
+ * pitch, audience, and consider (the sections that carry interpretive or
+ * commercial language). It is still prohibited in signature and throughline,
+ * which are pure-measurement summaries that should not carry contextual
+ * framing.
+ *
+ * When the gate is closed, the ordinary vocab rule catches any Christian
+ * language anywhere — this function never runs.
  */
 export function auditChristianDosageAndPlacement(
   sections: Record<string, unknown>,
@@ -719,56 +729,30 @@ export function auditChristianDosageAndPlacement(
   const found: Violation[] = [];
   const rhodesText = typeof sections.rhodes === "string" ? sections.rhodes : "";
   const count = countChristianSentences(rhodesText);
-  if (count > 1) {
+  if (count > 3) {
     found.push({
       rule: "christian-dosage",
       severity: "fabrication",
       match: `${count} Christian-context sentences in rhodes`,
-      why: "At most ONE restrained Christian-context sentence is permitted in the rhodes commentary. Merge or remove the extras.",
+      why: "At most THREE Christian-context sentences are permitted in the rhodes commentary. Merge or remove the extras.",
     });
   }
 
-  // Any Christian vocab outside `rhodes` is a placement violation. The
-  // contextual sentence belongs in the existing narrative, not in an
-  // external pitch, a buyer summary, or a heading elsewhere.
-  const OTHER_KEYS = [
+  // Signature and throughline are pure-measurement summaries — no
+  // contextual framing belongs here even when the gate is open.
+  const MEASUREMENT_ONLY_KEYS = [
     "signature",
     "throughline",
-    "audience",
-    "consider",
   ] as const;
-  for (const key of OTHER_KEYS) {
+  for (const key of MEASUREMENT_ONLY_KEYS) {
     const v = sections[key];
     if (typeof v === "string" && CHRISTIAN_VOCAB.test(v)) {
       found.push({
         rule: "christian-placement",
         severity: "fabrication",
         match: `${key}: "${(v.match(CHRISTIAN_VOCAB) ?? [""])[0]}"`,
-        why: "Christian context language belongs in the rhodes commentary only, not in a separate section, heading or external pitch.",
+        why: "Christian context language does not belong in the signature or throughline — those are pure-measurement summaries.",
       });
-    }
-  }
-  // Placements and buyers are arrays of objects; walk their strings.
-  const walkStrings = (value: unknown, out: string[]) => {
-    if (typeof value === "string") out.push(value);
-    else if (Array.isArray(value)) value.forEach((v) => walkStrings(v, out));
-    else if (value && typeof value === "object")
-      Object.values(value).forEach((v) => walkStrings(v, out));
-  };
-  for (const key of ["placements", "buyers", "pitch"] as const) {
-    const bag: string[] = [];
-    walkStrings(sections[key], bag);
-    for (const s of bag) {
-      const m = s.match(CHRISTIAN_VOCAB);
-      if (m) {
-        found.push({
-          rule: "christian-placement",
-          severity: "fabrication",
-          match: `${key}: "${m[0]}"`,
-          why: "Christian context language belongs in the rhodes commentary only, not in a placement, buyer entry, or external pitch.",
-        });
-        break;
-      }
     }
   }
 
