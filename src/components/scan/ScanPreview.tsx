@@ -228,7 +228,6 @@ export function ScanPreview({
       <ReportInterstitial
         report={outcome.free}
         scanId={scanId}
-        includedFirst={outcome.includedFirst}
         onReportReady={(report) =>
           setResolvedReport({
             kind: "persisted",
@@ -774,14 +773,11 @@ function RevealWait({
   );
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+    <div className="rw-overlay">
       <div className="chrp-aura w-full max-w-md flex flex-col items-center">
-        <div className="font-sans text-[11px] tracking-wider uppercase text-ink-soft mb-3">
-          CHRP &nbsp;//&nbsp; Emotional Intelligence
-        </div>
-
         <div
-          className="font-display italic text-[18px] md:text-[20px] text-chrp-black text-center mb-8 min-h-[3rem]"
+          className="font-display italic text-[18px] md:text-[20px] text-center mb-8 min-h-[3rem]"
+          style={{ color: "#EFEAE0" }}
           role="status"
           aria-live="polite"
         >
@@ -815,20 +811,20 @@ function RevealWait({
           {!answered ? (
             <motion.div
               key="question"
-              className="si-card"
+              className="rw-card"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.4, delay: 0.3 }}
             >
-              <p className="si-card-q">{q.question}</p>
+              <p className="rw-card-q">{q.question}</p>
               <div className="si-card-opts">
                 {q.options.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
-                    className={`si-card-opt${
-                      selected === opt.value ? " si-card-opt--active" : ""
+                    className={`rw-card-opt${
+                      selected === opt.value ? " rw-card-opt--active" : ""
                     }`}
                     onClick={() => submitAnswer(opt.value)}
                   >
@@ -838,7 +834,7 @@ function RevealWait({
               </div>
               <button
                 type="button"
-                className="si-card-skip"
+                className="rw-card-skip"
                 onClick={() => setAnswered(true)}
               >
                 Skip
@@ -847,12 +843,12 @@ function RevealWait({
           ) : (
             <motion.div
               key="thanks"
-              className="si-card si-card--compact"
+              className="rw-card rw-card--compact"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
             >
-              <p className="si-card-ack">
+              <p className="rw-card-ack">
                 {selected ? "Thanks — " : ""}your full report is being
                 composed now.
               </p>
@@ -860,7 +856,7 @@ function RevealWait({
           )}
         </AnimatePresence>
 
-        <div className="mt-6 font-sans text-[10px] tracking-wider uppercase text-ink-light text-center">
+        <div className="mt-6 font-sans text-[10px] tracking-wider uppercase text-center" style={{ color: "rgba(251,251,244,0.5)" }}>
           {report.track.title} &nbsp;//&nbsp; {report.track.artist}
         </div>
       </div>
@@ -918,12 +914,10 @@ const INTERSTITIAL_QUESTIONS = [
 function ReportInterstitial({
   report,
   scanId,
-  includedFirst: _includedFirst,
   onReportReady,
 }: {
   report: FreeReport;
   scanId: string;
-  includedFirst: boolean;
   onReportReady: (report: import("@/lib/fixtures/tracks").ReportPayload) => void;
 }) {
   // Pick one question per session — stable across re-renders.
