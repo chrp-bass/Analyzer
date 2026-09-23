@@ -34,7 +34,7 @@ export const THRESHOLDS = {
   analysisFailureRatioWarn: 0.25,
   analysisMinSample: 4,
   /** Analysis→persisted-report wall clock above this is WARN (route maxDuration). */
-  preparationLatencyWarnMs: 120_000,
+  preparationLatencyWarnMs: 300_000,
 
   /** A Stripe event received but unprocessed for longer than this is FAIL. */
   unprocessedStripeEventMs: 10 * 60_000,

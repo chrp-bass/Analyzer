@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // The included first report is prepared in full before it is granted — the
 // same chain, and the same budget, as the paid preparation route.
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * POST /api/scan/claim   { scanId }

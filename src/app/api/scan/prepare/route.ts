@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * retry) and persistence. Generous on purpose — a slow generation must
  * finish and persist rather than be cut off mid-way.
  */
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
 

@@ -1,0 +1,327 @@
+From 1a0d4419bddc3e9c5643adf89656f8c1a447caca Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 22 Sep 2026 16:39:29 -0500
+Subject: [PATCH] Song Where: reject generic sign-up pages, reframe UX, curate
+ sources
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Three targeted fixes for the bait-and-switch problem where "View
+opportunity" links led to generic platform sign-up pages:
+
+1. URL specificity filter — isSpecificSubmissionUrl() rejects domain
+   roots and generic single-segment paths (/submit, /apply, /briefs,
+   /musiccreators, etc.) at the quality gate. Only URLs with IDs,
+   deep paths, or platform-specific slugs pass through.
+
+2. UX reframing — "View opportunity →" becomes "View on {Platform} →"
+   with explicit context about where the link goes, submission cost,
+   and a note to verify requirements at the source.
+
+3. Watchlist curation — removed Groover (playlist pitching, not sync)
+   and So Alive Music Conference (single annual event, not a brief
+   source). Annotated remaining 10 sources.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01KCo3YuVdpgBYVq2k7NJ183
+---
+ src/components/report/SongWhere.tsx           | 75 ++++++++++++-------
+ src/lib/song-where/quality.server.ts          |  5 +-
+ .../song-where/sources/public-url.server.ts   | 40 ++++++++++
+ src/lib/song-where/sources/scout.server.ts    | 24 +++---
+ tests/song-where.test.ts                      | 46 +++++++++++-
+ 5 files changed, 146 insertions(+), 44 deletions(-)
+
+diff --git a/src/components/report/SongWhere.tsx b/src/components/report/SongWhere.tsx
+index cc167d4..63aca4f 100644
+--- a/src/components/report/SongWhere.tsx
++++ b/src/components/report/SongWhere.tsx
+@@ -3,6 +3,19 @@
+ import { useEffect, useState } from "react";
+ import type { SongWhereResponse } from "@/lib/song-where/dto";
+ 
++/** Extract a readable platform name from the source identifier. */
++function platformLabel(sourceName: string): string {
++  // Source names follow patterns like "public-www.example.com-abc123" or "feed-abc123" or "Approved source"
++  const hostMatch = sourceName.match(/^(?:public|feed)-(?:www\.)?([^-]+(?:\.[^-]+)*)-[a-f0-9]+$/);
++  if (hostMatch) {
++    const domain = hostMatch[1];
++    // Title-case the first segment of the domain
++    const name = domain.split(".")[0];
++    return name.charAt(0).toUpperCase() + name.slice(1);
++  }
++  return sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "");
++}
++
+ export function SongWhere({ scanId }: { scanId: string }) {
+   const [matches, setMatches] = useState<SongWhereResponse["matches"] | null>(null);
+   const [alertsEnabled, setAlertsEnabled] = useState<boolean | null>(null);
+@@ -48,34 +61,44 @@ export function SongWhere({ scanId }: { scanId: string }) {
+         These briefs may align with this song’s approved emotional profile. Check all stated musical, rights and submission requirements yourself. CHRP does not represent you or guarantee placement.
+       </p>
+       <div className="mt-5 space-y-3">
+-        {matches.slice(0, 5).map((match) => (
+-          <div key={match.matchId} className="border border-rule p-4 flex flex-wrap justify-between gap-3">
+-            <div>
+-              <h3 className="font-display text-[20px]">{match.title}</h3>
+-              <p className="font-sans text-[11px] text-ink-soft mt-1">
+-                Original source: {match.sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "")} · {match.trust} source · {match.fit.replace("_", " ")} fit
+-                {match.deadline ? ` · Closes ${new Date(match.deadline).toLocaleDateString()}` : ""}
+-                {match.submissionRequirement && match.submissionRequirement !== "unknown"
+-                  ? ` · ${match.submissionRequirement} required to submit` : " · Submission requirement unknown"}
+-                {match.submissionCost ? ` · ${match.submissionCost}` : ""}
++        {matches.slice(0, 5).map((match) => {
++          const platform = platformLabel(match.sourceName);
++          const costNote = match.submissionRequirement === "free" ? "Free to submit"
++            : match.submissionRequirement === "paid" ? `Paid submission${match.submissionCost ? ` (${match.submissionCost})` : ""}`
++            : match.submissionRequirement === "membership" ? "Membership required"
++            : match.submissionRequirement === "credits" ? "Credits required"
++            : "Check submission terms";
++          return (
++            <div key={match.matchId} className="border border-rule p-4">
++              <div className="flex flex-wrap justify-between gap-3">
++                <div className="min-w-0 flex-1">
++                  <h3 className="font-display text-[20px]">{match.title}</h3>
++                  <p className="font-sans text-[12px] text-ink-soft mt-1">
++                    {match.fit === "strong" ? "Strong" : match.fit === "moderate" ? "Moderate" : "Worth exploring"} emotional fit · {match.trust === "verified" ? "Verified" : match.trust === "curated" ? "Curated" : "Scraped"} source
++                    {match.deadline ? ` · Closes ${new Date(match.deadline).toLocaleDateString()}` : ""}
++                  </p>
++                  <p className="font-sans text-[11px] text-ink-soft mt-1">{costNote}</p>
++                </div>
++                <div className="flex flex-col items-end gap-2 self-center">
++                  <a href={match.goHref} target="_blank" rel="noopener noreferrer" className="font-sans font-bold text-[12px] underline">
++                    View on {platform} →
++                  </a>
++                  {outcomes[match.matchId] ? (
++                    <span className="font-sans text-[11px] text-ink-soft">Marked {outcomes[match.matchId]}</span>
++                  ) : (
++                    <span className="flex gap-3 font-sans text-[11px] text-ink-soft">
++                      <button type="button" onClick={() => void recordOutcome(match.matchId, "submitted")}>I submitted</button>
++                      <button type="button" onClick={() => void recordOutcome(match.matchId, "passed")}>Pass</button>
++                    </span>
++                  )}
++                </div>
++              </div>
++              <p className="font-sans text-[11px] text-ink-soft mt-2">
++                This takes you to a specific brief on {platform}. Verify all musical, rights and eligibility requirements before submitting.
+               </p>
+-              <p className="font-sans text-[12px] text-ink-soft mt-2">Approved emotional profile aligns with the brief’s stated direction; confirm all other criteria at the source.</p>
+-            </div>
+-            <div className="flex flex-col items-end gap-2 self-center">
+-              <a href={match.goHref} target="_blank" rel="noopener noreferrer" className="font-sans font-bold text-[12px] underline">
+-                View opportunity →
+-              </a>
+-              {outcomes[match.matchId] ? (
+-                <span className="font-sans text-[11px] text-ink-soft">Marked {outcomes[match.matchId]}</span>
+-              ) : (
+-                <span className="flex gap-3 font-sans text-[11px] text-ink-soft">
+-                  <button type="button" onClick={() => void recordOutcome(match.matchId, "submitted")}>I submitted</button>
+-                  <button type="button" onClick={() => void recordOutcome(match.matchId, "passed")}>Pass</button>
+-                </span>
+-              )}
+             </div>
+-          </div>
+-        ))}
++          );
++        })}
+       </div>
+       {alertsEnabled !== null && (
+         <label className="flex items-center gap-2 font-sans text-[12px] mt-5">
+diff --git a/src/lib/song-where/quality.server.ts b/src/lib/song-where/quality.server.ts
+index abb22df..ec9d87d 100644
+--- a/src/lib/song-where/quality.server.ts
++++ b/src/lib/song-where/quality.server.ts
+@@ -1,5 +1,5 @@
+ import "server-only";
+-import { publicHttpsUrl } from "./sources/public-url.server";
++import { publicHttpsUrl, isSpecificSubmissionUrl } from "./sources/public-url.server";
+ import type { FitBand } from "./dto";
+ 
+ export type QualityStatus = "LIVE_VERIFIED" | "LIVE_HIGH_COMPETITION" | "STALE" |
+@@ -30,7 +30,8 @@ export function qualityStatus(opportunity: QualityEvidence, fit: FitBand | null,
+       !["cc0", "permitted", "public_pointer"].includes(source.terms_status) ||
+       source.robots_status !== "allow" || source.auth_scope !== "none" ||
+       !opportunity.provenance_url || !publicHttpsUrl(opportunity.provenance_url)) return "SOURCE_UNCERTAIN";
+-  if (!publicHttpsUrl(opportunity.submission_url) || !opportunity.route_verified_at ||
++  if (!publicHttpsUrl(opportunity.submission_url) || !isSpecificSubmissionUrl(opportunity.submission_url) ||
++      !opportunity.route_verified_at ||
+       !Number.isFinite(Date.parse(opportunity.route_verified_at)) ||
+       now.getTime() - Date.parse(opportunity.route_verified_at) > routeVerifiedTtlMs) return "NO_SUBMISSION_PATH";
+   const requirements = opportunity.eligibility_requirements;
+diff --git a/src/lib/song-where/sources/public-url.server.ts b/src/lib/song-where/sources/public-url.server.ts
+index 1af8ad3..c58c37e 100644
+--- a/src/lib/song-where/sources/public-url.server.ts
++++ b/src/lib/song-where/sources/public-url.server.ts
+@@ -13,3 +13,43 @@ export function publicHttpsUrl(raw: string): URL | null {
+     return url;
+   } catch { return null; }
+ }
++
++/**
++ * Rejects submission URLs that point to generic sign-up or landing pages
++ * rather than a specific opportunity. A specific opportunity URL typically
++ * contains an ID, slug or deep path that distinguishes it from the platform's
++ * generic intake form.
++ */
++export function isSpecificSubmissionUrl(raw: string): boolean {
++  const url = publicHttpsUrl(raw);
++  if (!url) return false;
++  const path = url.pathname.replace(/\/+$/, "").toLowerCase();
++  // Domain root is never a specific opportunity.
++  if (!path || path === "") return false;
++  const segments = path.split("/").filter(Boolean);
++  // Single-segment generic intake/listing paths.
++  const GENERIC = new Set([
++    "submit", "apply", "signup", "sign-up", "register", "join", "login",
++    "get-started", "create-account", "upload", "pitch",
++    "song-submit", "music-submit", "submit-music", "submit-song",
++    "briefs", "brief", "opportunities", "opportunity",
++    "musiccreators", "sync", "music-briefs", "music-brief",
++    "conference", "pitch-your-music", "en",
++  ]);
++  if (segments.length === 1 && GENERIC.has(segments[0])) return false;
++  // Two-segment paths where the second segment is also generic.
++  if (segments.length === 2 && GENERIC.has(segments[1]) &&
++      /^(?:en|es|fr|de|app|music|conference|sync)$/.test(segments[0])) return false;
++  // Any segment that looks like an ID (UUID fragment, long hex, numeric ≥4 digits,
++  // or a slug with embedded digits like "brief-12345") is a specificity signal.
++  const hasId = segments.some((s) =>
++    /[0-9a-f]{8,}/i.test(s) || /\d{4,}/.test(s) || /^[a-z0-9]{20,}$/i.test(s));
++  if (hasId) return true;
++  // Deep paths (≥3 segments) are usually specific even without an obvious ID.
++  if (segments.length >= 3) return true;
++  // Two-segment paths with a non-generic second segment pass — they're usually
++  // platform-specific slugs like /briefs/energetic-pop-summer.
++  if (segments.length === 2) return true;
++  // Single non-generic segment without an ID: ambiguous, reject.
++  return false;
++}
+diff --git a/src/lib/song-where/sources/scout.server.ts b/src/lib/song-where/sources/scout.server.ts
+index 7032a33..fd8f4ce 100644
+--- a/src/lib/song-where/sources/scout.server.ts
++++ b/src/lib/song-where/sources/scout.server.ts
+@@ -7,18 +7,18 @@ export interface SearchIndex {
+ }
+ 
+ const WATCHLIST = [
+-  "https://www.tracksynk.com/briefs",
+-  "https://pitch.hrdrv.com/",
+-  "https://www.songtradr.com/musiccreators",
+-  "https://www.taxi.com/",
+-  "https://www.musicgateway.com/",
+-  "https://dropcue.app/music-briefs",
+-  "https://syncstarz.com/",
+-  "https://www.pitchsynch.app/",
+-  "https://groover.co/en/",
+-  "https://www.syncbrief.com/",
+-  "https://played.fm/sync",
+-  "https://soalivemusicconference.com/conference/pitch-your-music/",
++  "https://www.tracksynk.com/briefs",     // Deep-linkable briefs, free to browse
++  "https://played.fm/sync",               // Individual brief URLs (/sync/{uuid}), $120-2500/project
++  "https://pitch.hrdrv.com/",             // HRDRV Pitch — submission tool (account may be needed)
++  "https://www.songtradr.com/musiccreators", // Major sync marketplace
++  "https://www.taxi.com/",                // Paid membership ($300/yr), aggregated listings
++  "https://www.musicgateway.com/",        // Sync briefs behind login (app.musicgateway.com)
++  "https://dropcue.app/music-briefs",     // Requires paid plan with Discovery
++  "https://syncstarz.com/",               // Sync briefs platform
++  "https://www.pitchsynch.app/",          // Pitch sync marketplace
++  "https://www.syncbrief.com/",           // Sync brief aggregator
++  // Removed: groover.co — music promotion/playlist pitching, not sync placement
++  // Removed: soalivemusicconference.com — single annual event, not a brief source
+ ];
+ 
+ const QUERIES = [
+diff --git a/tests/song-where.test.ts b/tests/song-where.test.ts
+index 5a27f0b..ca236e4 100644
+--- a/tests/song-where.test.ts
++++ b/tests/song-where.test.ts
+@@ -7,6 +7,7 @@ import { matchSong } from "../src/lib/song-where/match.server";
+ import { rankMatches } from "../src/lib/song-where/rank.server";
+ import { qualityStatus } from "../src/lib/song-where/quality.server";
+ import { matchesForAnalysis, safeSubmissionUrl } from "../src/lib/song-where/store.supabase";
++import { isSpecificSubmissionUrl } from "../src/lib/song-where/sources/public-url.server";
+ import { GET as getSongWhere } from "../src/app/api/song-where/[scanId]/route";
+ import { POST as runJob } from "../src/app/api/song-where/jobs/run/route";
+ 
+@@ -42,7 +43,7 @@ describe("Song Where isolation", () => {
+     const row = {
+       id: "match-id", match_score: 91.357, fit_band: "strong",
+       opportunities: { title: "Open brief", deadline: "2027-01-01T00:00:00Z", status: "open",
+-        submission_url: "https://example.org/private-submit-token",
++        submission_url: "https://example.org/briefs/abc12345678/apply",
+         route_verified_at: new Date().toISOString(), provenance_url: "https://example.org/brief",
+         applicant_count: null, competition_level: null, eligibility_requirements: {},
+         specificity_tier: "A", song_matchable: true,
+@@ -57,7 +58,7 @@ describe("Song Where isolation", () => {
+     expect(matches).toHaveLength(1);
+     expect(Object.keys(matches[0]).sort()).toEqual(
+       ["matchId", "title", "sourceName", "trust", "fit", "deadline", "goHref", "submissionRequirement", "submissionCost"].sort());
+-    expect(JSON.stringify(matches)).not.toMatch(/91\.357|private-submit-token|match_score|submission_url|weights|reasons|formula|threshold/i);
++    expect(JSON.stringify(matches)).not.toMatch(/91\.357|abc12345678|match_score|submission_url|weights|reasons|formula|threshold/i);
+     row.opportunities.specificity_tier = "B";
+     row.opportunities.song_matchable = false;
+     expect(await matchesForAnalysis(db as never, "analysis-id")).toEqual([]);
+@@ -133,7 +134,7 @@ describe("Song Where matching", () => {
+   it("rejects every non-live quality status and orders fresh, less saturated peers", () => {
+     const now = new Date("2026-09-20T12:00:00Z");
+     const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
+-      submission_url: "https://example.org/apply", route_verified_at: now.toISOString(),
++      submission_url: "https://example.org/briefs/opp-20260920/apply", route_verified_at: now.toISOString(),
+       provenance_url: "https://example.org/brief", applicant_count: 3,
+       competition_level: "low", eligibility_requirements: {},
+       specificity_tier: "A", song_matchable: true,
+@@ -165,7 +166,7 @@ describe("Song Where matching", () => {
+     const verified = new Date("2026-09-18T12:00:00Z");
+     const now = new Date("2026-09-20T12:00:00Z"); // 48 h after verification
+     const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
+-      submission_url: "https://example.org/apply", route_verified_at: verified.toISOString(),
++      submission_url: "https://example.org/briefs/opp-20260920/apply", route_verified_at: verified.toISOString(),
+       provenance_url: "https://example.org/brief", applicant_count: 3,
+       competition_level: "low", eligibility_requirements: {},
+       specificity_tier: "A", song_matchable: true,
+@@ -185,4 +186,41 @@ describe("Song Where matching", () => {
+     expect(safeSubmissionUrl("https://user:pass@example.com/")).toBeNull();
+     expect(safeSubmissionUrl("https://example.com/submit")?.hostname).toBe("example.com");
+   });
++
++  it("rejects generic sign-up pages and admits specific opportunity URLs", () => {
++    // Generic — should be rejected
++    expect(isSpecificSubmissionUrl("https://example.com/")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/submit")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/apply")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/signup")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/song-submit")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/briefs")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/musiccreators")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://example.com/sync")).toBe(false);
++    expect(isSpecificSubmissionUrl("https://groover.co/en/")).toBe(false);
++    // Specific — should pass
++    expect(isSpecificSubmissionUrl("https://played.fm/sync/abc12345678")).toBe(true);
++    expect(isSpecificSubmissionUrl("https://example.com/briefs/summer-pop-2026")).toBe(true);
++    expect(isSpecificSubmissionUrl("https://example.com/briefs/opp-12345/apply")).toBe(true);
++    expect(isSpecificSubmissionUrl("https://tracksynk.com/briefs/brief-4829")).toBe(true);
++    // Invalid URLs
++    expect(isSpecificSubmissionUrl("javascript:alert(1)")).toBe(false);
++    expect(isSpecificSubmissionUrl("not-a-url")).toBe(false);
++  });
++
++  it("filters generic URLs at quality gate level", () => {
++    const now = new Date("2026-09-20T12:00:00Z");
++    const base = { status: "open", deadline: "2026-09-27T12:00:00Z",
++      submission_url: "https://example.org/submit", route_verified_at: now.toISOString(),
++      provenance_url: "https://example.org/brief", applicant_count: 3,
++      competition_level: "low", eligibility_requirements: {},
++      specificity_tier: "A", song_matchable: true,
++      opportunity_sources: { active: true, trust_level: "verified", terms_status: "permitted",
++        robots_status: "allow", auth_scope: "none" } };
++    // Generic URL → NO_SUBMISSION_PATH
++    expect(qualityStatus(base, "strong", now)).toBe("NO_SUBMISSION_PATH");
++    // Specific URL → LIVE_VERIFIED
++    expect(qualityStatus({ ...base, submission_url: "https://example.org/briefs/opp-12345/apply" },
++      "strong", now)).toBe("LIVE_VERIFIED");
++  });
+ });
+-- 
+2.43.0
+

@@ -8,7 +8,7 @@ import { waitUntil } from "@vercel/functions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const NO_STORE = { "Cache-Control": "private, no-store" };
 

@@ -1,0 +1,153 @@
+diff --git a/src/components/dashboard/CreatorBriefs.tsx b/src/components/dashboard/CreatorBriefs.tsx
+index e11b2b3..72e264e 100644
+--- a/src/components/dashboard/CreatorBriefs.tsx
++++ b/src/components/dashboard/CreatorBriefs.tsx
+@@ -4,7 +4,18 @@ import { useEffect, useState } from "react";
+ 
+ type Brief = { id: string; title: string; deadline: string;
+   submissionRequirement: string; submissionCost: string | null;
+-  songs: Array<{ title: string; fit: string; goHref: string }> };
++  sourceName?: string;
++  songs: Array<{ title: string; fit: string; goHref: string; sourceName?: string }> };
++
++/** Extract a readable platform name from the source identifier. */
++function platformLabel(sourceName: string): string {
++  const hostMatch = sourceName.match(/^(?:public|feed)-(?:www\.)?([^-]+(?:\.[^-]+)*)-[a-f0-9]+$/);
++  if (hostMatch) {
++    const name = hostMatch[1].split(".")[0];
++    return name.charAt(0).toUpperCase() + name.slice(1);
++  }
++  return sourceName.replace(/^public-/, "").replace(/-[a-f0-9]{8}$/, "");
++}
+ 
+ export function CreatorBriefs() {
+   const [available, setAvailable] = useState(false);
+@@ -42,44 +53,77 @@ export function CreatorBriefs() {
+   if (!available) return null;
+   return (
+     <section aria-labelledby="creator-brief-title" className="mt-10 border-t border-rule pt-8">
+-      <h2 id="creator-brief-title" className="font-display text-[28px]">Have a commercial music brief?</h2>
+-      <p className="font-sans text-[13px] text-ink-soft mt-2">
+-        {emailReady ? <>Forward it to <strong>briefs@chrp.ai</strong>, or paste it below. </> : "Paste it below. "}
+-        CHRP compares explicit criteria against your eligible analyzed songs;
+-        private briefs stay private to your catalog.
+-      </p>
+-      <form onSubmit={(event) => void submit(event)} className="mt-5 space-y-3 max-w-2xl">
+-        <label className="block font-sans text-[12px]">Brief title
+-          <input className="block mt-1 w-full border border-rule p-3" value={subject}
+-            onChange={(event) => setSubject(event.target.value)} maxLength={250} required />
+-        </label>
+-        <label className="block font-sans text-[12px]">Analyze a brief
+-          <textarea className="block mt-1 w-full border border-rule p-3 min-h-32" value={text}
+-            onChange={(event) => setText(event.target.value)} maxLength={30000} required
+-            placeholder="Include the stated deadline, submission URL and explicit musical criteria." />
+-        </label>
+-        <button type="submit" disabled={busy} className="font-sans font-bold text-[12px] underline">
+-          {busy ? "Checking…" : "Compare with my catalog"}
+-        </button>
+-      </form>
+-      {message && <p role="status" className="font-sans text-[12px] mt-3">{message}</p>}
+-      {briefs.map((brief) => (
+-        <div key={brief.id} className="mt-7 border-t border-rule pt-4">
+-          <h3 className="font-display text-[21px]">Worth Your Move · {brief.title}</h3>
+-          <p className="font-sans text-[12px] text-ink-soft mt-1">
+-            Source: creator-forwarded brief · Due {new Date(brief.deadline).toLocaleDateString()} · Submission: {brief.submissionRequirement}
+-            {brief.submissionCost ? ` · ${brief.submissionCost}` : ""}
+-          </p>
+-          {!brief.songs.length && <p className="font-sans text-[12px] mt-3">No strong CHRP match in your analyzed catalog.</p>}
+-          {brief.songs.map((song) => (
+-            <div key={song.goHref} className="mt-3 font-sans text-[13px]">
+-              <strong>{song.title}</strong> · Worth exploring
+-              <p className="text-ink-soft">Approved emotional profile aligns with the brief’s stated direction. Check all other requirements yourself.</p>
+-              <a href={song.goHref} target="_blank" rel="noopener noreferrer" className="underline">View opportunity</a>
+-            </div>
+-          ))}
++      <div className="border border-rule bg-oat p-5 md:p-6 max-w-2xl">
++        <p className="font-sans uppercase tracking-wider text-[11px] text-ink-soft">Brief Analyzer</p>
++        <h2 id="creator-brief-title" className="font-display text-[24px] md:text-[28px] mt-2">
++          Have a commercial music brief?
++        </h2>
++        <p className="font-sans text-[13px] text-ink-soft mt-2">
++          {emailReady ? <>Forward it to <strong>briefs@chrp.ai</strong>, or paste it below. </> : "Paste it below. "}
++          CHRP compares explicit criteria against your analyzed songs.
++          Private briefs stay private to your catalog.
++        </p>
++        <form onSubmit={(event) => void submit(event)} className="mt-5 space-y-3">
++          <label className="block font-sans text-[12px]">Brief title
++            <input className="block mt-1 w-full border border-rule bg-chrp-white p-3" value={subject}
++              onChange={(event) => setSubject(event.target.value)} maxLength={250} required />
++          </label>
++          <label className="block font-sans text-[12px]">Analyze a brief
++            <textarea className="block mt-1 w-full border border-rule bg-chrp-white p-3 min-h-32" value={text}
++              onChange={(event) => setText(event.target.value)} maxLength={30000} required
++              placeholder="Include the stated deadline, submission URL and explicit musical criteria." />
++          </label>
++          <button type="submit" disabled={busy}
++            className="font-sans font-bold text-[11px] tracking-wider uppercase border border-chrp-black px-5 py-2.5"
++            style={{ opacity: busy ? 0.7 : 1 }}>
++            {busy ? "Checking…" : "Compare with my catalog"}
++          </button>
++        </form>
++        {message && <p role="status" className="font-sans text-[12px] mt-3">{message}</p>}
++      </div>
++      {briefs.length > 0 && (
++        <div className="mt-8 space-y-3">
++          <p className="font-sans uppercase tracking-wider text-[11px] text-ink-soft">Your Briefs</p>
++          {briefs.map((brief) => {
++            const costNote = brief.submissionRequirement === "free" ? "Free to submit"
++              : brief.submissionRequirement === "paid" ? `Paid submission${brief.submissionCost ? ` (${brief.submissionCost})` : ""}`
++              : brief.submissionRequirement === "membership" ? "Membership required"
++              : brief.submissionRequirement === "credits" ? "Credits required"
++              : "Check submission terms";
++            return (
++              <div key={brief.id} className="border border-rule p-4">
++                <h3 className="font-display text-[20px]">{brief.title}</h3>
++                <p className="font-sans text-[12px] text-ink-soft mt-1">
++                  Due {new Date(brief.deadline).toLocaleDateString()} · {costNote}
++                </p>
++                {!brief.songs.length ? (
++                  <p className="font-sans text-[12px] text-ink-soft mt-3">No strong CHRP match in your analyzed catalog.</p>
++                ) : (
++                  <div className="mt-3 space-y-2">
++                    {brief.songs.map((song) => {
++                      const platform = song.sourceName ? platformLabel(song.sourceName) : null;
++                      return (
++                        <div key={song.goHref} className="flex flex-wrap justify-between gap-3 items-center border-t border-rule pt-2">
++                          <div className="min-w-0 flex-1">
++                            <p className="font-sans text-[13px] font-bold">{song.title}</p>
++                            <p className="font-sans text-[11px] text-ink-soft">
++                              {song.fit === "strong" ? "Strong" : song.fit === "moderate" ? "Moderate" : "Worth exploring"} emotional fit
++                            </p>
++                          </div>
++                          <a href={song.goHref} target="_blank" rel="noopener noreferrer"
++                            className="font-sans font-bold text-[12px] underline">
++                            {platform ? `View on ${platform} →` : "View brief →"}
++                          </a>
++                        </div>
++                      );
++                    })}
++                  </div>
++                )}
++              </div>
++            );
++          })}
+         </div>
+-      ))}
++      )}
+     </section>
+   );
+ }
+diff --git a/src/components/report/SongWhere.tsx b/src/components/report/SongWhere.tsx
+index 63aca4f..f3ee314 100644
+--- a/src/components/report/SongWhere.tsx
++++ b/src/components/report/SongWhere.tsx
+@@ -107,6 +107,9 @@ export function SongWhere({ scanId }: { scanId: string }) {
+           Notify me when CHRP finds new strong opportunities for my songs
+         </label>
+       )}
++      <p className="font-sans text-[12px] text-ink-soft mt-4">
++        Found a brief yourself? <a href="/dashboard" className="underline">Paste it on your dashboard</a> and CHRP will match it against your catalog.
++      </p>
+     </section>
+   );
+ }
