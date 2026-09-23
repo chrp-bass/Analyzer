@@ -450,6 +450,56 @@ describe("CHRISTIAN_CONTEXT_LENS — the system prompt teaches native voice", ()
   });
 });
 
+// ─── 11c. Artist-genre fallback ──────────────────────────────────────────
+
+describe("extractChristianContext — artist-genre fallback", () => {
+  it("opens the gate from artist genres when song has no Christian genre", () => {
+    const cc = extractChristianContext(rockPayload, [
+      "Christian & Gospel",
+      "CCM",
+    ]);
+    expect(cc).not.toBeNull();
+    expect(cc!.tradition).toBe("ccm");
+  });
+
+  it("song-level genre wins over artist-level genre (specificity)", () => {
+    // Song says Worship, artist says broad Christian — song wins.
+    const cc = extractChristianContext(worshipPayload, ["Christian"]);
+    expect(cc).not.toBeNull();
+    expect(cc!.tradition).toBe("worship");
+    expect(cc!.evidence).toContain("worship");
+  });
+
+  it("artist Gospel opens the gate when song has no genre metadata at all", () => {
+    const cc = extractChristianContext(noGenresPayload, ["Gospel"]);
+    expect(cc).not.toBeNull();
+    expect(cc!.tradition).toBe("gospel");
+  });
+
+  it("stays closed when artist genres are also non-Christian", () => {
+    const cc = extractChristianContext(rockPayload, ["Pop", "Rock"]);
+    expect(cc).toBeNull();
+  });
+
+  it("stays closed when artistGenres is undefined", () => {
+    const cc = extractChristianContext(rockPayload, undefined);
+    expect(cc).toBeNull();
+  });
+
+  it("stays closed when artistGenres is empty", () => {
+    const cc = extractChristianContext(rockPayload, []);
+    expect(cc).toBeNull();
+  });
+
+  it("normalizes artist genre strings (case-insensitive)", () => {
+    const cc = extractChristianContext(noGenresPayload, [
+      "CONTEMPORARY CHRISTIAN MUSIC",
+    ]);
+    expect(cc).not.toBeNull();
+    expect(cc!.tradition).toBe("ccm");
+  });
+});
+
 // ─── 12. Science regression ───────────────────────────────────────────────
 
 describe("science regression — EPI / Focus / Calm / Motivation / Balance / Mode untouched", () => {

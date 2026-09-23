@@ -266,6 +266,21 @@ export class SoundchartsClient {
   }
 
   /**
+   * Artist metadata by Soundcharts UUID — `GET /api/v2/artist/{uuid}`.
+   * Returns the full artist record (genres, social links, etc.) or null.
+   * Fail-open: any error returns null rather than failing the report.
+   *
+   * Used by the Christian context gate to check artist-level genre tags
+   * when the song itself does not carry a Christian genre.
+   */
+  async getArtistByUuid(
+    uuid: string,
+  ): Promise<Record<string, unknown> | null> {
+    if (!uuid) return null;
+    return this.safeGet(`/api/v2/artist/${encodeURIComponent(uuid)}`);
+  }
+
+  /**
    * Soundcharts semantic analysis of the lyric (themes, moods,
    * emotionalIntensityScore, imageryScore, narrativeStyle, …). Fail-open.
    *

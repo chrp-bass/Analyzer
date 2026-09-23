@@ -33,6 +33,47 @@ export class EnrichmentError extends Error {
 }
 
 /**
+ * Extract genre strings from a Soundcharts artist record.
+ *
+ * Artist records use the same `genres: [{ root, sub }]` shape as song
+ * records. This walker mirrors `collectGenreStrings` in the Christian
+ * context module but lives here because it operates on the artist record
+ * fetched during enrichment, not the song record.
+ */
+function collectArtistGenreStrings(artistRecord: Record<string, unknown>): string[] {
+  const collected: string[] = [];
+  const genres = artistRecord.genres;
+  if (!genres) return collected;
+
+  const push = (v: unknown) => {
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (trimmed.length > 0) collected.push(trimmed);
+    }
+  };
+
+  if (Array.isArray(genres)) {
+    for (const g of genres) {
+      if (typeof g === "string") {
+        push(g);
+      } else if (g && typeof g === "object") {
+        const obj = g as { root?: unknown; sub?: unknown };
+        push(obj.root);
+        if (Array.isArray(obj.sub)) {
+          for (const s of obj.sub) push(s);
+        } else if (typeof obj.sub === "string") {
+          push(obj.sub);
+        }
+      }
+    }
+  } else if (typeof genres === "string") {
+    push(genres);
+  }
+
+  return collected;
+}
+
+/**
  * Assemble the generator's inputs from the persisted analysis.
  *
  * Only real, pre-generation facts are read. Anything the engine did not
@@ -147,6 +188,33 @@ export async function assembleAnalysisFacts(
       : typeof (song as { id?: unknown }).id === "string"
         ? ((song as { id: string }).id)
         : null;
+  // ── Artist-level genres (Christian context fallback) ─────────────────
+  // The song payload's mainArtists carry UUIDs. Fetch the first main
+  // artist's record for genre metadata. This is the fallback that catches
+  // established Christian artists whose individual tracks may not carry
+  // Christian genre tags (e.g., crossover releases, new singles).
+  let artistGenres: string[] | undefined;
+  const mainArtists = (song as { mainArtists?: unknown }).mainArtists;
+  if (Array.isArray(mainArtists) && mainArtists.length > 0) {
+    const firstArtist = mainArtists[0] as { uuid?: unknown } | null;
+    const artistUuid =
+      typeof firstArtist?.uuid === "string" && firstArtist.uuid.trim()
+        ? firstArtist.uuid.trim()
+        : null;
+    if (artistUuid) {
+      try {
+        const artistClient = getSoundchartsClient();
+        const artistRecord = await artistClient.getArtistByUuid(artistUuid);
+        if (artistRecord) {
+          const collected = collectArtistGenreStrings(artistRecord);
+          if (collected.length > 0) artistGenres = collected;
+        }
+      } catch {
+        // Fail-open: artist genre lookup never blocks the report.
+      }
+    }
+  }
+
   if (uuid) {
     let client;
     try {
@@ -387,5 +455,5 @@ export async function assembleAnalysisFacts(
     ...(broadcasts ? { broadcasts } : {}),
   };
 
-  return { facts, song };
+  return { facts, song, ...(artistGenres ? { artistGenres } : {}) };
 }

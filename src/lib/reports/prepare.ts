@@ -80,8 +80,14 @@ export type PrepareResult =
 export interface EnrichmentBundle {
   /** Facts for Rhodes — everything except the Christian context lens. */
   facts: AnalysisFacts;
-  /** The raw Soundcharts song object, the only permitted input to the gate. */
+  /** The raw Soundcharts song object, the primary input to the gate. */
   song: unknown;
+  /**
+   * Artist-level genre strings from Soundcharts, used as a fallback when the
+   * song itself carries no Christian genre. Fetched from the main artist's
+   * Soundcharts record. Absent when the artist endpoint returned no data.
+   */
+  artistGenres?: string[];
 }
 
 /** A running heartbeat, stoppable. */
@@ -109,7 +115,7 @@ export interface PrepareDeps {
   /** Stage 2: Soundcharts song + enrichment endpoints. Throws on hard failure. */
   enrich(userId: string, scanId: string, analysisId: string): Promise<EnrichmentBundle>;
   /** Stage 3: the Christian / Worship / Gospel / CCM gate. */
-  christianContext(song: unknown): ChristianContext | null;
+  christianContext(song: unknown, artistGenres?: string[]): ChristianContext | null;
   /** Stage 4: governed Rhodes generation. */
   generate(facts: AnalysisFacts): Promise<GenerationResult>;
   generatorVersion: string;
@@ -319,7 +325,7 @@ async function runPreparation(
       context = await timed(
         "christian_context",
         scanId,
-        async () => deps.christianContext(bundle.song),
+        async () => deps.christianContext(bundle.song, bundle.artistGenres),
         {
           sink,
           annotate: (c) => ({ detail: c ? `tradition=${c.tradition}` : "gate=closed" }),

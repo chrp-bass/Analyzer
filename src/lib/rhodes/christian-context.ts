@@ -141,19 +141,17 @@ function collectGenreStrings(source: unknown): string[] {
 }
 
 /**
- * Decide the tradition from what the metadata specifically named.
+ * Resolve the tradition from a set of genre labels.
  *
- * Specificity wins. If the payload contains both the broad "Christian &
+ * Specificity wins. If the labels contain both the broad "Christian &
  * Gospel" root and a specific "Worship" sub, we respect "worship". If the
- * payload is only the broad root, we stay broad. Gospel and CCM are never
- * rewritten as Worship, and vice versa.
+ * labels contain only the broad root, we stay broad. Gospel and CCM are
+ * never rewritten as Worship, and vice versa.
  */
-export function extractChristianContext(
-  soundchartsObject: unknown,
-): ChristianContext | null {
-  const labels = collectGenreStrings(soundchartsObject);
+function resolveFromLabels(
+  labels: string[],
+): { tradition: ChristianTradition; evidence: string[] } | null {
   if (labels.length === 0) return null;
-
   const evidence = Array.from(new Set(labels));
 
   const hasWorship = evidence.some((l) => WORSHIP_LABELS.has(l));
@@ -161,10 +159,6 @@ export function extractChristianContext(
   const hasCcm = evidence.some((l) => CCM_LABELS.has(l));
   const hasBroad = evidence.some((l) => BROAD_CHRISTIAN_LABELS.has(l));
 
-  // Prefer the most specific tradition the metadata actually named. Only one
-  // may fire; a song labelled both Worship and Gospel is unusual enough that
-  // the more musically specific tradition (Gospel) wins so Rhodes does not
-  // rewrite the identity as Worship.
   let tradition: ChristianTradition | null = null;
   if (hasGospel) tradition = "gospel";
   else if (hasWorship) tradition = "worship";
@@ -172,8 +166,43 @@ export function extractChristianContext(
   else if (hasBroad) tradition = "christian";
 
   if (!tradition) return null;
-
   return { tradition, evidence };
+}
+
+/**
+ * Decide the tradition from what the metadata specifically named.
+ *
+ * PRIMARY: Song-level genres from the Soundcharts song object. This is the
+ * most specific signal — it says what THIS TRACK is classified as.
+ *
+ * FALLBACK: Artist-level genres, supplied separately by the enrichment
+ * stage (fetched from Soundcharts's artist endpoint via the main artist's
+ * UUID). These open the gate when the song itself carries no Christian genre
+ * but the artist is clearly classified as Christian / CCM / Worship / Gospel.
+ * This closes the false-negative gap for crossover tracks by established
+ * Christian artists (e.g., Matt Hammitt, former lead of Sanctus Real).
+ *
+ * Both sources are Soundcharts genre metadata — trusted, editorial, external.
+ * Neither reads artist name, title, audio, EPI, or anything inferred.
+ */
+export function extractChristianContext(
+  soundchartsObject: unknown,
+  artistGenres?: string[],
+): ChristianContext | null {
+  // 1. Try song-level genres first — most specific.
+  const songResult = resolveFromLabels(collectGenreStrings(soundchartsObject));
+  if (songResult) return songResult;
+
+  // 2. Fallback: artist-level genres.
+  if (artistGenres && artistGenres.length > 0) {
+    const normalized = artistGenres
+      .map((g) => normalize(g))
+      .filter((g): g is string => g !== null);
+    const artistResult = resolveFromLabels(normalized);
+    if (artistResult) return artistResult;
+  }
+
+  return null;
 }
 
 /**
