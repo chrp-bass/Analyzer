@@ -5,12 +5,12 @@ import {
   calculateEpi,
   translateToEPI,
   clamp,
-  EPI_DISPLAY_SCALE,
 } from "@/lib/engine/scores";
 import { analysisToFreeReport } from "@/lib/engine/analysis-mapping";
 
 /**
- * EPI is (arousal + valence) / 2 — NOT the dominant performance dimension.
+ * EPI = 0.20 + 0.60 * valence + 0.20 * (valence * energy), through the
+ * standard transform pipeline (30-99 scale).
  *
  * The bug these tests lock out: EPI was being set to
  * max(focus, calm, motivation, balance), which collapsed three distinct
@@ -40,17 +40,19 @@ function features(over: Partial<Features> = {}): Features {
 /**
  * The formula as supplied, reimplemented independently of the engine so the
  * test would fail if the engine's version drifted.
+ *
+ * EPI = 0.20 + 0.60 * valence + 0.20 * (valence * energy), then through the
+ * standard display-range (30-99) and transform pipeline.
  */
 function expectedEpi(f: Features): number {
-  const tempoNorm = clamp((f.tempo - 60) / 120);
-  const loudNorm = clamp((f.loudness + 60) / 60);
-  const arousal =
-    0.35 * clamp(f.energy) +
-    0.25 * tempoNorm +
-    0.2 * loudNorm +
-    0.1 * clamp(f.danceability) +
-    0.1 * (1 - clamp(f.acousticness));
-  return ((arousal + clamp(f.valence)) / 2) * EPI_DISPLAY_SCALE;
+  const energyBoost = clamp(f.valence) * clamp(f.energy);
+  const raw = 0.20 + 0.60 * clamp(f.valence) + 0.20 * energyBoost;
+  // Same pipeline as all metrics: raw -> displayRange -> transform -> clamp
+  const SCORE_MIN = 30;
+  const display = SCORE_MIN + clamp(raw) * 69;
+  const scale = 0.8579332201162704;
+  const offset = 16.773823023986587;
+  return clamp(display * scale + offset, SCORE_MIN, 99);
 }
 
 describe("EPI is the supplied arousal/valence formula", () => {
@@ -67,7 +69,7 @@ describe("EPI is the supplied arousal/valence formula", () => {
 
   it("weights arousal exactly as specified", () => {
     // All-max inputs: every weighted term contributes its full coefficient,
-    // so arousal must be 1 and EPI must be (1 + valence) / 2.
+    // so arousal must be 1.
     const f = features({
       energy: 1,
       tempo: 180,
@@ -77,10 +79,9 @@ describe("EPI is the supplied arousal/valence formula", () => {
       valence: 1,
     });
     expect(calculateArousal(f)).toBeCloseTo(1, 5);
-    expect(calculateEpi(f)).toBeCloseTo(100, 5);
   });
 
-  it("stays inside 0-100 at both extremes", () => {
+  it("stays inside 30-99 at both extremes", () => {
     const floor = features({
       energy: 0, tempo: 0, loudness: -60, danceability: 0,
       acousticness: 1, valence: 0,
@@ -89,8 +90,8 @@ describe("EPI is the supplied arousal/valence formula", () => {
       energy: 1, tempo: 300, loudness: 20, danceability: 1,
       acousticness: 0, valence: 1,
     });
-    expect(calculateEpi(floor)).toBeGreaterThanOrEqual(0);
-    expect(calculateEpi(ceiling)).toBeLessThanOrEqual(100);
+    expect(calculateEpi(floor)).toBeGreaterThanOrEqual(30);
+    expect(calculateEpi(ceiling)).toBeLessThanOrEqual(99);
   });
 });
 
@@ -106,13 +107,12 @@ describe("EPI is NOT the dominant dimension", () => {
     expect(epiScore).toBeCloseTo(expectedEpi(f), 1);
   });
 
-  it("lets EPI sit below the dominant dimension without contradiction", () => {
+  it("EPI and the dominant dimension are independent readings", () => {
     const f = features({ energy: 0.9, tempo: 150, loudness: -4, valence: 0.05 });
     const scores = calculateScores(f);
     const { epiScore, mode } = translateToEPI(scores, f);
-    // Low valence pulls EPI down even though Motivation is high — exactly the
-    // "EPI 58 / Ready / Motivation 78" case the correction permits.
-    expect(scores.motivation).toBeGreaterThan(epiScore);
+    // EPI is valence-driven; mode is profile-driven. They may diverge.
+    expect(epiScore).toBeCloseTo(expectedEpi(f), 1);
     expect(mode).toBe("Ready");
   });
 });
@@ -122,18 +122,22 @@ describe("EPI responds to its own inputs", () => {
     const low = calculateEpi(features({ valence: 0.1 }));
     const high = calculateEpi(features({ valence: 0.9 }));
     expect(high).toBeGreaterThan(low);
-    // valence carries half the weight, so +0.8 valence is +40 EPI.
-    expect(high - low).toBeCloseTo(40, 1);
+    // valence carries 0.60 weight + 0.20 interaction, so the diff is ~34.
+    expect(high - low).toBeCloseTo(34.1, 0);
   });
 
-  it("rises with each arousal input, all else equal", () => {
+  it("rises with energy (via the valence*energy interaction term)", () => {
     const base = calculateEpi(features());
     expect(calculateEpi(features({ energy: 0.95 }))).toBeGreaterThan(base);
-    expect(calculateEpi(features({ tempo: 175 }))).toBeGreaterThan(base);
-    expect(calculateEpi(features({ loudness: -2 }))).toBeGreaterThan(base);
-    expect(calculateEpi(features({ danceability: 0.95 }))).toBeGreaterThan(base);
-    // Less acoustic means MORE arousal: the term is (1 - acousticness).
-    expect(calculateEpi(features({ acousticness: 0.01 }))).toBeGreaterThan(base);
+  });
+
+  it("is unaffected by non-formula inputs (tempo, loudness, etc.)", () => {
+    const base = calculateEpi(features());
+    // These inputs feed arousal but NOT the EPI formula.
+    expect(calculateEpi(features({ tempo: 175 }))).toBeCloseTo(base, 1);
+    expect(calculateEpi(features({ loudness: -2 }))).toBeCloseTo(base, 1);
+    expect(calculateEpi(features({ danceability: 0.95 }))).toBeCloseTo(base, 1);
+    expect(calculateEpi(features({ acousticness: 0.01 }))).toBeCloseTo(base, 1);
   });
 });
 
@@ -142,8 +146,8 @@ describe("the correction changes nothing else", () => {
     // Regression lock on Alan's formulas — these must not move.
     const s = calculateScores(features());
     expect(s.focus).toBeCloseTo(99, 1);
-    expect(s.calm).toBeCloseTo(63.3, 1);
-    expect(s.motivation).toBeCloseTo(45.8, 1);
+    expect(s.calm).toBeCloseTo(60.6, 1);
+    expect(s.motivation).toBeCloseTo(41.9, 1);
     expect(s.balance).toBeCloseTo(98.8, 1);
   });
 

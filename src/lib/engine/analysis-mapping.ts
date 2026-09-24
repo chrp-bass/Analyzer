@@ -23,7 +23,11 @@ export interface AnalyzePayload {
     artistName: string | null;
     artworkUrl: string | null;
   };
-  scores: { focus: number; calm: number; motivation: number; balance: number };
+  scores: {
+    focus: number; calm: number; motivation: number; balance: number;
+    performance: number; arousal: number; valence: number;
+    dominance: number; epi: number;
+  };
   epiScore: number;
   mode: string;
   circumplex: { valence: number; arousal: number };

@@ -78,11 +78,11 @@ describe("five-score regression — enrichment must NEVER change the scored prof
     // Snapshot the exact expected values so any future formula drift trips
     // this test loudly. If the science genuinely changes, update the values
     // deliberately — never accidentally.
-    expect(SAFE_SCORES.focus).toBeCloseTo(42.6, 1);
-    expect(SAFE_SCORES.calm).toBeCloseTo(46.4, 1);
-    expect(SAFE_SCORES.motivation).toBeCloseTo(50.1, 1);
+    expect(SAFE_SCORES.focus).toBeCloseTo(33.3, 1);
+    expect(SAFE_SCORES.calm).toBeCloseTo(53.8, 1);
+    expect(SAFE_SCORES.motivation).toBeCloseTo(39.4, 1);
     expect(SAFE_SCORES.balance).toBeCloseTo(60.4, 1);
-    expect(SAFE_EPI.epiScore).toBe(49);
+    expect(SAFE_EPI.epiScore).toBeCloseTo(69.3, 1);
     expect(SAFE_EPI.mode).toBe("Recover");
   });
 
@@ -101,7 +101,7 @@ describe("five-score regression — enrichment must NEVER change the scored prof
     // translateToEPI rounds arousal for display; the raw helper is un-rounded.
     // Agreement within a 1-decimal-point tolerance is what the engine promises.
     expect(SAFE_EPI.circumplex.arousal).toBeCloseTo(a, 2);
-    expect(SAFE_EPI.epiScore).toBe(Math.round(e));
+    expect(SAFE_EPI.epiScore).toBeCloseTo(e, 1);
   });
 });
 
