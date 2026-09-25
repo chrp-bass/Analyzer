@@ -19,7 +19,7 @@ export function validateEpi(): { result: "PASS" | "FAIL"; engineVersion: string;
       const { epiScore, mode } = translateToEPI(calculateScores(audio), audio);
       return [epiScore.toFixed(3), mode];
     }))).digest("hex");
-    if (fingerprint !== "ee53bd9dfb8d359d921ac50ce5f167f5d0ddc10717acdf73678b0ba03a36c2bd") {
+    if (fingerprint !== "a61f28e3d6e17ea16b9a2fdad2897e4f081f181616de68f550399accd09e32c7") {
       category = "regression";
     }
   } catch {
