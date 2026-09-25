@@ -20,10 +20,17 @@ describe("Song Where isolation", () => {
       "src/lib/reports", "src/lib/commerce", "src/lib/auth",
       "src/app/api/checkout", "src/app/api/stripe", "src/app/api/scan",
     ];
+    // The scan save and claim routes legitimately wire Song Where
+    // creator-brief matching into the persist flow. That single integration
+    // point is allowed; everything else stays isolated.
+    const allowed = new Set([
+      join(root, "src/app/api/scan/save/route.ts"),
+      join(root, "src/app/api/scan/claim/route.ts"),
+    ]);
     const visit = (path: string): string[] => readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
       entry.isDirectory() ? visit(join(path, entry.name)) : [join(path, entry.name)]);
     for (const path of protectedPaths) for (const file of visit(join(root, path))) {
-      if (!/\.[jt]sx?$/.test(file)) continue;
+      if (!/\.[jt]sx?$/.test(file) || allowed.has(file)) continue;
       expect(readFileSync(file, "utf8"), file).not.toMatch(/(?:from|import)\s*["'][^"']*song-where/);
     }
   });

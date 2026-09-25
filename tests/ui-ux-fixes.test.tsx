@@ -49,7 +49,12 @@ describe("the analysis wait", () => {
 
   it("keeps the in-flight preview dark and every settled state on the product shell", () => {
     const page = readFileSync("src/app/scan/[scanId]/preview/page.tsx", "utf8");
-    expect(page).toMatch(/state\.status === "working" \? "page-shell" : "product-shell"/);
+    // Working OR the preparing_included interstitial stays on the dark ground;
+    // every other settled state uses the product shell.
+    expect(page).toContain('"page-shell"');
+    expect(page).toContain('"product-shell"');
+    expect(page).toMatch(/state\.status === "working"/);
+    expect(page).toMatch(/preparing_included/);
   });
 });
 

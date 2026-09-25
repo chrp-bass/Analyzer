@@ -171,6 +171,7 @@ describe("saving prepares fulfillment but cannot grant paid access", () => {
         "@/lib/scan-id",
         "@/lib/scan/fulfillment.server",
         "@/lib/reports/prepare.server",
+        "@/lib/song-where/creator-brief.server",
         "@vercel/functions",
       ].sort(),
     );

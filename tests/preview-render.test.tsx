@@ -118,8 +118,11 @@ describe("the unpaid reveal (403)", () => {
       status: "settled",
       outcome: { kind: "reveal", free: free() },
     });
-    expect(html).toContain(free().free_statement);
-    expect(html).toContain("Preparing your report");
+    // SSR renders the RevealWait interstitial (useUnlockReadiness starts
+    // false), which shows the polygon, the engagement question and the
+    // "report is on its way" copy — NOT the full reveal with free_statement.
+    expect(html).toContain("Your report is on its way");
+    expect(html).toContain("EPI");
     for (const value of [
       paidSections().rhodes,
       paidSections().signature,

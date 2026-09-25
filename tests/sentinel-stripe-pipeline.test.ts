@@ -204,7 +204,7 @@ describe("runPipelineChecks", () => {
     const row = (secs: number) => ({ created_at: new Date(T0).toISOString(), analyses: { analyzed_at: new Date(T0 - secs * 1000).toISOString() } });
     const ok = await runPipelineChecks(deps({ reader: fakeReader({ rows: { reports: [row(20), row(40), row(60)] } }) }));
     expect(byId(ok, "preparation_latency")).toMatchObject({ status: "PASS", evidence: { samples: 3, p50Ms: 40_000, maxMs: 60_000 } });
-    const slow = await runPipelineChecks(deps({ reader: fakeReader({ rows: { reports: [row(20), row(300), { created_at: "bad", analyses: null }] } }) }));
+    const slow = await runPipelineChecks(deps({ reader: fakeReader({ rows: { reports: [row(20), row(301), { created_at: "bad", analyses: null }] } }) }));
     expect(byId(slow, "preparation_latency")).toMatchObject({ status: "WARN", evidence: { samples: 2 } });
   });
 

@@ -225,8 +225,8 @@ describe("buildUserMessage — the CHRISTIAN CONTEXT block is present in both st
       },
     });
     // Peer / native fluency instruction.
-    expect(msg).toContain("already in the room");
-    expect(msg).toContain("peer");
+    expect(msg).toContain("you are Christian");
+    expect(msg).toContain("fellow songwriter");
     // Anthropological framing must be explicitly named as wrong, so a
     // future regression that reintroduces "Within the Christian tradition"
     // to the prompt shows up here immediately.
@@ -428,7 +428,7 @@ describe("governor — permit changes what counts as a fabrication", () => {
 describe("CHRISTIAN_CONTEXT_LENS — the system prompt teaches native voice", () => {
   it("establishes Rhodes as a peer, not an outside observer", () => {
     expect(CHRISTIAN_CONTEXT_LENS).toContain("You are Christian");
-    expect(CHRISTIAN_CONTEXT_LENS).toContain("Speak naturally from inside it");
+    expect(CHRISTIAN_CONTEXT_LENS).toContain("peer to peer, professional, native");
   });
 
   it("explicitly prohibits anthropological outsider framing", () => {
