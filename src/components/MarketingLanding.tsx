@@ -210,16 +210,18 @@ function Hero() {
           <div className="si-hero-tick">
             <span />
             <p className="si-kicker" style={{ margin: 0 }}>
-              CHRP Song Intelligence
+              Built on real listener behavior
             </p>
           </div>
-          <h1>Know what your song does. Know where it belongs.</h1>
+          <h1>We already know what listeners feel. Now see what your song does to them.</h1>
           <p className="si-hero-lede">
-            Your song already creates an emotional response.
+            Since 2024, listeners across the U.S. have scored over 1.4 million
+            songs through the myCHRP app &mdash; building the largest real-time map
+            of how music makes people feel.
           </p>
           <p className="si-hero-lede">
-            CHRP helps you understand that response, see the moments it is
-            built for, and position the song with greater intelligence.
+            That signal, paired with music psychology and performance behavioral
+            science, is how we show you what your song does and where it belongs.
           </p>
           <HeroScanField />
         </div>
@@ -250,23 +252,22 @@ function Recognition() {
   return (
     <section className="si-sec si-rule-top">
       <div className="wrap">
-        <p className="si-kicker">You know the feeling</p>
+        <p className="si-kicker">We see it every day</p>
         <div className="si-split">
           <h2 className="si-h2" style={{ color: "var(--paper)" }}>
-            You know what the song feels like. Explaining it is harder.
+            Listeners already tell us what your song does. Now we can show you.
           </h2>
           <div className="si-split-prose">
             <p className="si-body">
-              Artists hear things other people cannot always name.
+              Every day, real listeners connect their music to the myCHRP app.
+              We see what songs do to focus, calm, motivation and balance &mdash;
+              not what people say about music, but what the music actually does
+              to them.
             </p>
-            <p className="si-body">
-              You know when a song feels urgent, reflective, cinematic,
-              restrained, explosive or unresolved. But when someone asks:
-            </p>
-            <p className="si-quote">What is this song really built for?</p>
+            <p className="si-quote">That pattern is not a theory. It is an observation.</p>
             <p className="si-body" style={{ marginTop: "clamp(20px,2.4vw,30px)" }}>
-              The answer often becomes genre, references and adjectives. CHRP
-              gives you another language.
+              CHRP turns that observation into intelligence you can use &mdash; for
+              one song or an entire catalog.
             </p>
           </div>
         </div>
@@ -283,7 +284,7 @@ function Statement() {
       <img src="/brand/graphics/hero-artist-aura.png" alt="" aria-hidden />
       <div aria-hidden className="scrim" />
       <div className="wrap">
-        <p>Not just what it sounds like. What it does.</p>
+        <p>1.4 million songs. Real listeners. Real emotion. Every day.</p>
       </div>
     </section>
   );
@@ -302,10 +303,10 @@ function Dimensions() {
             </h2>
           </div>
           <p className="si-body" style={{ maxWidth: "46ch", margin: 0 }}>
-            CHRP reads how strongly a song supports each one, then plots the
-            four together. That shape is your song&rsquo;s performance profile, and no
-            two are quite alike. Whichever dimension leads gives the song its
-            mode, and its colour.
+            We measure how strongly a song drives each one &mdash; not from a model,
+            but from the behavioral signal of real listeners using music every
+            day. That shape is your song&rsquo;s performance profile, and no
+            two are quite alike.
           </p>
         </div>
 
@@ -360,16 +361,16 @@ function Difference() {
             </p>
           </div>
           <div>
-            <p className="si-colhead si-colhead-strong">What CHRP adds</p>
+            <p className="si-colhead si-colhead-strong">What CHRP knows</p>
             <p className="si-epi-name">Emotional Performance Intelligence</p>
             <p className="si-colnote">
-              CHRP helps describe what the song is capable of doing to the
-              moment. The mechanics behind that stay behind the curtain.
+              Built from the behavioral signal of real listeners &mdash; what music
+              actually does to focus, calm, drive and balance, observed at scale.
             </p>
           </div>
           <div className="si-col-bottom">
             <p className="si-quote">
-              Audio features describe the music. CHRP helps describe the effect.
+              Audio features describe the music. Listeners showed us the effect.
             </p>
           </div>
         </div>
@@ -725,8 +726,22 @@ function Footer() {
           <a href="https://chrp.ai/terms">Terms</a>
           <Link href="/methodology">Methodology</Link>
         </div>
+        <a
+          href="https://apps.apple.com/us/app/mychrp/id6755405341"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="si-appstore"
+          style={{ display: "inline-block", marginTop: 12 }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/badges/app-store-badge.svg"
+            alt="Download myCHRP on the App Store"
+            style={{ height: 34 }}
+          />
+        </a>
         <span className="cr">
-          &copy; 2026 CHRP &middot; Let music move you.
+          &copy; 2026 CHRP &middot; The emotional pulse of music.
         </span>
       </div>
     </footer>
