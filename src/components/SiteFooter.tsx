@@ -24,7 +24,7 @@ export function SiteFooter() {
           <Link href="/methodology">Methodology</Link>
         </div>
         <span className="cr">
-          &copy; 2026 CHRP &middot; Let music move you.
+          &copy; 2026 CHRP &middot; The emotional pulse of music.
         </span>
       </div>
     </footer>
