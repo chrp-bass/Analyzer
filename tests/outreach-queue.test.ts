@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { runBatch, type BatchDeps } from "@/lib/outreach/batch-scan";
 import {
   runQueue,
+  LEASE_LOST,
   MAX_ATTEMPTS,
   type QueueDeps,
   type QueueOutcome,
@@ -41,6 +42,11 @@ interface Harness {
   recorded: Array<{ segment: string | null; status: string }>;
   logs: string[];
   clock: { t: number };
+  /** Row ids whose lease this run still holds. Starts as every leased row. */
+  held: Set<string>;
+  prepared: number;
+  /** Runs just before a row's item is recorded (after the paid preparation). */
+  beforeRecord?: (row: QueueRow) => void;
 }
 
 function harness(
@@ -52,12 +58,15 @@ function harness(
     scanMs?: number;
   } = {},
 ): Harness {
-  const h: Harness = { finished: [], released: [], recorded: [], logs: [], clock: { t: 0 }, deps: null as never };
+  const h: Harness = {
+    finished: [], released: [], recorded: [], logs: [], clock: { t: 0 }, deps: null as never,
+    held: new Set(rows.map((r) => r.id)), prepared: 0,
+  };
   const batchDeps = (row: QueueRow, setId: (id: string) => void): BatchDeps => ({
     search: opts.search ?? (async () => ({ ok: true, songs: [song()], provider: "spotify" })),
     findExisting: async () => null,
     newScanId: (isrc) => `scn_isrc-${isrc.toLowerCase()}_aaaaaa`,
-    prepare: async () =>
+    prepare: async () => (h.prepared += 1) &&
       opts.prepareFails
         ? { status: "failed", reason: "generation_failed", message: "", detail: "x", timings: [] }
         : { status: "ready", readiness: { scanId: "s", reportId: "r", reportVersion: "g", analysisId: "an_1" }, reused: false, timings: [] },
@@ -67,6 +76,9 @@ function harness(
       scores: { focus: 31, calm: 99, motivation: 30, balance: 61 }, reportPayload: REPORT,
     }),
     record: async (r) => {
+      // As production: a run that no longer holds the row records nothing.
+      h.beforeRecord?.(row);
+      if (!h.held.has(row.id)) throw new Error(LEASE_LOST);
       h.recorded.push({ segment: row.segment, status: r.status });
       if (r.status === "scored" || r.status === "no_quotable_finding") setId(`item-${row.id}`);
     },
@@ -92,6 +104,7 @@ function harness(
     release: async (r) => {
       h.released.push(r);
     },
+    holdsLease: async (r) => h.held.has(r.id),
     now: () => h.clock.t,
     sleep: async () => undefined,
     log: (line) => h.logs.push(line),
@@ -176,4 +189,29 @@ describe("the queue worker", () => {
     expect(h.released).toEqual([rows[2]]);
     expect(summary).toMatchObject({ claimed: 3, done: 2, released: 1 });
   });
+
+  it("a run that no longer holds its rows (a replayed or stale lease) does nothing to them", async () => {
+    const rows = [row(), row(), row()];
+    const h = harness(rows);
+    h.held.clear();
+    const summary = await runQueue(h.deps);
+    expect(h.prepared).toBe(0);
+    expect(h.recorded).toHaveLength(0);
+    expect(h.finished).toHaveLength(0);
+    expect(h.released).toHaveLength(0);
+    expect(summary).toMatchObject({ claimed: 3, done: 0, lost: 3 });
+    expect(h.logs[0]).toContain("lost=3");
+  });
+
+  it("a lease lost while a row is being prepared records no item and mints no claim link", async () => {
+    const r = row();
+    const h = harness([r]);
+    h.beforeRecord = (lostRow) => h.held.delete(lostRow.id);
+    const summary = await runQueue(h.deps);
+    expect(h.prepared).toBe(1);
+    expect(h.recorded).toHaveLength(0);
+    expect(h.finished).toHaveLength(0);
+    expect(summary).toMatchObject({ done: 0, retried: 0, lost: 1 });
+  });
 });
+

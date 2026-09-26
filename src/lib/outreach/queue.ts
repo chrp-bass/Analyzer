@@ -21,6 +21,11 @@ import type { BatchRun } from "@/lib/outreach/batch-scan";
  * their attempt returned. Every write is fenced on (status, attempts), so a
  * run that lost its lease can never overwrite the run that took it over.
  *
+ * A run also re-checks that it still holds the lease before it starts a row
+ * (so a run that lost it spends nothing) and before it records a scored item
+ * (so it never mints a second claim link). A lost row is left alone: it
+ * belongs to whichever run holds it now.
+ *
  * Pure module: every effect is an injected dependency.
  */
 
@@ -30,6 +35,8 @@ export const MAX_ATTEMPTS = 3;
 /** Stop STARTING rows after this; a started row is allowed to finish. */
 export const QUEUE_DEADLINE_MS = 240_000;
 export const QUEUE_PAUSE_MS = 1_000;
+/** The error a recorder throws when the lease is gone; see `QueueDeps.holdsLease`. */
+export const LEASE_LOST = "lease_lost";
 
 export interface QueueRow {
   id: string;
@@ -56,6 +63,8 @@ export interface QueueDeps {
    */
   scan(row: QueueRow, deadlineMs: number): Promise<{ run: BatchRun; itemId: string | null }>;
   finish(row: QueueRow, outcome: QueueOutcome): Promise<void>;
+  /** Is this row still processing, on this attempt, with an unexpired lease? */
+  holdsLease(row: QueueRow): Promise<boolean>;
   /** Back to pending, lease cleared, the attempt given back. */
   release(row: QueueRow): Promise<void>;
   now(): number;
@@ -72,6 +81,8 @@ export interface QueueRunSummary {
   failed: number;
   retried: number;
   released: number;
+  /** Rows this run no longer held when it came to start or record them. */
+  lost: number;
   soundcharts_lookups: number;
   budget_exhausted: boolean;
 }
@@ -86,7 +97,7 @@ export async function runQueue(deps: QueueDeps): Promise<QueueRunSummary> {
   const deadlineMs = deps.deadlineMs ?? QUEUE_DEADLINE_MS;
   const pauseMs = deps.pauseMs ?? QUEUE_PAUSE_MS;
   const summary: QueueRunSummary = {
-    claimed: 0, done: 0, skipped: 0, failed: 0, retried: 0, released: 0,
+    claimed: 0, done: 0, skipped: 0, failed: 0, retried: 0, released: 0, lost: 0,
     soundcharts_lookups: 0, budget_exhausted: false,
   };
 
@@ -112,11 +123,19 @@ export async function runQueue(deps: QueueDeps): Promise<QueueRunSummary> {
     if (i > 0) await deps.sleep(pauseMs);
 
     try {
+      if (!(await deps.holdsLease(row))) {
+        summary.lost += 1;
+        continue;
+      }
       const { run, itemId } = await deps.scan(row, Math.max(1, deadlineMs - (deps.now() - started)));
       summary.soundcharts_lookups += run.soundcharts_lookups;
       const item = run.items[0];
       if (!item) {
         await apply(row, retryOrFail(row, "no_result"));
+        continue;
+      }
+      if (item.status === "error" && item.reason === LEASE_LOST) {
+        summary.lost += 1;
         continue;
       }
       switch (item.status) {
@@ -156,7 +175,7 @@ export async function runQueue(deps: QueueDeps): Promise<QueueRunSummary> {
 
   deps.log(
     `[cron/outreach-queue] claimed=${summary.claimed} done=${summary.done} skipped=${summary.skipped} ` +
-      `failed=${summary.failed} retried=${summary.retried} released=${summary.released} ` +
+      `failed=${summary.failed} retried=${summary.retried} released=${summary.released} lost=${summary.lost} ` +
       `soundcharts_lookups=${summary.soundcharts_lookups}` +
       (summary.budget_exhausted ? " budget_exhausted=true" : ""),
   );
