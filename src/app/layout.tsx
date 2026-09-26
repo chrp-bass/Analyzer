@@ -30,10 +30,30 @@ const lato = Lato({
   display: "swap",
 });
 
+// Link previews (Instagram, iMessage, Slack, X). The card image, favicon and
+// Apple touch icon come from the file conventions in this folder:
+// opengraph-image.png, twitter-image.png, icon.png, apple-icon.png, favicon.ico.
+const SHARE_TITLE = "Song Analyzer by CHRP";
+const SHARE_DESCRIPTION =
+  "See what your song does to a listener. Your first full report is free.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://scan.chrp.ai"),
   title: "CHRP // Emotional Intelligence",
   description:
     "The objective commercial-creative feedback layer for working musicians.",
+  openGraph: {
+    type: "website",
+    siteName: "CHRP",
+    url: "https://scan.chrp.ai",
+    title: SHARE_TITLE,
+    description: SHARE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SHARE_TITLE,
+    description: SHARE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
