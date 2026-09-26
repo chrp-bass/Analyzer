@@ -394,7 +394,9 @@ describe("the finding", () => {
 
   it("rejects numbers, percentages, prices, fragments and banned claims", () => {
     expect(isQuotable("Calm sits at 99 while Focus sits near 30, a wide gap between them.")).toBe(false);
-    expect(isQuotable("Roughly half the profile is settledness, and half of it is drive.")).toBe(true);
+    expect(isQuotable("Roughly all of the profile is settledness, and none of it is drive here.")).toBe(true);
+    expect(isQuotable("The gap from the top pair down to Motivation is sixty points, which is wide.")).toBe(false);
+    expect(isQuotable("Roughly half the profile is settledness, and the rest of it is drive.")).toBe(false);
     expect(isQuotable("Nearly 40% of the architecture is settledness rather than drive here.")).toBe(false);
     expect(isQuotable("This is a commercial song built for the moment after the event happens.")).toBe(false);
     expect(isQuotable("It settles rather than activates and it doesn't ask for drive")).toBe(false);
@@ -450,6 +452,7 @@ describe("csv", () => {
     const [header, row] = csv.split("\r\n");
     expect(header.startsWith("artist,title,instagram,status")).toBe(true);
     expect(row).toContain("\"'=SUM(A1), \"\"quoted\"\"\"");
+    expect(row.startsWith("Arum Rae,What Happiness Is,@arumrae,")).toBe(true);
   });
 });
 

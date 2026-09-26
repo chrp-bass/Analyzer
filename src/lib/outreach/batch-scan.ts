@@ -419,8 +419,9 @@ function csvCell(value: unknown): string {
         : typeof value === "object"
           ? JSON.stringify(value)
           : String(value);
-  // A cell starting with =,+,-,@ would be executed by a spreadsheet.
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  // A cell starting with =, + or - would be evaluated by a spreadsheet.
+  // "@" is left alone so an Instagram handle pastes as typed.
+  const safe = /^[=+\-]/.test(text) ? `'${text}` : text;
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

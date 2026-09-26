@@ -39,6 +39,10 @@ const QUOTABLE_FIELDS = ["signature", "rhodes", "audience", "consider", "through
 const BANNED_TERMS =
   /\b(placements?|sync|sync-ready|hits?|viral|commercial(?:ly)?|guaranteed?|markets?|briefs?|supervisors?|campaigns?|pitch(?:es|ed)?|charts?|playlists?|streams?|streaming|radio|licens\w*|revenue|comparable|reminiscent|similar to|in the vein|sounds like)\b/i;
 
+/** A number written out is still a number: "a gap of sixty points". */
+const NUMBER_WORDS =
+  /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|half|third|quarter|percent|points?)\b/i;
+
 /** Sentences about the method rather than the song. Penalised, not banned. */
 const METHOD_TERMS = /\b(CHRP|EPI|scale|metric|measured?|scores?|scoring)\b/;
 
@@ -73,6 +77,7 @@ export function isQuotable(sentence: string): boolean {
   if (sentence.length < MIN_LENGTH || sentence.length > MAX_LENGTH) return false;
   if (/[\d%$]/.test(sentence)) return false;
   if (BANNED_TERMS.test(sentence)) return false;
+  if (NUMBER_WORDS.test(sentence)) return false;
   // A fragment, not a sentence.
   if (!/[.!?…]["”)]?$/.test(sentence)) return false;
   return true;
