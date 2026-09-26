@@ -15,6 +15,7 @@ import {
   runBatch,
   type BatchDeps,
   type BatchItemInput,
+  type BatchItemResult,
   type BatchRun,
   type ExistingWork,
   type PreparedSong,
@@ -37,7 +38,7 @@ import {
 const OUTREACH_EMAIL_ENV = "ADMIN_BATCH_CREATOR_EMAIL";
 const DEFAULT_OUTREACH_EMAIL = "outreach-batch@chrp.ai";
 
-type Db = ReturnType<typeof createAdminClient>;
+export type Db = ReturnType<typeof createAdminClient>;
 
 function outreachEmail(): string {
   return (process.env[OUTREACH_EMAIL_ENV] ?? DEFAULT_OUTREACH_EMAIL).trim().toLowerCase();
@@ -54,7 +55,7 @@ async function findOutreachCreator(db: Db): Promise<string | null> {
   return (data?.[0] as { id: string } | undefined)?.id ?? null;
 }
 
-async function ensureOutreachCreator(db: Db): Promise<string> {
+export async function ensureOutreachCreator(db: Db): Promise<string> {
   const existing = await findOutreachCreator(db);
   if (existing) return existing;
   const { data, error } = await db.auth.admin.createUser({
@@ -84,7 +85,7 @@ const search = createSongSearch({
   log: (line) => console.log(line.replace("[song-api/search]", "[admin/batch-scan]")),
 });
 
-function depsFor(db: Db, creatorId: string | null, dryRun: boolean): BatchDeps {
+export function depsFor(db: Db, creatorId: string | null, dryRun: boolean): BatchDeps {
   return {
     search,
     engineVersion: ENGINE_VERSION,
@@ -168,31 +169,50 @@ function depsFor(db: Db, creatorId: string | null, dryRun: boolean): BatchDeps {
 
     async record(row) {
       if (dryRun) return;
-      const { error } = await db.from("outreach_batch_items").insert({
-        batch_id: row.batch_id,
-        scan_id: row.scan_id,
-        analysis_id: row.analysis_id,
-        requested_artist: row.artist,
-        requested_title: row.title,
-        resolved_artist: row.resolved_artist,
-        resolved_title: row.resolved_title,
-        isrc: row.isrc,
-        instagram: row.instagram,
-        status: row.status,
-        reason: row.reason,
-        mode: row.mode,
-        epi_score: row.epi_score,
-        flow_score: row.flow,
-        ready_score: row.ready,
-        recharge_score: row.recharge,
-        recover_score: row.recover,
-        finding: row.finding,
-        finding_source: row.finding_source,
-        finding_candidates: row.finding_candidates,
-      });
-      if (error) throw error;
+      await insertBatchItem(db, row);
     },
   };
+}
+
+/**
+ * One outreach_batch_items row, as the batch writes it. `extra` carries the
+ * queue's own fields (segment, claim link); the admin endpoint passes none.
+ * Returns the new row's id.
+ */
+export async function insertBatchItem(
+  db: Db,
+  row: BatchItemResult & { batch_id: string },
+  extra: { segment?: string | null; claim_token?: string | null; claim_url?: string | null } = {},
+): Promise<string> {
+  const { data, error } = await db
+    .from("outreach_batch_items")
+    .insert({
+      batch_id: row.batch_id,
+      scan_id: row.scan_id,
+      analysis_id: row.analysis_id,
+      requested_artist: row.artist,
+      requested_title: row.title,
+      resolved_artist: row.resolved_artist,
+      resolved_title: row.resolved_title,
+      isrc: row.isrc,
+      instagram: row.instagram,
+      status: row.status,
+      reason: row.reason,
+      mode: row.mode,
+      epi_score: row.epi_score,
+      flow_score: row.flow,
+      ready_score: row.ready,
+      recharge_score: row.recharge,
+      recover_score: row.recover,
+      finding: row.finding,
+      finding_source: row.finding_source,
+      finding_candidates: row.finding_candidates,
+      ...extra,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
 }
 
 export async function runOutreachBatch(input: {
