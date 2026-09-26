@@ -10,6 +10,7 @@ import {
 } from "@/lib/outreach/batch-scan.server";
 import { claimSite } from "@/lib/outreach/claim";
 import {
+  LEASE_LOST,
   runQueue,
   type QueueDeps,
   type QueueRow,
@@ -29,7 +30,22 @@ export function newClaimToken(): string {
 }
 
 export function queueDeps(db: Db, creatorId: string): QueueDeps {
+  async function holdsLease(row: QueueRow): Promise<boolean> {
+    const { data, error } = await db
+      .from("outreach_queue")
+      .select("id")
+      .eq("id", row.id)
+      .eq("status", "processing")
+      .eq("attempts", row.attempts)
+      .gt("lease_until", new Date().toISOString())
+      .limit(1);
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
+  }
+
   return {
+    holdsLease,
+
     async lease(limit, leaseSeconds, maxAttempts) {
       const { data, error } = await db.rpc("claim_outreach_queue", {
         p_limit: limit,
@@ -48,6 +64,8 @@ export function queueDeps(db: Db, creatorId: string): QueueDeps {
           ...base,
           deadlineMs,
           async record(result) {
+            // A run that lost this row must not mint a second item or claim link.
+            if (!(await holdsLease(row))) throw new Error(LEASE_LOST);
             const recordable = result.status === "scored" || result.status === "no_quotable_finding";
             const token = recordable ? newClaimToken() : null;
             const id = await insertBatchItem(db, result, {

@@ -14,6 +14,9 @@ import {
 } from "@/lib/outreach/claim.server";
 
 export const dynamic = "force-dynamic";
+// Same reason as the claim routes: the claim state must never be a cached read.
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 export const metadata = {
   title: "CHRP // Your report",

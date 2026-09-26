@@ -4,6 +4,14 @@ import { runOutreachQueue } from "@/lib/outreach/queue.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/**
+ * A GET-only route handler in Next 14 defaults to revalidate=false even with
+ * force-dynamic, so every fetch inside it — Supabase reads, the lease RPC,
+ * upstream APIs — lands in the Data Cache and is REPLAYED on the next call.
+ * That replayed a stale lease and re-ran its rows. Never cache here.
+ */
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 /** The worker stops starting rows at 240s; a started row may run on. */
 export const maxDuration = 300;
 

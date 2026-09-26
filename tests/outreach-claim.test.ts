@@ -83,3 +83,19 @@ describe("GET /api/cron/outreach-queue", () => {
     expect(runOutreachQueue).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("the GET routes never serve a cached fetch", () => {
+  // Next 14 caches every fetch in a GET-only route handler unless told not
+  // to — which replayed a stale queue lease in production.
+  it("the cron route, the claim open route and the claim page opt out of the Data Cache", async () => {
+    const cron = await import("@/app/api/cron/outreach-queue/route");
+    const { readFileSync } = await import("node:fs");
+    expect(cron.fetchCache).toBe("force-no-store");
+    expect(cron.revalidate).toBe(0);
+    for (const file of ["src/app/claim/[token]/open/route.ts", "src/app/claim/[token]/page.tsx"]) {
+      const src = readFileSync(file, "utf8");
+      expect(src).toMatch(/export const fetchCache = "force-no-store";/);
+      expect(src).toMatch(/export const revalidate = 0;/);
+    }
+  });
+});
